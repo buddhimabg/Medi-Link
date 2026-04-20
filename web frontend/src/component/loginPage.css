@@ -1,0 +1,492 @@
+/* ==================== Login Container ==================== */
+.login-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #ffffff;
+  font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* ==================== Left Section - Blue ==================== */
+.login-left-section {
+  display: none;
+  width: 50%;
+  background: linear-gradient(135deg, #0052cc 0%, #001a99 100%);
+  border-radius: 0 60px 60px 0;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.login-tagline-wrapper {
+  text-align: center;
+  max-width: 400px;
+}
+
+.login-tagline {
+  font-size: 3.5rem;
+  font-style: italic;
+  color: #ffffff;
+  line-height: 1.2;
+  font-weight: 300;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+/* ==================== Right Section - Form ==================== */
+.login-right-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background-color: #ffffff;
+}
+
+.login-form-wrapper {
+  max-width: 450px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ==================== Header Section ==================== */
+.login-header {
+  margin-bottom: 2rem;
+}
+
+.login-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #0052cc;
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.3px;
+}
+
+.login-subtitle {
+  font-size: 1.125rem;
+  color: #666666;
+  font-style: italic;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ==================== Error Message ==================== */
+.login-error-message {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+/* ==================== Form Styling ==================== */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.login-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.login-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333333;
+  font-style: italic;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== Input Styling ==================== */
+.login-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-input {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background-color: #d3d3d3;
+  border: none;
+  border-radius: 1.25rem;
+  font-size: 1rem;
+  color: #333333;
+  transition: all 0.3s ease;
+  outline: none;
+  font-style: italic;
+  font-family: inherit;
+}
+
+.login-input::placeholder {
+  color: #888888;
+  font-style: italic;
+}
+
+.login-input:focus {
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.15);
+  background-color: #e8e8e8;
+}
+
+.login-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Password Toggle ==================== */
+.login-password-toggle {
+  position: absolute;
+  right: 1.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #888888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  transition: color 0.3s ease;
+}
+
+.login-password-toggle:hover:not(:disabled) {
+  color: #333333;
+}
+
+.login-password-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Form Footer (Remember & Forgot) ==================== */
+.login-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  gap: 1rem;
+}
+
+.login-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  color: #333333;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.login-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: #0052cc;
+  border: 2px solid #cccccc;
+  border-radius: 0.25rem;
+}
+
+.login-checkbox:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-forgot-password-btn {
+  background: none;
+  border: none;
+  color: #0052cc;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  padding: 0;
+  font-family: inherit;
+}
+
+.login-forgot-password-btn:hover:not(:disabled) {
+  color: #0040a3;
+}
+
+.login-forgot-password-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Submit Button ==================== */
+.login-submit-btn {
+  width: 100%;
+  padding: 1rem;
+  background-color: #0052cc;
+  color: #ffffff;
+  border: none;
+  border-radius: 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-family: inherit;
+  margin-top: 0.5rem;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+  background-color: #0040a3;
+  box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+}
+
+.login-submit-btn:active:not(:disabled) {
+  background-color: #002d7a;
+}
+
+.login-submit-btn:disabled {
+  background-color: #7fa8e8;
+  cursor: not-allowed;
+}
+
+/* ==================== Loading Spinner ==================== */
+.login-spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #ffffff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==================== Divider ==================== */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  color: #999999;
+  font-weight: 500;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: #d3d3d3;
+}
+
+/* ==================== Google Button ==================== */
+.login-google-btn {
+  width: 100%;
+  padding: 1rem;
+  background-color: #ffffff;
+  border: 2px solid #d3d3d3;
+  border-radius: 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-family: inherit;
+}
+
+.login-google-btn:hover:not(:disabled) {
+  border-color: #999999;
+  background-color: #f9f9f9;
+}
+
+.login-google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Sign Up Link ==================== */
+.login-signup-text {
+  text-align: center;
+  margin-top: 2rem;
+  color: #333333;
+  font-size: 0.95rem;
+}
+
+.login-signup-btn {
+  background: none;
+  border: none;
+  color: #0052cc;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  padding: 0;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.login-signup-btn:hover:not(:disabled) {
+  color: #0040a3;
+}
+
+.login-signup-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Responsive Design ==================== */
+
+/* Tablet & Larger Screens */
+@media (min-width: 1024px) {
+  .login-container {
+    min-height: 100vh;
+  }
+
+  .login-left-section {
+    display: flex;
+  }
+
+  .login-right-section {
+    width: 50%;
+    padding: 2rem;
+  }
+
+  .login-form-wrapper {
+    max-width: 400px;
+  }
+}
+
+/* Tablet */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .login-container {
+    min-height: 100vh;
+  }
+
+  .login-right-section {
+    padding: 2rem 1.5rem;
+  }
+
+  .login-title {
+    font-size: 2rem;
+  }
+
+  .login-tagline {
+    font-size: 2.5rem;
+  }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .login-container {
+    min-height: auto;
+    padding-bottom: 2rem;
+  }
+
+  .login-right-section {
+    padding: 1.5rem 1rem;
+    min-height: 100vh;
+  }
+
+  .login-form-wrapper {
+    max-width: 100%;
+  }
+
+  .login-title {
+    font-size: 1.75rem;
+  }
+
+  .login-subtitle {
+    font-size: 1rem;
+  }
+
+  .login-input {
+    padding: 0.875rem 1.25rem;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .login-form-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .login-form-footer > button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Extra Small Devices */
+@media (max-width: 480px) {
+  .login-form-wrapper {
+    padding: 0;
+  }
+
+  .login-title {
+    font-size: 1.5rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .login-submit-btn,
+  .login-google-btn {
+    padding: 0.875rem;
+    font-size: 1rem;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .login-container {
+    background-color: #1a1a1a;
+  }
+
+  .login-right-section {
+    background-color: #1a1a1a;
+  }
+
+  .login-title {
+    color: #4a9eff;
+  }
+
+  .login-subtitle {
+    color: #cccccc;
+  }
+
+  .login-input {
+    background-color: #333333;
+    color: #ffffff;
+  }
+
+  .login-input::placeholder {
+    color: #888888;
+  }
+
+  .login-checkbox-label {
+    color: #cccccc;
+  }
+
+  .login-signup-text {
+    color: #cccccc;
+  }
+
+  .login-google-btn {
+    background-color: #2a2a2a;
+    border-color: #444444;
+    color: #ffffff;
+  }
+
+  .login-google-btn:hover:not(:disabled) {
+    background-color: #333333;
+  }
+}
