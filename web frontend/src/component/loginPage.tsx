@@ -7,6 +7,7 @@ interface LoginProps {
   onGoogleSignIn?: () => Promise<void>;
   onForgotPassword?: () => void;
   onSignUp?: () => void;
+  onLoginSuccess?: (email: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({
@@ -14,6 +15,7 @@ const Login: React.FC<LoginProps> = ({
   onGoogleSignIn,
   onForgotPassword,
   onSignUp,
+  onLoginSuccess,
 }) => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
@@ -32,6 +34,10 @@ const Login: React.FC<LoginProps> = ({
     try {
       if (onSubmit) {
         await onSubmit();
+      }
+      // Call onLoginSuccess after successful login
+      if (onLoginSuccess) {
+        onLoginSuccess(email);
       }
     } catch (err) {
       setError(
