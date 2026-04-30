@@ -1,30 +1,79 @@
-// server.js
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-require('dotenv').config();
+// mood-backend/server.js
 
-// Initialize the Express app
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+require("dotenv").config();
+
+const connectDB = require("./config/db");
+
+const moodRoutes = require("./routes/moodRoutes");
+const moodFixRoutes = require("./routes/moodFixRoutes");
+const labReportRoutes = require("./routes/labReportRoutes");
+const biomarkerRoutes = require("./routes/biomarkerRoutes");
+const { errorHandler } = require("./middlewares/errorMiddleware");
+
+
+
+
 const app = express();
 
-// Middleware
-app.use(cors()); // Allows your React app to connect
-app.use(express.json()); // Allows your backend to understand JSON data from the frontend
+/* ==================
+   MIDDLEWARE
+================== */
+app.use(cors());
+app.use(express.json());
+app.use("/uploads", express.static(path.resolve("uploads")));
 
-// Database Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Successfully Connected!'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
-
-// A simple test route
-app.get('/', (req, res) => {
-  res.send('Welcome to the Medilink API!');
+/* ==================
+   ROUTES
+================== */
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Mood backend is running.",
+    docs:
+      "Use /api/moods, /api/mood-fix, /api/lab-reports, and /api/biomarkers endpoints for data.",
+  });
 });
 
-// Define the port (defaults to 5000 if not found in .env)
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: "ok",
+  });
+});
+
+app.use("/api/moods", moodRoutes);
+app.use("/api/mood-fix", moodFixRoutes);
+app.use("/api/lab-reports", labReportRoutes);
+app.use("/api/biomarkers", biomarkerRoutes);
+
+
+/* ==================
+   ERROR HANDLER
+================== */
+app.use(errorHandler);
+
+/* ==================
+   SERVER START
+================== */
 const PORT = process.env.PORT || 5000;
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+    });
+
+    connectDB().catch((error) => {
+      console.error("⚠️ MongoDB connection failed:", error.message);
+      console.error("   The API is still running, but database-backed routes will fail until the connection is fixed.");
+    });
+  } catch (error) {
+    console.error("❌ Server failed to start:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
