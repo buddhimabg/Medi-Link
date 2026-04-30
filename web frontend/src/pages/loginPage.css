@@ -10,7 +10,7 @@
 /* Left side blue banner */
 .login-banner {
   flex: 1;
-  background: linear-gradient(135deg, #1143f5 0%, #061c6b 100%);
+  background: linear-gradient(135deg, #0D47A1 0%, #061c6b 100%);
   border-top-right-radius: 40px;
   border-bottom-right-radius: 40px;
   display: flex;
@@ -50,7 +50,7 @@
 }
 
 .form-header .title {
-  color: #0d2c99;
+  color: #0D47A1;
   font-family: "Georgia", serif;
   font-size: 2rem;
   margin-bottom: 10px;
@@ -97,7 +97,7 @@
 }
 
 .input-group input:focus {
-  outline: 2px solid #1143f5;
+  outline: 2px solid #0D47A1;
   background-color: #e5e5e5;
 }
 
@@ -118,14 +118,14 @@
 }
 
 .forgot-password {
-  color: #1143f5;
+  color: #0D47A1;
   text-decoration: none;
 }
 
 .login-button {
   width: 100%;
   padding: 14px;
-  background-color: #1143f5;
+  background-color: #0D47A1;
   color: white;
   border: none;
   border-radius: 12px;
@@ -136,7 +136,7 @@
 }
 
 .login-button:hover {
-  background-color: #0d36c4;
+  background-color: #0D47A1;
 }
 
 .login-button:disabled {
@@ -192,7 +192,7 @@
 }
 
 .signup-link {
-  color: #1143f5;
+  color: #0D47A1;
   text-decoration: none;
   font-weight: 500;
 }

@@ -28,7 +28,7 @@
 }
 
 .navbar-logo .logo-blue {
-  color: #1047d1; /* Mockup's specific vibrant blue */
+  color: #0D47A1; /* Mockup's specific vibrant blue */
 }
 
 .navbar-links {
@@ -49,7 +49,7 @@
 }
 
 .navbar-links a:hover {
-  color: #1047d1;
+  color: #0D47A1;
 }
 
 .navbar-actions {
@@ -68,15 +68,15 @@
 }
 
 .btn-signin {
-  background-color: #123e93; /* Darker blue from the mockup's sign in button */
+  background-color: #0D47A1; /* Darker blue from the mockup's sign in button */
   color: white;
   border: none;
 }
 
 .btn-signup {
   background-color: transparent;
-  color: #123e93;
-  border: 1px solid #123e93;
+  color: #0D47A1;
+  border: 1px solid #0D47A1;
 }
 
 /* =========================================
@@ -97,8 +97,9 @@
 }
 
 .hero-content h1 {
+  font-family: 'Inter', sans-serif; /* This changes just this sentence */
   font-size: 4rem;
-  font-weight: 700;
+  font-weight: 650; /* Inter looks best slightly bolder */
   line-height: 1.1;
   margin-bottom: 20px;
   color: #111;
@@ -106,7 +107,7 @@
 }
 
 .hero-content .text-blue {
-  color: #1047d1; /* Bright blue for "We care" */
+  color: #0D47A1; /* Bright blue for "We care" */
 }
 
 .hero-content p {
@@ -119,7 +120,7 @@
 }
 
 .btn-book-appointment {
-  background-color: #123e93;
+  background-color: #0D47A1;
   color: white;
   border: none;
   padding: 16px 32px;
@@ -137,14 +138,52 @@
 .hero-image-wrapper {
   flex: 1;
   display: flex;
-  justify-content: flex-end;
-  position: relative;
+  justify-content: center;
+  align-items: center;
+  position: relative; /* This is crucial! It keeps the absolute images trapped inside this box */
+  min-height: 500px;
 }
 
+/* The Main Doctor (Top Layer) */
 .hero-image {
   width: 100%;
-  max-width: 500px;
+  max-width: 450px;
   object-fit: contain;
+  border-radius: 20px;
+  position: relative;
+  z-index: 3; /* Highest number = Front */
+ border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Shared styles for the background pictures */
+.hero-bg-image {
+  position: absolute; /* This pulls them out of normal flow so they can overlap */
+  border-radius: 20px;
+  object-fit: cover;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Furthest back picture */
+.hero-bg-1 {
+  width: 250px;
+  height: 350px;
+  top: 20px;
+  right: 0;
+  z-index: 1; /* Lowest number = Back */
+  transform: rotate(6deg); /* Gives it a cool tilted collage look */
+}
+
+
+
+/* Responsive fix for mobile so the background images hide neatly */
+@media (max-width: 768px) {
+  .hero-bg-1, .hero-bg-2 {
+    display: none;
+  }
 }
 
 /* =========================================
@@ -209,7 +248,7 @@
 }
 
 .search-bar-container {
-  background-color: #123e93; /* Navy blue block */
+  background-color: #0D47A1; /* Navy blue block */
   border-radius: 20px;
   padding: 35px 40px;
   display: flex;
@@ -265,7 +304,7 @@
    5. FOOTER
 ========================================= */
 .footer-section {
-  background-color: #123e93;
+  background-color: #0D47A1;
   color: white;
   padding: 60px 8% 30px;
 }
@@ -338,7 +377,7 @@
 .btn-newsletter {
   background: none;
   border: none;
-  color: #123e93;
+  color: #0D47A1;
   padding: 0 15px;
   cursor: pointer;
   display: flex;

@@ -11,6 +11,8 @@ import {
   Send,
 } from "lucide-react";
 import "./landingpage.css";
+import Doctor from "../assets/doctorLandingPage.png";
+import backgroundImage from "../assets/herobackground.png";
 
 const LandingPage: React.FC = () => {
   return (
@@ -59,14 +61,15 @@ const LandingPage: React.FC = () => {
           </button>
         </div>
         <div className="hero-image-wrapper">
-          {/* Using a placeholder for the 3D doctor illustration */}
-          <div className="hero-image-placeholder">
-            <img
-              src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=2070&auto=format&fit=crop"
-              alt="Doctor smiling"
-              className="hero-image"
-            />
-          </div>
+          {/* Background Image 2 (Middle layer) */}
+          <img
+            src={backgroundImage}
+            alt="Hospital room"
+            className="hero-bg-image hero-bg-2"
+          />
+
+          {/* Main Doctor Image (Front layer) */}
+          <img src={Doctor} alt="Doctor smiling" className="hero-image" />
         </div>
       </header>
 
