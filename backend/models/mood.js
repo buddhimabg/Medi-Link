@@ -65,6 +65,13 @@ const moodSchema = new mongoose.Schema(
     tags: {
       type: [String],
       default: []
+    },
+    mentalHealthScore: {
+      type: Number,
+      min: 0,
+      max: 10,
+      default: 5,
+      index: true // Index for efficient sorting/filtering by score
     }
   },
   {

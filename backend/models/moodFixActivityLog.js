@@ -64,16 +64,6 @@ const moodFixActivityLogSchema = new mongoose.Schema(
       type: Number,
       default: -1,
     },
-    feedback: {
-      type: String,
-      default: "",
-    },
-    rating: {
-      type: Number,
-      min: 1,
-      max: 5,
-      default: null,
-    },
     status: {
       type: String,
       enum: ["started", "completed"],

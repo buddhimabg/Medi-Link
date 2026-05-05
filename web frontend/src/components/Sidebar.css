@@ -1,0 +1,111 @@
+/* =========================
+   MAIN SIDEBAR CONTAINER
+========================= */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  background: #0D47A1;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+/* Expanded / collapsed width */
+.sidebar.expanded {
+  width: 256px;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+}
+
+/* Optional scroll shadow effect */
+.sidebar.scrolled {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* =========================
+   TOP SECTION (LOGO + BUTTON)
+========================= */
+.sidebar-top {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Logo */
+.logo {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+/* Collapse button */
+.collapse-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+/* =========================
+   NAVIGATION AREA
+========================= */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Each nav item */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+/* Hover effect */
+.nav-item:hover {
+  background: #0967FF;
+}
+
+/* Active link */
+.nav-item.active {
+  background: #0967FF;
+}
+
+/* Icon style */
+.icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Label text */
+.label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Badge counter */
+.badge {
+  margin-left: auto;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+/* =========================
+   BOTTOM SECTION
+========================= */
+.sidebar-bottom {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 16px;
+}

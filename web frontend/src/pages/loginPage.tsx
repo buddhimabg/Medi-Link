@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./loginPage.css";
+import { login } from "../api/authApi";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,33 +16,23 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 🔴 UPDATE THIS: PASTE BACKEND URL/ENDPOINT HERE
-      const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+      const data: any = await login({ email, password });
 
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store the token (if your backend sends one) or user data
-        localStorage.setItem("user", JSON.stringify(data));
-        // Navigate to the dashboard
-        navigate("/dashboard");
-      } else {
-        setError(
-          data.message || "Login failed. Please check your credentials."
-        );
+      if (data?.token) {
+        localStorage.setItem("authToken", data.token);
       }
+
+      if (data?.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        if (data.user.id) {
+          sessionStorage.setItem("userId", data.user.id);
+        }
+      }
+
+      navigate("/home");
     } catch (err) {
       console.error("Login Error details:", err); // Now 'err' is being used!
-      setError("Cannot connect to the server. Please try again later.");
+      setError((err as Error)?.message || "Cannot connect to the server. Please try again later.");
     } finally {
       setIsLoading(false);
     }

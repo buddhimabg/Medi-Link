@@ -1,0 +1,89 @@
+/* =========================
+   MAIN CARD CONTAINER
+========================= */
+.stats-card {
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+/* Hover effect */
+.stats-card:hover {
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+/* =========================
+   FLEX LAYOUT (ICON + TEXT)
+========================= */
+.stats-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* =========================
+   ICON WRAPPER (CIRCLE)
+========================= */
+.stats-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* #0C5BD5 at 14% opacity */
+  background: rgba(12, 91, 213, 0.14);
+  overflow: hidden;
+}
+
+/* =========================
+   INNER GRADIENT LAYER
+========================= */
+.stats-icon-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    to bottom right,
+    rgba(255,255,255,0.3),
+    transparent
+  );
+}
+
+/* =========================
+   ICON STYLE
+========================= */
+.stats-icon {
+  width: 24px;
+  height: 24px;
+  color: #0C5BD5;
+  position: relative;
+  z-index: 2;
+}
+
+/* =========================
+   TEXT AREA
+========================= */
+.stats-text {
+  flex: 1;
+}
+
+/* Title (small label) */
+.stats-title {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Value (big number) */
+.stats-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-top: 2px;
+}

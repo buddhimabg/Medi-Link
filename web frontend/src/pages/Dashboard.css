@@ -1,0 +1,168 @@
+/* Layout */
+.dashboard-container {
+  display: flex;
+  background: #f5f7fb;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  padding: 32px;
+  margin-left: 260px;
+  transition: all 0.3s ease;
+}
+
+.main.collapsed {
+  margin-left: 80px;
+}
+
+/* Center states */
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.error {
+  color: red;
+}
+
+/* Header */
+.header h1 {
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+}
+
+.header p {
+  color: #777;
+  margin-top: 5px;
+}
+
+/* Stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin: 30px 0;
+}
+
+/* Check-in card */
+.checkin-card {
+  background: rgba(12, 91, 213, 0.15);
+  padding: 20px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Buttons */
+.btn-primary {
+  background: black;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: #222;
+}
+
+.btn-secondary {
+  margin-top: 20px;
+  width: 100%;
+  background: #0c5bd5;
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Content */
+.content-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+/* Chart */
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-date {
+  width: 100px;
+  font-size: 14px;
+  color: #666;
+}
+
+.chart-bar-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: #eee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  background: #0c5bd5;
+  transition: 0.4s;
+}
+
+.chart-value {
+  width: 50px;
+  text-align: right;
+  font-size: 14px;
+}
+
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Toast */
+.toast-success {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: green;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 10px;
+}
+
+/* No data */
+.no-data {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+}

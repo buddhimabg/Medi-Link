@@ -23,7 +23,7 @@ const uploadAndAnalyzeReport = async (req, res) => {
       return res.status(400).json(apiFail("Please upload a PDF or image report file."));
     }
 
-    // Service layer handles analysis logic (clean separation of concerns)
+    // Service layer handles analysis logic 
     const report = await createLabReportAnalysis({
       userId,
       file: req.file,

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./RegisterPage.css";
+import { register } from "../api/authApi";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -32,28 +33,16 @@ const RegisterPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.fullName,
-          email: formData.email,
-          password: formData.password,
-          gender: formData.gender,
-          city: formData.city,
-          dob: formData.dob,
-        }),
+      await register({
+        name: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        gender: formData.gender,
+        city: formData.city,
+        dob: formData.dob,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // SUCCESS: The backend saved the user. Go to login!
-        navigate("/login");
-      } else {
-        // ERROR: Show the error from the backend (e.g. "Email already exists")
-        setError(data.message || "Registration failed.");
-      }
+      navigate("/login");
     } catch {
       setError(
         "Cannot connect to the server. Please ensure the backend is running."

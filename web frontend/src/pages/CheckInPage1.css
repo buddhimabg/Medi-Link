@@ -1,0 +1,196 @@
+.page-container {
+  display: flex;
+  background: #f9fafb;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  transition: all 0.3s;
+  padding: 2rem;
+}
+
+.main-content.collapsed {
+  margin-left: 5rem;
+}
+
+.main-content.expanded {
+  margin-left: 16rem;
+}
+
+/* Header */
+.header h1 {
+  font-size: 1.875rem;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.header p {
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+/* Progress */
+.progress-wrapper {
+  margin: 2rem 0;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #4b5563;
+}
+
+.progress-step {
+  color: #0C5BD5;
+  font-weight: 500;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 50%;
+  height: 100%;
+  background: #0C5BD5;
+}
+
+/* Card */
+.card {
+  background: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 1px solid #f3f4f6;
+}
+
+.card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Mood */
+.mood-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.mood-btn {
+  padding: 1.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 1rem;
+  transition: 0.3s;
+  background: white;
+  cursor: pointer;
+}
+
+.mood-btn:hover {
+  transform: scale(1.05);
+}
+
+.mood-btn.active {
+  border-color: #0C5BD5;
+  background: rgba(12, 91, 213, 0.05);
+}
+
+.emoji {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Note */
+.note-section {
+  margin-bottom: 2rem;
+}
+
+.note-section label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.note-section textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  outline: none;
+  resize: none;
+}
+
+.note-section textarea:focus {
+  border-color: #0C5BD5;
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 1.5rem;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.right-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.save-btn {
+  border: 1px solid #e5e7eb;
+  background: white;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.continue-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: none;
+}
+
+.continue-btn.enabled {
+  background: #0C5BD5;
+  color: white;
+}
+
+.continue-btn.disabled {
+  background: #d1d5db;
+  color: #6b7280;
+}
+
+/* Tip */
+.tip-card {
+  margin-top: 1.5rem;
+  background: rgba(12, 91, 213, 0.05);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  border: 1px solid rgba(12, 91, 213, 0.2);
+}
+
+.tip-card h3 {
+  font-weight: 500;
+}
+
+.tip-card p {
+  font-size: 0.875rem;
+  color: #6b7280;
+}

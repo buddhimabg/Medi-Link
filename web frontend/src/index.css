@@ -1,1 +1,18 @@
- 
+ /* Google Font */
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap");
+
+/* Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional global base styling */
+@layer base {
+  html {
+    font-family: "Nunito Sans", sans-serif;
+  }
+
+  body {
+    @apply bg-white text-gray-900 antialiased;
+  }
+}

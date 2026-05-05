@@ -6,6 +6,7 @@ const {
   startMoodFixActivity,
   completeMoodFixStep,
   completeMoodFixActivity,
+  saveMoodAfterFeedback,
 } = require("../controllers/moodFixController.js");
 const { asyncHandler } = require("../middlewares/errorMiddleware.js");
 
@@ -22,5 +23,8 @@ router.patch("/activities/:id/steps/:stepIndex", asyncHandler(completeMoodFixSte
 
 // Complete activity and submit mood after
 router.patch("/activities/:id/complete", asyncHandler(completeMoodFixActivity));
+
+// Save mood feedback after activity (frontend-only tracking)
+router.post("/feedback", asyncHandler(saveMoodAfterFeedback));
 
 module.exports = router;

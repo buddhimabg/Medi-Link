@@ -18,9 +18,10 @@ const formatNormalRange = (normalMin, normalMax, unit = "") => {
 };
 //get biomarker details for each marker in the report and add normal range info
 const hydrateReportMarkerRanges = async (report) => {
-  if (!report || !Array.isArray(report.markers) || report.markers.length === 0) {
-    return report;
-  }
+  try {
+    if (!report || !Array.isArray(report.markers) || report.markers.length === 0) {
+      return report;
+    }
 
   const markerNames = [...new Set(report.markers.map((marker) => marker?.name).filter(Boolean))];
   if (!markerNames.length) {
@@ -52,70 +53,89 @@ const hydrateReportMarkerRanges = async (report) => {
     };
   });
 
-  return {
-    ...report,
-    markers,
-  };
+    return {
+      ...report,
+      markers,
+    };
+  } catch (err) {
+    console.error("hydrateReportMarkerRanges error:", err);
+    throw new Error("Failed to hydrate report marker ranges.");
+  }
 };
 // Service function to handle report upload and analysis
 const createLabReportAnalysis = async ({ userId, file }) => {
-  if (!file) {
-    throw new Error("Report file is required.");
+  try {
+    if (!file) {
+      throw new Error("Report file is required.");
+    }
+
+    if (typeof parseAndAnalyzeMarkers !== "function") {
+      throw new Error("labReportAnalysisService is missing parseAndAnalyzeMarkers export.");
+    }
+
+    const extractedText = await extractTextFromReport({
+      filePath: file.path,
+      mimeType: file.mimetype,
+    });
+
+    const analysisResult = await parseAndAnalyzeMarkers(extractedText);
+    const {
+      overallScore,
+      summary,
+      analysisCoverage,
+      reportBiomarkers,
+      keyIssues,
+      markers,
+      recommendations,
+      confidence,
+    } = analysisResult || {};
+
+    const reportDoc = await LabReport.create({
+      userId,
+      filePath: file.path,
+      originalFileName: file.originalname,
+      extractedText,
+      markers,
+      overallScore,
+      confidence,
+      summary,
+      analysisCoverage,
+      reportBiomarkers,
+      keyIssues,
+      recommendations,
+      explanation: "This is not a medical diagnosis. Please consult a doctor.",
+    });
+
+    return reportDoc;
+  } catch (err) {
+    console.error("createLabReportAnalysis error:", err);
+    throw new Error("Failed to create lab report analysis.");
   }
-
-  if (typeof parseAndAnalyzeMarkers !== "function") {
-    throw new Error("labReportAnalysisService is missing parseAndAnalyzeMarkers export.");
-  }
-
-  const extractedText = await extractTextFromReport({
-    filePath: file.path,
-    mimeType: file.mimetype,
-  });
-
-  const analysisResult = await parseAndAnalyzeMarkers(extractedText);
-  const {
-    overallScore,
-    summary,
-    analysisCoverage,
-    reportBiomarkers,
-    keyIssues,
-    markers,
-    recommendations,
-    confidence,
-  } = analysisResult;
-
-  const reportDoc = await LabReport.create({
-    userId,
-    filePath: file.path,
-    originalFileName: file.originalname,
-    extractedText,
-    markers,
-    overallScore,
-    confidence,
-    summary,
-    analysisCoverage,
-    reportBiomarkers,
-    keyIssues,
-    recommendations,
-    explanation: "This is not a medical diagnosis. Please consult a doctor.",
-  });
-
-  return reportDoc;
 };
 
 // Fetch all reports for a user, with optional pagination
 const getLabReportHistory = async (userId) => {
-  const reports = await LabReport.find({ userId })
-    .sort({ createdAt: -1 })
-    .select("userId filePath originalFileName markers reportBiomarkers overallScore confidence summary analysisCoverage keyIssues recommendations explanation createdAt")
-    .lean();
+  try {
+    const reports = await LabReport.find({ userId })
+      .sort({ createdAt: -1 })
+      .select("userId filePath originalFileName markers reportBiomarkers overallScore confidence summary analysisCoverage keyIssues recommendations explanation createdAt")
+      .lean();
 
-  return reports;
+    return reports;
+  } catch (err) {
+    console.error("getLabReportHistory error:", err);
+    throw new Error("Failed to fetch lab report history.");
+  }
 };
 
 const getLabReportDetail = async (reportId) => {
-  const report = await LabReport.findById(reportId).lean();
-  return report;
+  try {
+    const report = await LabReport.findById(reportId).lean();
+    return report;
+  } catch (err) {
+    console.error("getLabReportDetail error:", err);
+    throw new Error("Failed to fetch lab report detail.");
+  }
 };
 //
 const toClientReport = (report) => {

@@ -2,39 +2,57 @@
 
 /**
  * SINGLE SOURCE OF TRUTH for all mood scoring calculations
- * Used by: moodService.js, dashboard stats, recovery scores, streak logic
  */
+
+// ==========================================
+// CONSTANTS
+// ==========================================
+
+const MOOD_ENUM = ["terrible", "sad", "okay", "good", "great"];
+
+const VALID_LEVELS = {
+  min: 1,
+  max: 10
+};
+
+// Unified mood score (0–100) — used everywhere
+const MOOD_SCORE_MAP_100 = {
+  terrible: 0,
+  sad: 40,
+  okay: 60,
+  good: 80,
+  great: 100
+};
+
+// Weights (normalized automatically later)
+const RECOVERY_WEIGHTS = {
+  sleep: 0.15,
+  anxiety: 0.15,
+  stress: 0.15,
+  energy: 0.12,
+  social: 0.07,
+  mood: 0.2
+};
+
+const NEGATIVE_IMPACT = 0.5;
+const NORMALIZATION_FACTOR = 0.75;
 
 // ==========================================
 // HELPERS
 // ==========================================
 
-/**
- * Convert mood text to numeric value
- */
 const getMoodValue = (mood) => {
-  const moodMap = {
-    terrible: 2,
-    sad: 4,
-    okay: 6,
-    good: 8,
-    great: 10
-  };
+  const score100 = MOOD_SCORE_MAP_100[mood?.toLowerCase()];
+  if (score100 === undefined) return 5;
 
-  return moodMap[mood?.toLowerCase()] ?? 5;
+  return score100 / 10; // convert to 0–10 scale
 };
 
-/**
- * Safe number conversion with fallback
- */
 const num = (v, def = 5) => {
   const n = Number(v);
   return isNaN(n) ? def : n;
 };
 
-/**
- * Format date to YYYY-MM-DD (local timezone)
- */
 const formatDate = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -46,9 +64,6 @@ const formatDate = (date) => {
 // CORE CALCULATION
 // ==========================================
 
-/**
- * Calculate mental health score (0–10)
- */
 const calculateMentalHealthScore = (m) => {
   const moodValue = getMoodValue(m.mood);
 
@@ -70,58 +85,72 @@ const calculateMentalHealthScore = (m) => {
 
   const negative = anxiety * 0.2 + stress * 0.15;
 
-  let score = (positive - negative * 0.5) / 0.75;
+  let score =
+    (positive - negative * NEGATIVE_IMPACT) / NORMALIZATION_FACTOR;
 
   score = Math.max(0, Math.min(10, score));
   return Number(score.toFixed(1));
 };
 
 // ==========================================
-// AGGREGATION FUNCTIONS
+// NORMALIZATION
 // ==========================================
 
-/**
- * Calculate recovery score (0–100)
- */
+const normalizeMetric = (value, min, max, inverse = false) => {
+  const clamped = Math.max(min, Math.min(max, value));
+  let score = ((clamped - min) / (max - min)) * 100;
+  return inverse ? 100 - score : score;
+};
+
+const calculateMoodScore = (mood) => {
+  return MOOD_SCORE_MAP_100[mood?.toLowerCase()] ?? 50;
+};
+
+// ==========================================
+// RECOVERY SCORE
+// ==========================================
+
+const calculateMoodRecoveryScore = (m) => {
+  const sleep = normalizeMetric(num(m.sleepLevel), 0, 10);
+  const anxiety = normalizeMetric(num(m.anxietyLevel), 0, 10, true);
+  const stress = normalizeMetric(num(m.stressLevel), 0, 10, true);
+  const energy = normalizeMetric(num(m.energyLevel), 0, 10);
+  const social = normalizeMetric(num(m.socialInteraction), 0, 10);
+  const moodScore = calculateMoodScore(m.mood);
+
+  const weighted =
+    sleep * RECOVERY_WEIGHTS.sleep +
+    anxiety * RECOVERY_WEIGHTS.anxiety +
+    stress * RECOVERY_WEIGHTS.stress +
+    energy * RECOVERY_WEIGHTS.energy +
+    social * RECOVERY_WEIGHTS.social +
+    moodScore * RECOVERY_WEIGHTS.mood;
+
+  // normalize weights
+  const totalWeight = Object.values(RECOVERY_WEIGHTS).reduce(
+    (a, b) => a + b,
+    0
+  );
+
+  const finalScore = weighted / totalWeight;
+
+  return Number(finalScore.toFixed(1));
+};
+
 const calculateRecoveryScore = (moods) => {
   if (!moods.length) return 0;
 
-  let good = 0;
-  let total = 0;
+  const scores = moods.map(calculateMoodRecoveryScore);
+  const avg =
+    scores.reduce((sum, score) => sum + score, 0) / scores.length;
 
-  moods.forEach((m) => {
-    const sleep = num(m.sleepLevel);
-    const anxiety = num(m.anxietyLevel);
-    const energy = num(m.energyLevel);
-    const social = num(m.socialInteraction);
-    const stress = num(m.stressLevel);
-    const mood = m.mood?.toLowerCase();
-
-    if (sleep >= 7) good++; 
-    total++;
-
-    if (anxiety <= 4) good++; 
-    total++;
-
-    if (energy >= 6) good++; 
-    total++;
-
-    if (social >= 5) good++; 
-    total++;
-
-    if (mood === "good" || mood === "great") good++; 
-    total++;
-
-    if (stress <= 4) good++; 
-    total++;
-  });
-
-  return Math.round((good / total) * 100);
+  return Math.round(avg);
 };
 
-/**
- * Calculate check-in streak
- */
+// ==========================================
+// STREAK
+// ==========================================
+
 const calculateCheckInStreak = (moods) => {
   if (!moods.length) return 0;
 
@@ -164,32 +193,18 @@ const calculateCheckInStreak = (moods) => {
   return streak;
 };
 
-/**
- * Mood to 0–100 scale
- */
+// ==========================================
+// OTHER UTILITIES
+// ==========================================
+
 const getMoodScore100 = (mood) => {
-  const map = {
-    terrible: 20,
-    sad: 40,
-    okay: 60,
-    good: 80,
-    great: 100
-  };
-
-  return map[mood?.toLowerCase()] ?? 60;
+  return MOOD_SCORE_MAP_100[mood?.toLowerCase()] ?? 60;
 };
 
-/**
- * Normalize 1–10 → 0–100
- */
 const normalize1to100 = (value) => {
-  const v = num(value, 5);
-  return v * 10;
+  return num(value, 5) * 10;
 };
 
-/**
- * Mental health trend score (0–100)
- */
 const calculateMentalHealthTrend = (m) => {
   const sleepScore = normalize1to100(m.sleepLevel);
   const energyScore = normalize1to100(m.energyLevel);
@@ -212,14 +227,11 @@ const calculateMentalHealthTrend = (m) => {
   return Number(Math.max(0, Math.min(100, weighted)).toFixed(1));
 };
 
-/**
- * 7-day average mental health score
- */
 const calculateSevenDayAverage = (moods) => {
   if (!moods.length) return 0;
 
   const validScores = moods
-    .map((m) => calculateMentalHealthScore(m))
+    .map((m) => m.mentalHealthScore || calculateMentalHealthScore(m))
     .filter((s) => s > 0);
 
   if (!validScores.length) return 0;
@@ -230,20 +242,6 @@ const calculateSevenDayAverage = (moods) => {
   return Number(avg.toFixed(1));
 };
 
-// ==========================================
-// CONSTANTS
-// ==========================================
-
-const MOOD_ENUM = ["terrible", "sad", "okay", "good", "great"];
-
-const VALID_LEVELS = {
-  min: 1,
-  max: 10
-};
-
-/**
- * Generic metric averaging (0–100)
- */
 const averageMetric100 = (items, fieldName) => {
   if (!items.length) return 0;
 
@@ -264,6 +262,10 @@ const averageMetric100 = (items, fieldName) => {
   const sum = values.reduce((a, b) => a + b, 0);
   return Number((sum / values.length).toFixed(1));
 };
+
+// ==========================================
+// EXPORTS
+// ==========================================
 
 module.exports = {
   calculateMentalHealthScore,

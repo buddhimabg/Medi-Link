@@ -44,7 +44,7 @@ const calculateMentalHealthScore = (m) => {
   return Number(score.toFixed(1));
 };
 
-// ✅ FIXED: Recovery score must use REAL moods (not averages)
+//  Recovery score use REAL moods (not averages)
 const calculateRecoveryScore = (moods) => {
   if (!moods.length) return 0;
 

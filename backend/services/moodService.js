@@ -3,6 +3,7 @@
 const Mood = require("../models/mood");
 const Insight = require("../models/insight");
 const { buildMoodInsights } = require("../utils/insightEngine");
+const FactorMeta = require("../models/FactorMeta");
 const {
   calculateMentalHealthScore,
   calculateRecoveryScore,
@@ -67,13 +68,20 @@ const hasEnhancedInsightShape = (insight) => {
 
 /* =====================================================
    CREATE MOOD ENTRY
-   Save mood record and calculate score
+   Calculate score BEFORE saving and store with document
 ===================================================== */
 const createMoodEntry = async (data) => {
-  const mood = new Mood(data);
-  const saved = await mood.save();
-
-  const mentalHealthScore = calculateMentalHealthScore(saved);
+  // Create temporary document to calculate score
+  const tempMood = new Mood(data);
+  
+  // Calculate score before saving
+  const mentalHealthScore = calculateMentalHealthScore(tempMood);
+  
+  // Add score to data
+  tempMood.mentalHealthScore = mentalHealthScore;
+  
+  // Save document with score
+  const saved = await tempMood.save();
 
   return { saved, mentalHealthScore };
 };
@@ -172,8 +180,9 @@ const getWeeklyChart = async (userId) => {
     if (grouped[dateStr]) {
       const entries = grouped[dateStr];
 
+      // Use stored mentalHealthScore instead of calculating
       const totalScore = entries.reduce((sum, mood) => {
-        return sum + calculateMentalHealthScore(mood);
+        return sum + (mood.mentalHealthScore || calculateMentalHealthScore(mood));
       }, 0);
 
       const average = totalScore / entries.length;
@@ -203,11 +212,26 @@ const getWeeklyChart = async (userId) => {
 
 /* =====================================================
    MOOD HISTORY
-   Returns all mood records
+   Returns mood records with optimized fields
 ===================================================== */
 const getMoodHistory = async (userId) => {
   const moods = await Mood.find({ userId })
     .sort({ createdAt: -1 })
+    .select({
+      mood: 1,
+      mentalHealthScore: 1,  // Get stored score (no calculation needed)
+      sleepLevel: 1,
+      anxietyLevel: 1,
+      energyLevel: 1,
+      motivationLevel: 1,
+      focusLevel: 1,
+      socialInteraction: 1,
+      stressLevel: 1,
+      note: 1,
+      tags: 1,
+      createdAt: 1,
+      // Exclude: shareWithDoctor (not needed for history display)
+    })
     .lean();
 
   return {
@@ -274,20 +298,26 @@ const getWeeklyInsights = async (userId) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  // Generate insights
-  const computed = buildMoodInsights(periodEntries, { now });
+  // Load factor meta from DB (if available) and generate insights
+  const metas = await FactorMeta.find({}).lean();
+  const factorMetaMap = metas.reduce((acc, m) => {
+    acc[m.key] = m;
+    return acc;
+  }, {});
+
+  const computed = buildMoodInsights(periodEntries, { now, factorMeta: factorMetaMap });
 
   const payload = {
     ...computed,
 
-    summary: computed.summary,
-    overallTrend: computed.overallTrend,
-    overallChange: computed.overallChange,
+    summary: computed.summary || computed.summaryText,
+    overallTrend: computed.overallTrend || computed.overallMoodTrend,
 
-    summaryText: computed.summary,
-    overallMoodTrend: computed.overallTrend,
-    moodTrend: computed.overallTrend,
-    moodChange: computed.overallChange,
+    summaryText: computed.summaryText || computed.summary,
+    overallMoodTrend: computed.overallMoodTrend || computed.overallTrend,
+    moodTrend: computed.overallMoodTrend || computed.overallTrend,
+    moodChange: computed.moodChange || computed.overallChange,
+    factorMeta: metas,
 
     userId,
     lastGeneratedDate: todayKey,
