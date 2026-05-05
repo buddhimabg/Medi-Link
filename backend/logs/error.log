@@ -1,0 +1,33 @@
+{"timestamp":"2026-05-04T10:26:38.190Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:26:53.412Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:27:09.953Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:28:50.687Z","level":"ERROR","message":"Create doctor error: connection <monitor> to 159.41.229.7:27017 timed out"}
+{"timestamp":"2026-05-04T10:36:27.237Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:36:52.695Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:37:01.113Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:37:02.095Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:38:24.208Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:38:25.845Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:38:26.414Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:38:27.068Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-04T10:38:27.770Z","level":"ERROR","message":"Create doctor error: User validation failed: name: Name must be at least 3 characters"}
+{"timestamp":"2026-05-05T08:46:03.579Z","level":"ERROR","message":"Get dashboard stats error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:03.587Z","level":"ERROR","message":"Get recent activity error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:03.597Z","level":"ERROR","message":"Get all patients error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:03.600Z","level":"ERROR","message":"Get patient statistics error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:11.313Z","level":"ERROR","message":"Get dashboard stats error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:11.317Z","level":"ERROR","message":"Get recent activity error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:11.523Z","level":"ERROR","message":"Get all patients error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:11.528Z","level":"ERROR","message":"Get patient statistics error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:16.334Z","level":"ERROR","message":"Get dashboard stats error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:16.356Z","level":"ERROR","message":"Get recent activity error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:16.552Z","level":"ERROR","message":"Get all patients error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:16.561Z","level":"ERROR","message":"Get patient statistics error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:22.663Z","level":"ERROR","message":"Get all doctors error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:27.453Z","level":"ERROR","message":"Get dashboard stats error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:27.477Z","level":"ERROR","message":"Get recent activity error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:27.688Z","level":"ERROR","message":"Get all doctors error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:32.503Z","level":"ERROR","message":"Get dashboard stats error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:32.510Z","level":"ERROR","message":"Get recent activity error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:35.204Z","level":"ERROR","message":"Get all doctors error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
+{"timestamp":"2026-05-05T08:46:40.826Z","level":"ERROR","message":"Get all doctors error: getaddrinfo ENOTFOUND ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net"}
