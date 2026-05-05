@@ -1,0 +1,14 @@
+/* src/components/Layout.css */
+.app-layout {
+  display: flex;
+  min-height: 100vh; /* Takes up the full height of the screen */
+  background-color: #f8fafd; /* Your application's main background color */
+  width: 100vw;
+  overflow: hidden; /* Prevents the whole page from bouncing */
+}
+
+.main-content {
+  flex: 1; /* Tells the right side to take up all remaining space */
+  overflow-y: auto; /* Allows your page content to scroll up and down independently */
+  position: relative;
+}

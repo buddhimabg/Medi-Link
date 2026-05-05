@@ -1,0 +1,135 @@
+/* Sidebar Container */
+.sidebar {
+  width: 280px;
+  height: 100vh;
+  background-color: #174eb6; /* Main MediLink Blue */
+  color: white;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, sans-serif;
+  box-sizing: border-box;
+}
+
+/* Header Section */
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.collapse-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.collapse-btn:hover {
+  opacity: 1;
+}
+
+/* Navigation Lists */
+.sidebar-nav {
+  flex: 1;  
+  padding: 20px 16px;
+  overflow-y: auto;  
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Space between links */
+}
+
+/* Individual Links */
+.nav-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nav-link-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-link .icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.8;
+}
+
+.nav-link .text {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* Hover and Active States */
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.nav-link.active {
+  background-color: #2b70fa;  
+  color: white;
+}
+
+.nav-link.active .icon {
+  opacity: 1;
+}
+
+/* Badges */
+.badge {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Logout Button specifics */
+.logout-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+ 
+.sidebar {   
+  padding-left: 10px;
+  width: 260px;  
+  min-height: 100vh;  
+  background-color: #1e56a0;  
+  flex-shrink: 0; 
+}

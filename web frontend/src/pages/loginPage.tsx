@@ -15,7 +15,6 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 🔴 UPDATE THIS: PASTE BACKEND URL/ENDPOINT HERE
       const API_URL =
         import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -30,9 +29,8 @@ const LoginPage: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store the token (if your backend sends one) or user data
         localStorage.setItem("user", JSON.stringify(data));
-        // Navigate to the dashboard
+
         navigate("/dashboard");
       } else {
         setError(
@@ -40,7 +38,7 @@ const LoginPage: React.FC = () => {
         );
       }
     } catch (err) {
-      console.error("Login Error details:", err); // Now 'err' is being used!
+      console.error("Login Error details:", err);
       setError("Cannot connect to the server. Please try again later.");
     } finally {
       setIsLoading(false);

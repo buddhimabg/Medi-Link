@@ -12,6 +12,8 @@ const moodFixRoutes = require("./routes/moodFixRoutes");
 const labReportRoutes = require("./routes/labReportRoutes");
 const biomarkerRoutes = require("./routes/biomarkerRoutes");
 const { errorHandler } = require("./middlewares/errorMiddleware");
+const authRoutes = require("./routes/authRoutes");
+const doctorRoutes = require("./routes/doctorRoutes");
 
 
 
@@ -48,6 +50,8 @@ app.use("/api/moods", moodRoutes);
 app.use("/api/mood-fix", moodFixRoutes);
 app.use("/api/lab-reports", labReportRoutes);
 app.use("/api/biomarkers", biomarkerRoutes);
+app.use("/api/auth", authRoutes);
+app.use('/api/doctors', require('./routes/doctorRoutes'));
 
 
 /* ==================
