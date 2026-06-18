@@ -3,6 +3,16 @@ const { apiSuccess, apiFail } = require("../utils/apiResponse.js");
 
 const DEFAULT_TIME_ZONE = "Asia/Colombo";
 
+const WEEKDAY_NAME_TO_INDEX = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
 const formatDateToYMD = (date) => date.toISOString().slice(0, 10);
 
 const formatDateToYMDInTimeZone = (date, timeZone) => {
@@ -22,6 +32,15 @@ const formatDateToYMDInTimeZone = (date, timeZone) => {
   }, {});
 
   return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+};
+
+const formatWeekdayToIndexInTimeZone = (date, timeZone) => {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+  }).format(date).toLowerCase();
+
+  return WEEKDAY_NAME_TO_INDEX[weekday.slice(0, 3)];
 };
 
 const DAY_NAME_TO_INDEX = {
@@ -126,6 +145,41 @@ const getReminderDisabledDates = (reminder) => (
     ? reminder.disabledDates.map((value) => String(value).trim()).filter(Boolean)
     : []
 );
+
+const isReminderDueToday = (reminder, referenceDate = new Date()) => {
+  if (!reminder) {
+    return false;
+  }
+
+  const timeZone = reminder.timezone || DEFAULT_TIME_ZONE;
+  const today = formatDateToYMDInTimeZone(referenceDate, timeZone);
+  const normalizedFrequency = normalizeFrequency(reminder.frequency);
+  const todayDayIndex = formatWeekdayToIndexInTimeZone(referenceDate, timeZone);
+
+  if (normalizedFrequency === "once") {
+    return toYmdDateString(reminder.date, timeZone) === today;
+  }
+
+  if (normalizedFrequency === "daily") {
+    return true;
+  }
+
+  if (normalizedFrequency === "weekly") {
+    return Array.isArray(reminder.daysOfWeek)
+      && reminder.daysOfWeek.includes(todayDayIndex);
+  }
+
+  if (normalizedFrequency === "specific") {
+    const specificDates = Array.isArray(reminder.specificDates)
+      ? reminder.specificDates
+      : reminder.customDates;
+
+    return Array.isArray(specificDates)
+      && specificDates.some((dateValue) => toYmdDateString(dateValue, timeZone) === today);
+  }
+
+  return false;
+};
 
 const buildScheduleFields = ({ source, timeZone, requireFrequency }) => {
   const frequency = normalizeFrequency(source?.frequency);
@@ -277,19 +331,52 @@ const buildReminderPayload = (req) => {
   const reminders = await Reminder.find({ userId })
     .sort({ createdAt: -1 })
     .lean();
+    // Ensure transient `isDisabledToday` flags don't persist beyond the day they were set.
+    // If `isDisabledToday` is true but the reminder was last updated on a previous day
+    // (in the reminder's timezone), clear the flag so the reminder becomes normal the next day.
+    const todayResetIds = [];
 
-  const remindersWithUiState = reminders.map((reminder) => {
-    const timeZone = reminder.timezone || DEFAULT_TIME_ZONE;
-    const todayDate = formatDateToYMDInTimeZone(new Date(), timeZone);
-    const disabledToday = Boolean(reminder.isDisabledToday)
-      || getReminderDisabledDates(reminder).includes(todayDate);
+    const remindersWithUiState = (await Promise.all(reminders.map(async (reminder) => {
+      const timeZone = reminder.timezone || DEFAULT_TIME_ZONE;
+      const todayDate = formatDateToYMDInTimeZone(new Date(), timeZone);
 
-    return {
-      ...reminder,
-      disabledToday,
-      status: disabledToday ? "skipped" : "pending",
-    };
-  });
+      // If flag is set, check whether it was set today in the same timezone.
+      let isDisabledFlag = Boolean(reminder.isDisabledToday);
+      if (isDisabledFlag) {
+        const updatedAt = reminder.updatedAt ? new Date(reminder.updatedAt) : null;
+        if (updatedAt) {
+          const updatedYmd = formatDateToYMDInTimeZone(updatedAt, timeZone);
+          if (updatedYmd !== todayDate) {
+            // stale flag — schedule to reset in DB and treat as not disabled for UI
+            todayResetIds.push(reminder._id);
+            isDisabledFlag = false;
+          }
+        } else {
+          // no updatedAt available — be conservative and reset the flag
+          todayResetIds.push(reminder._id);
+          isDisabledFlag = false;
+        }
+      }
+
+      const disabledToday = isDisabledFlag || getReminderDisabledDates(reminder).includes(todayDate);
+
+      return {
+        ...reminder,
+        disabledToday,
+        status: disabledToday ? "skipped" : "pending",
+      };
+    })));
+
+    if (todayResetIds.length > 0) {
+      // Bulk clear stale flags so subsequent requests see the correct state.
+      try {
+        await Reminder.updateMany({ _id: { $in: todayResetIds } }, { $set: { isDisabledToday: false } });
+      } catch (err) {
+        // don't fail the request if clearing flags fails; log for later debugging
+        // eslint-disable-next-line no-console
+        console.error('Failed to clear stale isDisabledToday flags:', err?.message || err);
+      }
+    }
 
   return res.json(
     apiSuccess(
@@ -378,16 +465,13 @@ const buildReminderPayload = (req) => {
   if (hasOwn(req.body, "disabledDates") || hasOwn(req.body, "isDisabledToday")) {
     const timeZone = updatedReminder.timezone || reminder.timezone || DEFAULT_TIME_ZONE;
     const todayDate = formatDateToYMDInTimeZone(new Date(), timeZone);
-    const hadTodayBefore = previousDisabledDates.includes(todayDate);
     const hasTodayAfter = getReminderDisabledDates(updatedReminder).includes(todayDate)
       || Boolean(updatedReminder.isDisabledToday);
 
-    if (!hadTodayBefore && hasTodayAfter) {
-      await Reminder.updateOne(
-        { _id: reminderId },
-        { $set: { isDisabledToday: true } }
-      );
-    }
+    await Reminder.updateOne(
+      { _id: reminderId },
+      { $set: { isDisabledToday: hasTodayAfter } }
+    );
   }
 
   return res.json(

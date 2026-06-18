@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { fetchReportById } from "../api/reportApi";
 import LabReportIcon from "../assets/LabReportIcon";
-import HealthScoreIcon from "../assets/HealthScoreIcon";
+// HealthScoreIcon unused after layout simplification
 import {
   downloadReportAsText,
   getReportDisplayName,
@@ -44,36 +44,30 @@ const getNormalRangeText = (marker: any) => {
   return "Unavailable";
 };
 
-const getScoreBand = (score: number | string) => {
-  const safeScore = Number(score || 0);
-  if (safeScore >= 80) {
-    return {
-      label: "Strong",
-      className: "bg-[#ECFDF3] text-[#15803D] border-[#86EFAC]",
-    };
+const getRangeStatusText = (marker: any) => {
+  const normalRange = getNormalRangeText(marker);
+  const value = marker.value ?? marker.observedValue ?? marker.actualValue;
+  const numericValue = Number(value);
+  const min = marker.normalMin ?? marker.ranges?.normalMin;
+  const max = marker.normalMax ?? marker.ranges?.normalMax;
+
+  if (typeof min === "number" && !Number.isNaN(numericValue) && numericValue < min) {
+    return "Below range";
   }
-  if (safeScore >= 60) {
-    return {
-      label: "Moderate",
-      className: "bg-[#FEFCE8] text-[#A16207] border-[#FDE68A]",
-    };
+  if (typeof max === "number" && !Number.isNaN(numericValue) && numericValue > max) {
+    return "Above range";
   }
-  return {
-    label: "Needs Attention",
-    className: "bg-[#FEF2F2] text-[#B91C1C] border-[#FCA5A5]",
-  };
+  if (normalRange !== "Unavailable") {
+    return "Within range";
+  }
+  return "Range unavailable";
 };
 
-const getBiomarkerCountSummary = (report: ReportData) => {
-  const totalFound = Number(report?.analysisCoverage?.available ?? report?.reportBiomarkers?.length ?? 0);
-  const matchedDatabase = Number(report?.analysisCoverage?.analyzed ?? 0);
+// score band helper removed (not used in simplified layout)
 
-  if (!totalFound) {
-    return "No biomarkers were detected in this report.";
-  }
+// legacy summary function removed in favor of StatsCard UI
 
-  return `${totalFound} biomarkers found in report • ${matchedDatabase} matched biomarker database`;
-};
+// removed getBiomarkerCounts helper; stats cards moved
 
 const ReportDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -171,46 +165,39 @@ const ReportDetailPage: React.FC = () => {
   }
 
   const visibleMarkers = getVisibleReportMarkers(report);
-  const scoreUI = getScoreBand(report.overallScore);
-  const scoreValue = Math.max(0, Number(report.overallScore || 0));
-  const scorePercent = Math.min(100, Math.round(scoreValue));
+  const scorePercent = Math.min(100, Math.round(Number(report.overallScore || 0)));
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
       <Sidebar activePage="Report Analysis" collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      <main className={`relative flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8 overflow-hidden`}>
-        <div className="pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-[#0C5BD5]/10 blur-3xl"></div>
-        <div className="pointer-events-none absolute top-1/3 -left-20 h-64 w-64 rounded-full bg-[#0C5BD5]/10 blur-3xl"></div>
-        <div className="pointer-events-none absolute bottom-0 right-1/4 h-56 w-56 rounded-full bg-[#0C5BD5]/5 blur-3xl"></div>
-
-        <div className="relative z-10 max-w-6xl mx-auto">
-          <button
-            onClick={() => navigate("/reports")}
-            className="text-sm text-[#0C5BD5] hover:text-[#0A4AB0] font-semibold mb-6 transition-all duration-200 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 border border-[#0C5BD5]/20 shadow-sm hover:shadow"
-          >
-            <span aria-hidden="true">←</span>
-            Back
-          </button>
-
-          <section className="mb-8 bg-linear-to-br from-[#0C5BD5]/10 via-white to-[#F8FBFF] border border-[#0C5BD5]/15 rounded-3xl p-6 shadow-[0_12px_34px_-24px_rgba(12,91,213,0.55)]">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+        <div className="max-w-6xl mx-auto space-y-6">
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-[#0C5BD5]/20"
-                    style={{ backgroundColor: THEME_BLUE_LIGHT }}
-                  >
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-[#0C5BD5]/20 bg-[#EFF6FF]">
                     <LabReportIcon className="w-7 h-7" style={{ color: THEME_BLUE }} />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{getReportDisplayName(report)}</h1>
-                    <p className="text-sm text-gray-500 mt-1">Last Updated: {new Date(report.createdAt).toLocaleDateString()}</p>
+                    <h1 className="text-3xl font-bold text-gray-800">{getReportDisplayName(report)}</h1>
+                    <p className="text-gray-500 mt-1">Last Updated: {new Date(report.createdAt).toLocaleDateString()}</p>
                   </div>
+                </div>
+
+                <p className="max-w-2xl text-sm md:text-base text-gray-600 leading-relaxed">
+                  A clear breakdown of the biomarkers in this report with the same simple card style used across the other pages.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-[#0C5BD5]/20 bg-[#EFF6FF] text-[#0A4AB0]">Report Overview</span>
+                  <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-gray-200 bg-white text-gray-600">Updated {new Date(report.createdAt).toLocaleDateString()}</span>
+                  <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-blue-100 bg-blue-50 text-blue-700">Health Score: {scorePercent}%</span>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 md:justify-end">
                 <button
                   type="button"
                   onClick={handleShare}
@@ -238,43 +225,17 @@ const ReportDetailPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#0C5BD5]/15 bg-white/85 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#0C5BD5]" aria-hidden="true"></span>
-              {getBiomarkerCountSummary(report)}
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-4 mt-6">
-              <div className="relative overflow-hidden bg-linear-to-br from-[#0C5BD5]/12 via-[#EAF2FF] to-white border border-[#0C5BD5]/20 rounded-2xl p-5">
-                <div className="absolute -top-8 -right-8 h-20 w-20 rounded-full bg-[#0C5BD5]/10"></div>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#0C5BD5]">Overall Health Score</p>
-                <div className="flex items-center gap-4 mt-4">
-                  <div className="relative w-24 h-24 rounded-full flex items-center justify-center shrink-0 shadow-sm" style={{ background: `conic-gradient(#0C5BD5 ${scorePercent * 3.6}deg, #E5E7EB ${scorePercent * 3.6}deg 360deg)` }}>
-                    <div className="w-20 h-20 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-[#0C5BD5]">{Math.round(scoreValue)}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Wellness Score</p>
-                    <p className="text-xs text-gray-500 mt-1">Out of 100</p>
-                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border mt-2 ${scoreUI.className}`}>
-                      {scoreUI.label}
-                    </span>
-                  </div>
-                </div>
+            <section className="mt-6 bg-[#EFF6FF] rounded-2xl p-5 border border-[#0C5BD533]">
+              <div className="flex flex-wrap gap-3 mb-5">
+                <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-[#0C5BD5]/20 bg-white text-[#0A4AB0]">Report</span>
+                <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-gray-200 bg-white text-gray-600">Last Updated: {new Date(report.createdAt).toLocaleDateString()}</span>
               </div>
 
-              <div className="bg-white border border-[#0C5BD5]/15 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: THEME_BLUE_LIGHT }}>
-                    <HealthScoreIcon className="w-4 h-4" style={{ color: THEME_BLUE }} />
-                  </div>
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-gray-600">Summary</h3>
-                </div>
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {report.summary || "No summary available for this report."}
-                </p>
+              <div className="report-summary-card">
+                <p className="text-xs uppercase tracking-wider text-[#0A4AB0] font-bold">Report Summary</p>
+                <p className="text-base font-semibold text-gray-800 mt-2">{report.summary || "No summary available for this report."}</p>
               </div>
-            </div>
+            </section>
           </section>
 
           {actionMessage ? (
@@ -288,9 +249,16 @@ const ReportDetailPage: React.FC = () => {
 
           <section>
             <div className="flex items-center gap-2 mb-5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: THEME_BLUE_LIGHT }}>
-                <svg className="w-4 h-4" style={{ color: THEME_BLUE }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 00-4-4H5m14 0h-1a4 4 0 00-4 4v2m-4 4h6a2 2 0 002-2v-3a6 6 0 10-12 0v3a2 2 0 002 2z" />
+              <div className="w-10 h-10 rounded-xl border border-white/80 shadow-sm  flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="4" y="13" width="3" height="7" rx="1.2" fill="#60A5FA" />
+                  <rect x="9" y="9" width="3" height="11" rx="1.2" fill="#34D399" />
+                  <rect x="14" y="11" width="3" height="9" rx="1.2" fill="#F59E0B" />
+                  <rect x="19" y="7" width="1" height="13" rx="0.5" fill="#F472B6" />
+                  <path d="M4 8.5C6.5 7 8.5 7.2 10.5 8.2C12.4 9.1 13.6 11.5 15.5 12.1C17.2 12.6 19 11.8 20 10.4" stroke="#0C5BD5" strokeWidth="1.6" strokeLinecap="round" />
+                  <circle cx="10.5" cy="8.2" r="1.05" fill="#0C5BD5" />
+                  <circle cx="15.5" cy="12.1" r="1.05" fill="#22C55E" />
+                  <circle cx="20" cy="10.4" r="1.05" fill="#F59E0B" />
                 </svg>
               </div>
               <h2 className="text-xl font-bold text-gray-900">Biomarker Results</h2>
@@ -306,11 +274,11 @@ const ReportDetailPage: React.FC = () => {
                   return (
                     <article
                       key={`${marker.name || marker.id || index}`}
-                      className="group rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-[#0C5BD5]/35 hover:shadow-md"
+                      className="report-marker-card group rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-[#0C5BD5]/35 hover:shadow-md"
                     >
                       <div className="p-5 md:p-6">
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] flex items-center justify-center shrink-0">
+                          <div className="report-marker-icon">
                             <svg className="w-5 h-5 text-[#0C5BD5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m-7 5h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
@@ -323,27 +291,32 @@ const ReportDetailPage: React.FC = () => {
                                 <p className="mt-1 text-xs uppercase tracking-wide text-gray-500 font-semibold">Biomarker</p>
                               </div>
 
-                              <span className={`inline-flex w-fit items-center px-3 py-1 rounded-full text-xs font-semibold border ${pillClass}`}>
+                              <span className={`report-status-pill inline-flex w-fit items-center px-3 py-1 rounded-full text-xs font-semibold border ${pillClass}`}>
                                 {statusLabel[marker.status] || statusLabel["not-found"]}
                               </span>
                             </div>
 
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                            <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_0.8fr] md:items-start">
+                              <div>
                                 <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Reference Range</p>
-                                <p className="mt-1 text-sm text-gray-800 font-semibold">{getNormalRangeText(marker)}</p>
+                                <p className="mt-1 text-sm md:text-base text-gray-800 font-semibold leading-relaxed">{getNormalRangeText(marker)}</p>
                               </div>
 
-                              <div className="rounded-lg border border-[#BFDBFE] bg-[#F8FBFF] px-3 py-2 sm:text-right">
+                              <div className="md:text-right">
                                 <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Current Value</p>
-                                <p className="mt-1 text-2xl font-bold text-[#0C5BD5] leading-none tracking-tight">
-                                  {markerValue}
-                                  <span className="text-sm ml-1.5 text-[#0C5BD5]/85 font-semibold">{markerUnit}</span>
-                                </p>
+                                <div className="mt-1 flex flex-wrap md:justify-end items-baseline gap-2">
+                                  <p className="text-xl md:text-2xl font-bold text-[#0C5BD5] leading-none tracking-tight">
+                                    {markerValue}
+                                    <span className="text-sm ml-1.5 text-[#0C5BD5]/85 font-semibold">{markerUnit}</span>
+                                  </p>
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border border-[#BFDBFE] bg-[#F8FBFF] text-[#0A4AB0]">
+                                    {getRangeStatusText(marker)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
-                            <div className="mt-4 rounded-lg border border-gray-100 bg-[#FAFCFF] p-3">
+                            <div className="mt-4 rounded-xl border border-gray-100 bg-[#FAFCFF] p-3">
                               <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Explanation</p>
                               <p className="text-sm text-gray-600 leading-relaxed">{marker.explanation}</p>
                             </div>
@@ -362,7 +335,7 @@ const ReportDetailPage: React.FC = () => {
           </section>
 
           <section className="mt-8 grid md:grid-cols-2 gap-6">
-            <div className="relative overflow-hidden bg-white rounded-2xl p-6 border border-[#0C5BD5]/15 shadow-sm">
+            <div className="report-recommendation-panel relative overflow-hidden bg-white rounded-2xl p-6 border border-[#0C5BD5]/15 shadow-sm">
               <div className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-linear-to-b from-[#0C5BD5] to-[#5FA0FF]"></div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: THEME_BLUE_LIGHT }}>
@@ -386,7 +359,7 @@ const ReportDetailPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="relative overflow-hidden bg-white rounded-2xl p-6 border border-[#0C5BD5]/15 shadow-sm">
+            <div className="report-recommendation-panel relative overflow-hidden bg-white rounded-2xl p-6 border border-[#0C5BD5]/15 shadow-sm">
               <div className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-linear-to-b from-[#0C5BD5] to-[#5FA0FF]"></div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: THEME_BLUE_LIGHT }}>

@@ -19,11 +19,8 @@ interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (value: boolean) => void;
   strictActive?: boolean;
-}
-
-interface CountState {
-  pendingRemindersCount: number;
-  unreadNotificationsCount: number;
+  pendingRemindersCount?: number;
+  unreadNotificationsCount?: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -31,12 +28,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   setCollapsed,
   strictActive = false,
+  pendingRemindersCount = 0,
+  unreadNotificationsCount = 0,
 }) => {
   const [scrolled, setScrolled] = useState(false);
-  const [counts, setCounts] = useState<CountState>({
-    pendingRemindersCount: 0,
-    unreadNotificationsCount: 0,
-  });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,17 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   /* =========================
-     LOAD NOTIFICATION COUNTS
-  ========================= */
-  useEffect(() => {
-    // TODO: Implement fetchReminderNotificationCounts when reminderApi.ts is created
-    setCounts({
-      pendingRemindersCount: 0,
-      unreadNotificationsCount: 0,
-    });
-  }, []);
-
-  /* =========================
      NAVIGATION DATA
   ========================= */
   const mainLinks = [
@@ -71,8 +55,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     { name: "Report Analysis", icon: ChartBarIcon, path: "/reports" },
     { name: "Mood Track", icon: UserIcon, path: "/dashboard" },
     { name: "Mood Fix", icon: UserIcon, path: "/mood-fix" },
-    { name: "Reminders", icon: ClockIcon, path: "/reminders", badgeCount: counts.pendingRemindersCount },
-    { name: "Notifications", icon: BellIcon, path: "/notifications", badgeCount: counts.unreadNotificationsCount },
+    { name: "Reminders", icon: ClockIcon, path: "/reminders", badgeCount: pendingRemindersCount },
+    { name: "Notifications", icon: BellIcon, path: "/notifications", badgeCount: unreadNotificationsCount },
     { name: "Journal Reading", icon: BookOpenIcon, path: "/journal" },
   ];
 

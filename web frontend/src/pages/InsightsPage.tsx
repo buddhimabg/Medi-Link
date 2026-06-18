@@ -242,7 +242,7 @@ const InsightsPage = () => {
               </div>
 
               <div className="bg-white rounded-xl p-5 border border-[#0C5BD533]">
-                <p className="text-xs uppercase tracking-wider text-[#0A4AB0] font-bold">This Week's Summary</p>
+                <p className="text-xs  tracking-wider text-[#0A4AB0] font-bold">This Week's Summary</p>
                 <p className="text-base font-semibold text-gray-800 mt-2">{summary}</p>
               </div>
             </section>
@@ -255,7 +255,7 @@ const InsightsPage = () => {
                     <AverageIcon className="w-6 h-6 text-green-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs uppercase tracking-wider font-bold text-gray-500">📈 Peak Day</p>
+                    <p className="text-xs  tracking-wider font-bold text-gray-500"> Peak Day</p>
                     <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(bestDay)}</p>
                   </div>
                 </div>
@@ -267,7 +267,7 @@ const InsightsPage = () => {
                     <RecoveryIcon className="w-6 h-6 text-red-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs uppercase tracking-wider font-bold text-gray-500">📉 Most Challenging</p>
+                    <p className="text-xs  tracking-wider font-bold text-gray-500"> Most Challenging</p>
                     <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(worstDay)}</p>
                   </div>
                 </div>
@@ -329,7 +329,7 @@ const InsightsPage = () => {
                     <InsightIcon className="w-5 h-5 text-[#0C5BD5]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs uppercase tracking-wider font-bold text-gray-500">
+                    <p className="text-xs  tracking-wider font-bold text-gray-500">
                       {dailyInsight?.date || "Recent"}
                     </p>
                     <p className="text-sm font-medium text-gray-800 mt-2">{dailyInsightMessage}</p>

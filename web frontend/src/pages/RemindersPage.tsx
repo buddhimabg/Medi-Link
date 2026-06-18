@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import StatsCard from "../components/StatsCard";
 import { getCurrentUserId } from "../config";
@@ -9,13 +9,12 @@ import {
   fetchReminders,
   updateReminder,
 } from "../api/reminderApi";
+import useReminderAutoRefresh from "../hooks/useReminderAutoRefresh";
 import {
   formatDateYMDInTimeZone,
-  getTodayReminders,
   getTodayYmdLocal,
-  normalizeDateString,
-  normalizeReminderFrequency,
 } from "../utils/reminderSchedule";
+import { getTodayReminders, isReminderOffToday } from "../utils/reminderHelpers";
 
 interface CategoryMeta {
   label: string;
@@ -144,23 +143,7 @@ const formatTime = (timeValue) => {
   });
 };
 
-const isReminderOffToday = (reminder) => {
-  return Boolean(reminder?.disabledToday || reminder?.isDisabledToday || reminder?.status === "skipped");
-};
-
-const getNormalizedDateList = (values, timeZone = "Asia/Colombo") => {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      values
-        .map((value) => normalizeDateString(value, timeZone))
-        .filter(Boolean)
-    )
-  ).sort();
-};
+// client-side date normalization removed - backend returns normalized fields
 
 const getInitialReminderForm = () => ({
   title: "",
@@ -254,7 +237,7 @@ const TotalRemindersIcon: React.FC<{ className?: string }> = ({ className = "" }
   </svg>
 );
 
-const PendingIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
+const ActiveIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
   <svg viewBox="0 0 24 24" fill="none" className={`w-5 h-5 text-[#0C5BD5] relative z-10 ${className}`} aria-hidden="true">
     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
     <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -295,70 +278,26 @@ const RemindersPage = () => {
     }
   };
 
-  useEffect(() => {
-    loadReminders();
-  }, []);
-
-  useEffect(() => {
-    const refreshReminders = () => {
-      loadReminders();
-    };
-
-    const intervalId = window.setInterval(refreshReminders, 30000);
-    window.addEventListener("focus", refreshReminders);
-    document.addEventListener("visibilitychange", refreshReminders);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshReminders);
-      document.removeEventListener("visibilitychange", refreshReminders);
-    };
-  }, [userId]);
+  useReminderAutoRefresh(loadReminders, {
+    intervalMs: 0,
+    refreshOnFocus: true,
+    refreshOnVisibility: true,
+    refreshOnMidnight: true,
+    initialRefresh: true,
+  });
 
   const todayReminders = useMemo(() => getTodayReminders(reminders), [reminders]);
 
   const counts = useMemo(() => {
-    const pending = todayReminders.filter((item) => item.status === "pending" && !isReminderOffToday(item)).length;
-    const completed = todayReminders.filter((item) => item.status === "completed").length;
     const offToday = todayReminders.filter((item) => isReminderOffToday(item)).length;
+    const active = todayReminders.length - offToday;
 
     return {
       total: todayReminders.length,
-      pending,
-      completed,
+      active,
       offToday,
     };
   }, [todayReminders]);
-
-  const updateReminderStatus = (reminderId, status) => {
-    setReminders((previous) => previous.map((item) => {
-      if (String(item._id) !== String(reminderId)) {
-        return item;
-      }
-
-      return {
-        ...item,
-        status,
-      };
-    }));
-  };
-
-  const updateReminderDetails = (reminderId, changes) => {
-    setReminders((previous) => previous.map((item) => {
-      if (String(item._id) !== String(reminderId)) {
-        return item;
-      }
-
-      return {
-        ...item,
-        ...changes,
-      };
-    }));
-  };
-
-  const removeReminderById = (reminderId) => {
-    setReminders((previous) => previous.filter((item) => String(item._id) !== String(reminderId)));
-  };
 
   const startBusyAction = (reminderId, actionName) => {
     setBusyActionKey(`${String(reminderId)}:${actionName}`);
@@ -372,23 +311,13 @@ const RemindersPage = () => {
 
   const openEditModal = (reminder) => {
     const reminderTimeZone = reminder.timezone || "Asia/Colombo";
-    const normalizedFrequency = normalizeReminderFrequency(reminder.frequency);
-    const prefilledSpecificDates = getNormalizedDateList(
-      Array.isArray(reminder.specificDates)
-        ? reminder.specificDates
-        : reminder.customDates,
-      reminderTimeZone
-    );
-    const prefilledDate = normalizeDateString(reminder.date, reminderTimeZone)
-      || prefilledSpecificDates[0]
-      || formatDateYMDInTimeZone(new Date(), reminderTimeZone);
-    const prefilledDays = Array.from(
-      new Set(
-        (Array.isArray(reminder.daysOfWeek) ? reminder.daysOfWeek : [])
-          .map((dayValue) => Number(dayValue))
-          .filter((dayValue) => Number.isInteger(dayValue) && dayValue >= 0 && dayValue <= 6)
-      )
-    ).sort((firstDay, secondDay) => firstDay - secondDay);
+    const prefilledSpecificDates = Array.isArray(reminder.specificDates)
+      ? reminder.specificDates
+      : (Array.isArray(reminder.customDates) ? reminder.customDates : []);
+    const prefilledDate = reminder.date || prefilledSpecificDates[0] || formatDateYMDInTimeZone(new Date(), reminderTimeZone);
+    const prefilledDays = Array.isArray(reminder.daysOfWeek)
+      ? reminder.daysOfWeek.map((d) => Number(d)).filter((v) => Number.isInteger(v) && v >= 0 && v <= 6).sort((a, b) => a - b)
+      : [];
 
     setEditingReminderId(String(reminder._id));
     setEditForm({
@@ -396,7 +325,7 @@ const RemindersPage = () => {
       description: reminder.description || "",
       category: reminder.category || "mood",
       time: reminder.time || "08:00",
-      frequency: normalizedFrequency,
+      frequency: reminder.frequency || "daily",
       date: prefilledDate,
       daysOfWeek: prefilledDays,
       specificDates: prefilledSpecificDates,
@@ -614,13 +543,8 @@ const RemindersPage = () => {
     startBusyAction("create", "new");
 
     try {
-      const response = await createReminder(payload, userId);
-      const createdReminder = response?.reminder;
-      if (createdReminder) {
-        setReminders((previous) => [createdReminder, ...previous]);
-      } else {
-        loadReminders();
-      }
+      await createReminder(payload, userId);
+      await loadReminders();
       closeCreateModal();
       setActionMessage("Reminder created.");
     } catch (requestError) {
@@ -652,7 +576,7 @@ const RemindersPage = () => {
     startBusyAction(reminderId, "toggle");
 
     try {
-      const response = await updateReminder(
+      await updateReminder(
         reminderId,
         {
           disabledDates: nextDisabledDates,
@@ -660,10 +584,21 @@ const RemindersPage = () => {
         userId
       );
 
-      updateReminderDetails(reminderId, {
-        disabledDates: response?.reminder?.disabledDates ?? nextDisabledDates,
-        disabledToday: shouldDisableToday,
-      });
+      setReminders((currentReminders) => currentReminders.map((currentReminder) => {
+        if (String(currentReminder._id) !== String(reminderId)) {
+          return currentReminder;
+        }
+
+        return {
+          ...currentReminder,
+          disabledDates: nextDisabledDates,
+          disabledToday: shouldDisableToday,
+          isDisabledToday: shouldDisableToday,
+          status: shouldDisableToday ? "skipped" : "pending",
+        };
+      }));
+
+      await loadReminders();
       setActionMessage(shouldDisableToday ? "Reminder turned off for today." : "Reminder turned on for today.");
     } catch (requestError) {
       setActionError(requestError.message || "Unable to update reminder.");
@@ -702,7 +637,7 @@ const RemindersPage = () => {
 
     try {
       await deleteReminder(reminderId, userId);
-      removeReminderById(reminderId);
+      await loadReminders();
       setActionMessage("Reminder deleted.");
     } catch (requestError) {
       setActionError(requestError.message || "Unable to delete reminder.");
@@ -750,22 +685,13 @@ const RemindersPage = () => {
     startBusyAction(editingReminderId, "edit");
 
     try {
-      const response = await updateReminder(
+      await updateReminder(
         editingReminderId,
         updatePayload,
         userId
       );
 
-      const nextReminder = response?.reminder;
-      updateReminderDetails(editingReminderId, {
-        title: nextReminder?.title ?? editForm.title,
-        description: nextReminder?.description ?? editForm.description,
-        time: nextReminder?.time ?? editForm.time,
-        frequency: nextReminder?.frequency ?? editForm.frequency,
-        date: nextReminder?.date ?? (editForm.frequency === "once" ? editForm.date : null),
-        daysOfWeek: nextReminder?.daysOfWeek ?? (editForm.frequency === "weekly" ? editForm.daysOfWeek : []),
-        specificDates: nextReminder?.specificDates ?? (editForm.frequency === "specific" ? selectedSpecificDates : []),
-      });
+      await loadReminders();
 
       closeEditModal();
       setActionMessage("Reminder updated.");
@@ -794,7 +720,13 @@ const RemindersPage = () => {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
-      <Sidebar activePage="Reminders" collapsed={collapsed} setCollapsed={setCollapsed} />
+      <Sidebar
+        activePage="Reminders"
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        pendingRemindersCount={counts.total}
+        unreadNotificationsCount={0}
+      />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
         <div>
@@ -817,8 +749,8 @@ const RemindersPage = () => {
 
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             <StatsCard icon={TotalRemindersIcon} title="Total Reminders" value={counts.total} />
-            <StatsCard icon={PendingIcon} title="Pending" value={counts.pending} />
             <StatsCard icon={OffTodayIcon} title="Off Today" value={counts.offToday} />
+            <StatsCard icon={ActiveIcon} title="Active" value={counts.active} />
           </div>
 
           {error && (
@@ -872,9 +804,9 @@ const RemindersPage = () => {
                           const isToggleBusy = isBusyAction(reminder._id, "toggle");
                           const isDeleteBusy = isBusyAction(reminder._id, "delete");
                           const isEditBusy = isBusyAction(reminder._id, "edit");
-                          const isPending = reminder.status === "pending";
                           const isDisabledToday = Boolean(reminder.disabledToday) || Boolean(reminder.isDisabledToday) || reminder.status === "skipped";
                           const isInactive = !reminder.isActive;
+                          const isScheduled = !isDisabledToday && !isInactive;
                           const isRowBusy = isToggleBusy || isDeleteBusy || isEditBusy;
 
                           const cardStateClass = isDisabledToday
@@ -883,7 +815,7 @@ const RemindersPage = () => {
                               ? "bg-white border-gray-200 shadow-sm opacity-90"
                               : "bg-white border-gray-100 shadow-sm hover:shadow-md";
 
-                          const statusLabel = isDisabledToday ? "Off Today" : isInactive ? "Paused" : "Pending";
+                          const statusLabel = isDisabledToday ? "Off Today" : isInactive ? "Paused" : "Scheduled";
                           const statusClass = isDisabledToday
                             ? "bg-slate-100 border-slate-300 text-slate-600"
                             : isInactive
@@ -916,7 +848,7 @@ const RemindersPage = () => {
                                       {formatTime(reminder.time)}
                                     </span>
                                     <span className={`text-sm ${isDisabledToday ? "text-slate-500" : "text-gray-700"}`}>{formatLabel(reminder.frequency)}</span>
-                                    {isPending && !isDisabledToday && (
+                                    {isScheduled && (
                                       <button
                                         type="button"
                                         onClick={() => handleToggleToday(reminder, true)}

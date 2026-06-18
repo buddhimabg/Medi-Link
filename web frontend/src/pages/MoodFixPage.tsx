@@ -46,6 +46,17 @@ const getTagClass = (tag) => {
   return tagClassMap[key] || "bg-gray-100 text-gray-700 border-gray-200";
 };
 
+const formatCompletedDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
 const MoodFixPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +69,7 @@ const MoodFixPage = () => {
   const [currentMood, setCurrentMood] = useState("okay");
   const [selectedMood, setSelectedMood] = useState("okay");
   const [completedIds, setCompletedIds] = useState([]);
+  const [completedMeta, setCompletedMeta] = useState({});
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [activeSidebarPage, setActiveSidebarPage] = useState("Mood Fix");
 
@@ -68,8 +80,15 @@ const MoodFixPage = () => {
       const raw = localStorage.getItem("moodfix-completed");
       const parsed = raw ? JSON.parse(raw) : [];
       if (Array.isArray(parsed)) setCompletedIds(parsed);
+
+      const metaRaw = localStorage.getItem("moodfix-completed-meta");
+      const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
+      if (metaParsed && typeof metaParsed === "object" && !Array.isArray(metaParsed)) {
+        setCompletedMeta(metaParsed);
+      }
     } catch {
       setCompletedIds([]);
+      setCompletedMeta({});
     }
   }, []);
 
@@ -271,6 +290,7 @@ const MoodFixPage = () => {
             <div className="space-y-3">
               {filteredActivities.map((activity) => {
                 const completed = completedIds.includes(activity.id);
+                const completedAtLabel = formatCompletedDate(completedMeta?.[activity.id]?.completedAt);
 
                 return (
                   <article
@@ -299,9 +319,16 @@ const MoodFixPage = () => {
                           </div>
                         )}
                         {completed && (
-                          <span className="inline-flex mt-2 px-2 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                            Completed
-                          </span>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                              Completed
+                            </span>
+                            {completedAtLabel && (
+                              <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-[#E8F0FF] text-[#0C5BD5] border border-[#B8D0FF]">
+                                Last done: {completedAtLabel}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

@@ -26,6 +26,25 @@ const formatTimer = (seconds) => {
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
+const splitTimer = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  return {
+    minutes: Math.floor(safe / 60),
+    seconds: safe % 60,
+  };
+};
+
+const formatCompletionDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
 const MoodFixActivityDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,7 +55,6 @@ const MoodFixActivityDetail = () => {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [completedDurationSeconds, setCompletedDurationSeconds] = useState(null);
   const [catalogActivities, setCatalogActivities] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -104,7 +122,6 @@ const MoodFixActivityDetail = () => {
     setTimerSeconds(estimatedMin * 60);
     setTimerRunning(false);
     setElapsedSeconds(0);
-    setCompletedDurationSeconds(null);
   }, [estimatedMin, activityId]);
 
   useEffect(() => {
@@ -159,12 +176,17 @@ const MoodFixActivityDetail = () => {
   const completedSteps = stepStatus.filter(Boolean).length;
   const totalSteps = activity.steps.length;
   const progressPct = Math.round((completedSteps / totalSteps) * 100);
-  const timeTakenLabel =
-    completedDurationSeconds !== null
-      ? formatTimer(completedDurationSeconds)
-      : elapsedSeconds > 0
-        ? formatTimer(elapsedSeconds)
-        : "Not started";
+  const timeTakenLabel = elapsedSeconds > 0 ? formatTimer(elapsedSeconds) : "Not started";
+  const timerParts = splitTimer(timerSeconds);
+  const completionDateLabel = formatCompletionDate(completedAt);
+
+  const updateTimer = (minutes, seconds) => {
+    const nextMinutes = Number(minutes);
+    const nextSeconds = Number(seconds);
+    const safeMinutes = Number.isFinite(nextMinutes) && nextMinutes > 0 ? nextMinutes : 0;
+    const safeSeconds = Number.isFinite(nextSeconds) && nextSeconds > 0 ? nextSeconds : 0;
+    setTimerSeconds(Math.max(0, safeMinutes * 60 + safeSeconds));
+  };
 
   const toggleStep = (index) => {
     setStepStatus((prev) => {
@@ -184,7 +206,6 @@ const MoodFixActivityDetail = () => {
     const now = Date.now();
     setCompletedAt(now);
     setTimerRunning(false);
-    setCompletedDurationSeconds(elapsedSeconds);
 
     try {
       const raw = localStorage.getItem("moodfix-completed");
@@ -193,6 +214,19 @@ const MoodFixActivityDetail = () => {
       if (!list.includes(activity.id)) {
         localStorage.setItem("moodfix-completed", JSON.stringify([...list, activity.id]));
       }
+
+      const metaRaw = localStorage.getItem("moodfix-completed-meta");
+      const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
+      const meta = metaParsed && typeof metaParsed === "object" && !Array.isArray(metaParsed) ? metaParsed : {};
+      localStorage.setItem(
+        "moodfix-completed-meta",
+        JSON.stringify({
+          ...meta,
+          [activity.id]: {
+            completedAt: new Date(now).toISOString(),
+          },
+        })
+      );
     } catch {
       // Ignore storage failures and continue with UI feedback.
     }
@@ -328,6 +362,30 @@ const MoodFixActivityDetail = () => {
                   <div className="rounded-2xl border border-[#0C5BD533] bg-[#F6F9FF] p-4">
                     <p className="text-xs text-gray-500">Guided Timer</p>
                     <p className="text-2xl font-bold text-[#0C5BD5] tracking-wide mt-1">{formatTimer(timerSeconds)}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="block text-[11px] font-medium text-gray-500 mb-1">Minutes</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={timerParts.minutes}
+                          onChange={(event) => updateTimer(event.target.value, timerParts.seconds)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#0C5BD5]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[11px] font-medium text-gray-500 mb-1">Seconds</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={timerParts.seconds}
+                          onChange={(event) => updateTimer(timerParts.minutes, event.target.value)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#0C5BD5]"
+                        />
+                      </label>
+                    </div>
                     <div className="flex flex-wrap gap-2 mt-3">
                       <button
                         onClick={() => setTimerRunning((prev) => !prev)}
@@ -336,17 +394,10 @@ const MoodFixActivityDetail = () => {
                         {timerRunning ? "Pause" : "Start"}
                       </button>
                       <button
-                        onClick={() => setTimerSeconds((prev) => prev + 60)}
-                        className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:border-[#0C5BD5]"
-                      >
-                        +1 min
-                      </button>
-                      <button
                         onClick={() => {
                           setTimerRunning(false);
                           setTimerSeconds(estimatedMin * 60);
                           setElapsedSeconds(0);
-                          setCompletedDurationSeconds(null);
                         }}
                         className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:border-[#0C5BD5]"
                       >
@@ -355,27 +406,48 @@ const MoodFixActivityDetail = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <label htmlFor="moodAfter" className="text-sm font-medium text-gray-700 block mb-2">
-                      Mood after activity
-                    </label>
-                    <input
-                      id="moodAfter"
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={moodAfter}
-                      onChange={(e) => setMoodAfter(Number(e.target.value))}
-                      className="w-full"
-                    />
-                    <p className="text-sm text-gray-600 mt-1">{moodAfter}/10 ({scoreToMoodLabel(moodAfter)})</p>
-                    <button
-                      onClick={completeActivity}
-                      className="mt-3 w-full px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"
-                    >
-                      Complete Activity
-                    </button>
-                  </div>
+                  
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <label className="text-sm font-medium text-gray-700 block mb-3">
+                        Mood after activity
+                      </label>
+                      <div className="grid grid-cols-5 gap-2 mb-3">
+                        {[
+                          { value: 2, label: 'Terrible', emoji: '😫' },
+                          { value: 4, label: 'Sad', emoji: '😔' },
+                          { value: 6, label: 'Okay', emoji: '😐' },
+                          { value: 8, label: 'Good', emoji: '🙂' },
+                          { value: 10, label: 'Great', emoji: '😊' }
+                        ].map((mood) => (
+                          <button
+                            key={mood.value}
+                            onClick={() => setMoodAfter(mood.value)}
+                            className={`flex flex-col items-center justify-center py-3 rounded-lg border-2 transition ${
+                              moodAfter === mood.value
+                                ? 'border-[#0C5BD5] bg-[#E8F1FF]'
+                                : 'border-gray-200 bg-white hover:border-[#0C5BD5]'
+                            }`}
+                            title={mood.label}
+                          >
+                            <span className="text-2xl mb-1">{mood.emoji}</span>
+                            <span className="text-xs font-medium text-gray-600">{mood.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600 text-center mb-3">{moodAfter}/10 ({scoreToMoodLabel(moodAfter)})</p>
+                      <button
+                        onClick={completeActivity}
+                        className="w-full px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"
+                      >
+                        Complete Activity
+                      </button>
+                      {completionDateLabel && (
+                        <p className="text-xs text-gray-500 text-center mt-3">
+                          Last done: {completionDateLabel}
+                        </p>
+                      )}
+                    </div>
 
                   <div className="rounded-xl border border-gray-100 bg-white p-4">
                     <h4 className="text-base font-semibold text-gray-900">Benefits</h4>

@@ -331,9 +331,9 @@ const ReportAnalysisPage = () => {
                           </div>
                         </div>
 
-                        <div className="flex flex-col gap-3 xl:min-w-[260px]">
+                        <div className="flex flex-col gap-3 xl:min-w-[26px]">
                           <div className="grid grid-cols-1 gap-2.5">
-                            <div className="rounded-xl border border-[#BCD0F5] bg-white p-2.5 text-right">
+                            <div className="rounded-xl border border-[#BCD0F5] bg-white p-5 text-right">
                               <p className="text-[11px] font-semibold text-gray-600">Health Score</p>
                               <p className="text-2xl font-bold text-gray-900 leading-tight">{report.overallScore || 0}</p>
                             </div>
