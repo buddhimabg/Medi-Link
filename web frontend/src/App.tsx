@@ -5,6 +5,8 @@ import LoginPage from "./pages/loginPage";
 import RegisterPage from "./pages/registerpage";
 import "./App.css";
 import Patientdashboard from "./pages/patientDashboard";
+import BookAppointment from "./pages/bookAppointment";
+import WellnessHub from "./pages/WellnessHub";
 
 const App: React.FC = () => {
   return (
@@ -16,6 +18,8 @@ const App: React.FC = () => {
 
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<Patientdashboard />} />
+        <Route path="/bookAppointment" element={<BookAppointment />} />
+        <Route path="/Wellnesshub" element={<WellnessHub />} />
       </Routes>
     </Router>
   );

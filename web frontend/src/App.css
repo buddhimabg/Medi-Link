@@ -1,1 +1,37 @@
- 
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+/* 1. Lock the master wrapper to the exact height of the screen */
+.dashboard-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh !important; /* Swapped from min-height to a strict locked height */
+  overflow: hidden; /* Kills the browser's main outer scrollbar entirely */
+}
+
+/* 2. Lock the Sidebar (targets the very first element inside the layout) */
+.dashboard-layout > :first-child {
+  height: 100vh;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  overflow-y: auto; /* See Pro-Tip below! */
+}
+
+/* 3. Turn the right side into its own independent scrolling viewport */
+.dashboard-main-content {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto; /* This creates the scrollbar strictly for the right side! */
+  overflow-x: hidden;
+}

@@ -1,0 +1,160 @@
+/* --- MEDILINK MODERN CLINICAL BOOKING STYLES --- */
+
+:root {
+  --canvas-bg: #f8fafc;
+  --surface-white: #ffffff;
+  --slate-900: #0f172a;
+  --slate-600: #475569;
+  --slate-400: #94a3b8;
+  --slate-100: #f1f5f9;
+  --slate-50:  #f8fafc;
+  
+  --brand-primary: #0284c7;
+  --brand-hover:   #0369a1;
+  --brand-surface: #f0f9ff;
+  --brand-tint:    #e0f2fe;
+}
+
+.booking-page-container {
+  padding: 32px 48px;
+  max-width: 1440px;
+  margin: 0 auto;
+  color: var(--slate-900);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--canvas-bg);
+  min-height: 100vh;
+  text-align: left;
+}
+
+/* Typography */
+.page-title-banner { margin-bottom: 28px; }
+.page-title-banner h1 { font-size: 2.2rem; font-weight: 700; color: var(--slate-900); margin: 0 0 6px 0; }
+.page-title-banner p { font-size: 1rem; color: var(--slate-600); margin: 0; }
+
+/* Search & Filter Box */
+.search-filter-box {
+  background: var(--surface-white);
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04);
+  margin-bottom: 28px;
+}
+
+.main-search-input { position: relative; display: flex; align-items: center; margin-bottom: 20px; }
+.main-search-input .search-icon { position: absolute; left: 18px; color: var(--slate-400); }
+.main-search-input input {
+  width: 100%;
+  padding: 15px 16px 15px 52px;
+  background-color: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: 14px;
+  font-size: 0.95rem;
+  color: var(--slate-900);
+  outline: none;
+  transition: all 0.2s;
+}
+.main-search-input input:focus { background-color: var(--surface-white); border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-surface); }
+.clear-search-btn { position: absolute; right: 16px; background: #e2e8f0; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+.filter-dropdowns-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.dropdown-group { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.dropdown-group label { font-size: 0.75rem; font-weight: 700; color: var(--slate-600); text-transform: uppercase; }
+.dropdown-group select { padding: 12px 14px; background-color: var(--slate-50); border: 1px solid var(--slate-100); border-radius: 12px; font-size: 0.9rem; outline: none; cursor: pointer; }
+
+.btn-reset-filters { padding: 0 18px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; height: 44px; cursor: pointer; font-weight: 600; color: var(--slate-700); display: flex; align-items: center; gap: 6px; }
+
+.results-subhead { font-size: 0.9rem; color: var(--slate-600); margin-bottom: 20px; }
+
+/* Grid & Cards */
+.doctors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
+}
+
+.doc-grid-card {
+  background: var(--surface-white);
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+}
+.doc-grid-card:hover { transform: translateY(-4px); border-color: #bae6fd; box-shadow: 0 12px 20px -8px rgba(2, 132, 199, 0.1); }
+
+.card-top-row { display: flex; gap: 16px; }
+.doc-card-avatar { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; border: 1px solid #edf2f7; background: #f7fafc; flex-shrink: 0; }
+.doc-card-info { flex: 1; min-width: 0; }
+
+.name-rating-flex { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.name-rating-flex h3 { font-size: 1.1rem; font-weight: 700; color: var(--slate-900); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rating-badge { background: #fef3c7; color: #d97706; font-size: 0.75rem; font-weight: 700; padding: 2px 6px; border-radius: 8px; display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+
+.doc-specialty { color: var(--brand-primary); font-size: 0.85rem; font-weight: 600; margin: 4px 0; }
+.doc-gender-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+
+.hospitals-preview { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--slate-600); margin-top: 14px; background: #f8fafc; padding: 8px 10px; border-radius: 8px; }
+.hosp-icon { color: var(--brand-primary); flex-shrink: 0; }
+
+.mode-pills-container { display: flex; gap: 8px; margin: 16px 0; }
+.mode-pill { flex: 1; background: #f1f5f9; padding: 8px; border-radius: 8px; font-size: 0.75rem; color: var(--slate-600); display: flex; align-items: center; gap: 4px; }
+.mode-pill span { font-weight: 700; color: var(--slate-900); }
+
+/* Buttons inside Card */
+.card-bottom-row.dual-btns { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+.btn-view-profile { flex: 1; background: #f1f5f9; color: var(--slate-700); border: none; padding: 10px; border-radius: 10px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: background 0.15s; }
+.btn-view-profile:hover { background: #e2e8f0; color: var(--slate-900); }
+.btn-open-book { flex: 1; background: var(--brand-surface); color: var(--brand-primary); border: none; padding: 10px; border-radius: 10px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.15s; }
+.btn-open-book:hover { background: var(--brand-primary); color: white; }
+
+/* Modals */
+ 
+
+  /* --- FIXED MODAL OVERLAYS --- */
+.modal-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 9999 !important;
+}
+
+.profile-detail-modal {
+  background: white !important;
+  width: 90% !important;
+  max-width: 600px !important;
+  max-height: 85vh !important;
+  border-radius: 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+.profile-modal-body {
+  padding: 24px 32px !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+}
+
+/* Ensure the Close Button is visible */
+.close-modal-btn {
+  background: #f1f5f9 !important;
+  border: none !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+}

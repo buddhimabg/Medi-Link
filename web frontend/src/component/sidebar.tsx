@@ -23,7 +23,7 @@ const Sidebar: React.FC = () => {
     { name: "Dashboard", path: "/dashboard", icon: <Home size={20} /> },
     {
       name: "Book Appointment",
-      path: "/book-appointment",
+      path: "/BookAppointment",
       icon: <Calendar size={20} />,
     },
     {

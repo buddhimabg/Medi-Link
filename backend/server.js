@@ -52,7 +52,8 @@ app.use("/api/lab-reports", labReportRoutes);
 app.use("/api/biomarkers", biomarkerRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/doctors', require('./routes/doctorRoutes'));
-
+ 
+app.use('/api/wellness', require('./routes/WellnessRoutes'));
 
 /* ==================
    ERROR HANDLER

@@ -23,8 +23,7 @@ interface Doctor {
 }
 
 const LandingPage: React.FC = () => {
-  //  SEARCH LOGIC & STATE
-
+  // SEARCH LOGIC & STATE
   const [nameQuery, setNameQuery] = useState("");
   const [specQuery, setSpecQuery] = useState("");
   const [hospQuery, setHospQuery] = useState("");
@@ -33,32 +32,36 @@ const LandingPage: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // --- NEW: Smooth Scroll Helper Function ---
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevents the page from refreshing when you click search
+    e.preventDefault();
     setIsLoading(true);
     setHasSearched(true);
 
     try {
-      // Build the URL based on which boxes the user filled out
       const queryParams = new URLSearchParams();
       if (nameQuery) queryParams.append("name", nameQuery);
       if (specQuery) queryParams.append("specialization", specQuery);
       if (hospQuery) queryParams.append("hospital", hospQuery);
 
-      // Fetch from the backend
       const response = await fetch(
         `http://localhost:5000/api/doctors/search?${queryParams.toString()}`
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch data");
-      }
+      if (!response.ok) throw new Error("Failed to fetch data");
 
       const data = await response.json();
-      setResults(data); // Save the matching doctors
+      setResults(data);
     } catch (error) {
       console.error("Search failed:", error);
-      setResults([]); // Clear results on error
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -71,17 +74,49 @@ const LandingPage: React.FC = () => {
         <div className="navbar-logo">
           <span className="logo-blue">Medi</span>Link
         </div>
+
+        {/* --- UPDATED: Navigation Links point to IDs now --- */}
+        {/* --- UPDATED: Navigation Links --- */}
         <ul className="navbar-links">
           <li>
-            <Link to="/">Home</Link>
+            <a
+              href="#hero-section"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("hero-section");
+              }}
+            >
+              Home
+            </a>
           </li>
           <li>
-            <Link to="/services">Services</Link>
+            <a
+              href="#services-section"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("services-section");
+              }}
+            >
+              Services
+            </a>
           </li>
           <li>
-            <Link to="/doctors">Doctors</Link>
+            <a
+              href="#doctors-section"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("doctors-section");
+              }}
+            >
+              Doctors
+            </a>
           </li>
+          {/* NEW: Wellness Hub Link routing to a new page */}
+          <li>
+            <Link to="/wellnessHub">Wellness Hub</Link>
+          </li>{" "}
         </ul>
+
         <div className="navbar-actions">
           <Link to="/login">
             <button className="btn-signin">Sign in</button>
@@ -92,8 +127,8 @@ const LandingPage: React.FC = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <header className="hero-section">
+      {/* Hero Section (Target 1: Home) */}
+      <header id="hero-section" className="hero-section">
         <div className="hero-content">
           <h1>
             <span className="text-blue">We care</span>
@@ -104,26 +139,25 @@ const LandingPage: React.FC = () => {
             Book appointments, consult doctors, and access your prescriptions
             securely all in one seamless platform
           </p>
-          <button className="btn-book-appointment">
-            Book an appointment
-            <Navigation size={18} className="btn-icon" />
-          </button>
+          <Link to="/login" style={{ textDecoration: "none" }}>
+            <button className="btn-book-appointment">
+              Book an appointment
+              <Navigation size={18} className="btn-icon" />
+            </button>
+          </Link>
         </div>
         <div className="hero-image-wrapper">
-          {/* Background Image 2 (Middle layer) */}
           <img
             src={backgroundImage}
             alt="Hospital room"
             className="hero-bg-image hero-bg-2"
           />
-
-          {/* Main Doctor Image (Front layer) */}
           <img src={Doctor} alt="Doctor smiling" className="hero-image" />
         </div>
       </header>
 
-      {/* Features Section */}
-      <section className="features-section">
+      {/* Features Section (Target 2: Services) */}
+      <section id="services-section" className="features-section">
         <h2 className="section-title">
           Everything You Need for Better Healthcare
         </h2>
@@ -179,8 +213,8 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Search/Filter Section */}
-      <section className="search-section-wrapper">
+      {/* Search/Filter Section (Target 3: Doctors) */}
+      <section id="doctors-section" className="search-section-wrapper">
         <form className="search-bar-container" onSubmit={handleSearch}>
           <div className="search-input-group">
             <label>Doctor name</label>
@@ -221,8 +255,7 @@ const LandingPage: React.FC = () => {
         </form>
       </section>
 
-      {/* 2. doctor name results */}
-
+      {/* Doctor Results */}
       {hasSearched && (
         <section
           className="search-results-container"
@@ -240,7 +273,6 @@ const LandingPage: React.FC = () => {
             </h3>
           )}
 
-          {/* If doctors  found, display them in a grid of cards */}
           <div
             style={{
               display: "grid",
@@ -259,7 +291,6 @@ const LandingPage: React.FC = () => {
                   boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
                 }}
               >
-                {/* Fallback Doctor Avatar */}
                 <img
                   src={
                     doctor.imageUrl ||
