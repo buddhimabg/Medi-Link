@@ -1,17 +1,16 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import "./loginPage.css";
+import { authApi, setToken } from "../types/api";
 
 interface LoginProps {
-  onSubmit?: () => Promise<void>;
   onGoogleSignIn?: () => Promise<void>;
   onForgotPassword?: () => void;
   onSignUp?: () => void;
-  onLoginSuccess?: (email: string) => void;
+  onLoginSuccess?: (email: string, role: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({
-  onSubmit,
   onGoogleSignIn,
   onForgotPassword,
   onSignUp,
@@ -28,20 +27,38 @@ const Login: React.FC<LoginProps> = ({
     e: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     e.preventDefault();
+
+    if (!email.trim() || !password.trim()) {
+      setError("Email සහ Password ඇතුළත් කරන්න.");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
     try {
-      if (onSubmit) {
-        await onSubmit();
+      // ✅ Real API call — backend /api/auth/login
+      const { token, user } = await authApi.login(email, password);
+
+      // JWT token localStorage ලේ save කරනවා
+      setToken(token);
+
+      // Remember me — user info save කරනවා (auto re-login සඳහා)
+      if (rememberMe) {
+        localStorage.setItem("medilink_user", JSON.stringify({ email, password }));
+      } else {
+        localStorage.removeItem("medilink_user");
       }
-      // Call onLoginSuccess after successful login
-      if (onLoginSuccess) {
-        onLoginSuccess(email);
-      }
+
+      // User info save කරනවා (name, role etc. sidebar/topbar සඳහා)
+      localStorage.setItem("medilink_user_info", JSON.stringify(user));
+
+      // App.tsx ට notify කරනවා — role pass කරනවා
+      onLoginSuccess?.(email, user.role);
+
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Login failed. Please try again."
+        err instanceof Error ? err.message : "Email හෝ Password වැරදියි. නැවත උත්සාහ කරන්න."
       );
     } finally {
       setIsLoading(false);

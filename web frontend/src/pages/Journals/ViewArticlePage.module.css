@@ -1,0 +1,63 @@
+.page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.layout { display: flex; flex: 1; overflow: hidden; }
+.sidebarContainer { height: 100%; flex-shrink: 0; }
+
+.main { 
+  flex: 1; 
+  padding: 30px; 
+  background: #f1f5f9; 
+  overflow-y: auto; /* සම්පූර්ණ පිටුවම scroll කිරීමට */
+}
+
+.viewLayout {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.articleViewCard {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 1000px; /* Word document එකකට ගැළපෙන පළල */
+  min-height: 80vh;
+}
+
+.articleViewTitle {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #1e293b;
+}
+
+/* docx එක පෙන්වන කොටස සඳහා styles */
+.docViewer {
+  margin-top: 20px;
+  padding: 10px;
+  background: #fafafa;
+  border: 1px solid #e2e8f0;
+  min-height: 600px;
+  overflow-x: auto; /* පසෙකට scroll වීමට ඉඩ දෙයි (අවශ්‍ය නම්) */
+}
+
+/* docx-preview එකෙන් එන පන්ති (Classes) සඳහා styles */
+.docViewer :global(.docx-wrapper) {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.docViewer :global(.docx) {
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
+}
+
+.backLink {
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 20px;
+}

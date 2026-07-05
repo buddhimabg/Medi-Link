@@ -1,215 +1,357 @@
 // src/hooks/useVideoCall.ts
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { videoApi } from '../api'
+import { useNavigate } from 'react-router-dom'
+import { io, Socket } from 'socket.io-client'
+import {
+  videoApi, authApi, setToken, getToken,
+  appointmentApi, patientHistoryApi, chatApi,
+} from '../types/api'
+import type {
+  Medication as ApiMedication,
+  QueuePatient,
+  PatientHistoryRecord,
+  ConversationMessage,
+} from '../types/api'
 import type { CallData, Medication, NewMedication, ChatMessage } from '../types/videoCall'
 
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:5000'
+const POLL_INTERVAL_MS = 3000
+
 export const Step = {
-  PRE_CALL_SETUP  : 0,
-  WAITING_ROOM    : 1,
-  PATIENT_HISTORY : 2,
-  CONNECTING      : 3,
-  LIVE_CALL       : 4,
-  SCREEN_SHARE    : 5,
-  PRESCRIPTION    : 6,
-  END_SESSION     : 7,
-  SUMMARY         : 8,
+  PRE_CALL_SETUP: 0,
+  WAITING_ROOM: 1,
+  PATIENT_HISTORY: 2,
+  CONNECTING: 3,
+  LIVE_CALL: 4,
+  SCREEN_SHARE: 5,
+  PRESCRIPTION: 6,
+  END_SESSION: 7,
+  SUMMARY: 8,
 } as const
 
 export type Step = typeof Step[keyof typeof Step]
 
 export function useVideoCall(sessionId: string) {
-
+  const navigate = useNavigate()
   const [step, setStep] = useState<Step>(Step.PRE_CALL_SETUP)
+  
+  // මෙම flag එක මගින් cancel කිරීමෙන් පසු කිසිදු ක්‍රියාවලියක් සිදුවීම වළක්වයි
+  const isCancelledRef = useRef(false)
 
-  // ── Device check ──────────────────────────────────────────
-  const [camOk,    setCamOk]    = useState(false)
-  const [micOk,    setMicOk]    = useState(false)
+  // States
+  const [camOk, setCamOk] = useState(false)
+  const [micOk, setMicOk] = useState(false)
   const [checking, setChecking] = useState(false)
-
-  // ── Call data ─────────────────────────────────────────────
   const [callData, setCallData] = useState<CallData | null>(null)
-  const [loading] = useState(false)
-  const [apiError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [inviteSent, setInviteSent] = useState(false)
 
-  // ── Timer ─────────────────────────────────────────────────
-  const [duration, setDuration] = useState(0)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryNotes, setSummaryNotes] = useState('')
+  const [summaryRxList, setSummaryRxList] = useState<NewMedication[]>([])
+  const [queueLoaded, setQueueLoaded] = useState(false)
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // MODIFICATION: handleJoinCall's auto-transition-to-LIVE_CALL timeout is now tracked
+  // so it can be cancelled if the doctor clicks "Cancel & Go Back" during CONNECTING
+  const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── Mic / Cam state ───────────────────────────────────────
+  const [patientJoined, setPatientJoined] = useState(false)
+  const [waitingStatus, setWaitingStatus] = useState<'waiting' | 'active' | 'ended' | 'cancelled'>('waiting')
+  const [duration, setDuration] = useState(0)
+
   const [micMuted, setMicMuted] = useState(false)
-  const [camOff,   setCamOff]   = useState(false)
+  const [camOff, setCamOff] = useState(false)
+  const socketRef = useRef<Socket | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [chatConnected, setChatConnected] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [patientTyping, setPatientTyping] = useState(false)
 
-  // ── Chat ──────────────────────────────────────────────────
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'patient', text: "Good evening Dr. Dilshari. I've been feeling much better this week.", time: '5:02 PM' },
-    { role: 'doctor',  text: "That's wonderful! How are the breathing exercises going?",              time: '5:03 PM' },
-    { role: 'patient', text: 'They help a lot! The 4-7-8 technique before bed improved my sleep.',   time: '5:04 PM' },
-    { role: 'doctor',  text: 'Excellent progress! Let me share your cortisol report.',               time: '5:05 PM' },
-  ])
-  const [chatInput,     setChatInput]     = useState('')
-  const [patientTyping, setPatientTyping] = useState(true)
-
-  // ── Prescription ──────────────────────────────────────────
-  const [medications, setMedications] = useState<Medication[]>([
-    { id: 1, name: 'Sertraline (Zoloft)', dose: '75mg',  frequency: 'Once daily', duration: '30 days', withFood: 'Yes' },
-    { id: 2, name: 'Lorazepam PRN',       dose: '0.5mg', frequency: 'As needed',  duration: '15 days', withFood: 'No'  },
-  ])
-  const [newMed,  setNewMed]  = useState<NewMedication>({
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [newMed, setNewMed] = useState<NewMedication>({
     name: '', dose: '', frequency: '', duration: '', withFood: 'Yes',
   })
-  const [rxNotes, setRxNotes] = useState('Avoid alcohol. Report side effects. Follow up in 2 weeks.')
+  const [rxNotes, setRxNotes] = useState('')
   const [rxSaved, setRxSaved] = useState(false)
-
-  // ── Session notes ─────────────────────────────────────────
   const [sessionNotes, setSessionNotes] = useState('')
+  const [notesSaved, setNotesSaved] = useState(false)
 
-  // ─────────────────────────────────────────────────────────
-  // Device check
-  // ─────────────────────────────────────────────────────────
+  const [patientName, setPatientName] = useState('')
+  const [patientId, setPatientId] = useState<string | null>(null)
+  const [patientHistory, setPatientHistory] = useState<PatientHistoryRecord[]>([])
+  const [existingRx, setExistingRx] = useState<ApiMedication[]>([])
+  const [doctorName, setDoctorName] = useState<string>('')
+  const [doctorQueue, setDoctorQueue] = useState<QueuePatient[]>([])
+  const [queueCount, setQueueCount] = useState(0)
+  const [nextPatient, setNextPatient] = useState<{ name: string; time: string } | null>(null)
+
+  // 1. සියලු ක්‍රියාවලි නතර කිරීමේ මධ්‍යස්ථානය
+  const stopAllProcesses = useCallback(() => {
+    isCancelledRef.current = true // මෙයින් පසු කිසිවක් ක්‍රියාත්මක නොවේ
+    if (pollRef.current) clearInterval(pollRef.current)
+    if (timerRef.current) clearInterval(timerRef.current)
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current)
+    if (socketRef.current) {
+      socketRef.current.disconnect()
+      socketRef.current = null
+    }
+  }, [])
+
+  const startPolling = useCallback(() => {
+    if (isCancelledRef.current) return // Cancel කර ඇත්නම් polling පටන් නොගන්න
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await videoApi.getSessionStatus(sessionId)
+        if (isCancelledRef.current) return // තත්පර 3කට පසුවත් පරීක්ෂා කිරීම
+        setWaitingStatus(status.status)
+        if (status.patientJoined) setPatientJoined(true)
+        if (status.patientName) setPatientName(status.patientName)
+        if (status.patientId && !patientId) setPatientId(status.patientId)
+      } catch {}
+    }, POLL_INTERVAL_MS)
+  }, [sessionId, patientId])
+
+const cancelSession = useCallback(async () => {
+    // 1. Polling සහ Timers වහාම නතර කරන්න
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current);
+    
+    // 2. Socket සම්බන්ධතාවය විසන්ධි කරන්න
+    if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+    }
+
+    // 3. යෙදුම නැවත එම පිටුවට ලෝඩ් වීම වැළැක්වීමට session id එක ඉවත් කරන්න
+    localStorage.removeItem('active_session_id');
+
+    try {
+        // API එකට දන්වන්න මෙම ඇමතුම අවලංගු කළ බව
+        await videoApi.endCall(sessionId, 0, 'Cancelled by doctor');
+    } catch (error) {
+        console.error("Cancel API call failed", error);
+    } finally {
+        // 4. state එක reset කර navigate කිරීම
+        setInviteSent(false);
+        setStep(Step.PRE_CALL_SETUP);
+        
+        // replace: true මගින් browser history එකෙන් එම පිටුව ඉවත් වේ
+        navigate(-1 as any, { replace: true }); 
+    }
+}, [sessionId, navigate]);
+
+  // MODIFICATION: clears any pending auto-join timeout so a stale call to
+  // setStep(LIVE_CALL) can never fire after the doctor has navigated away
+  const goToWaitingRoom = useCallback(() => {
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current)
+      joinTimeoutRef.current = null
+    }
+    setStep(Step.WAITING_ROOM)
+    startPolling()
+  }, [startPolling])
+
+  const dbMsgToChatMsg = useCallback((msg: ConversationMessage): ChatMessage => ({
+    role: msg.senderRole === 'doctor' ? 'doctor' : 'patient',
+    text: msg.senderRole === 'bot' ? `🤖 ${msg.text}` : msg.text,
+    time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  }), [])
+
+  const connectSocket = useCallback(() => {
+    if (socketRef.current?.connected) return
+    const socket = io(SOCKET_URL, {
+      auth: { token: getToken() },
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+    })
+    socketRef.current = socket
+    socket.on('connect', () => setChatConnected(true))
+    socket.on('disconnect', () => setChatConnected(false))
+    socket.on('patient-joined', ({ patientName: pName }) => {
+      setPatientJoined(true)
+      if (pName) setPatientName(pName)
+    })
+    socket.on('new-message', ({ message }) => {
+      if (message.senderRole === 'doctor') return
+      setMessages(prev => [...prev, dbMsgToChatMsg(message)])
+      setPatientTyping(false)
+    })
+    socket.on('typing', () => setPatientTyping(true))
+    socket.on('stop-typing', () => setPatientTyping(false))
+  }, [dbMsgToChatMsg])
+
+  const leaveChatRoom = useCallback((cid: string) => {
+    socketRef.current?.emit('leave-chat-room', { conversationId: cid })
+  }, [])
+
+  const loadConversation = useCallback(async (pid: string) => {
+    try {
+      const conv = await chatApi.getOrCreateConversation(pid)
+      setConversationId(conv._id)
+      socketRef.current?.emit('join-chat-room', { conversationId: conv._id })
+      chatApi.markAsRead(conv._id).catch(() => {})
+      const result = await chatApi.getMessages(conv._id, 1, 30)
+      setMessages(result.messages.map(dbMsgToChatMsg))
+    } catch {}
+  }, [dbMsgToChatMsg])
+
+  const saveSessionNotes = useCallback(async () => {
+    await videoApi.saveSessionNotes(sessionId, sessionNotes)
+    setNotesSaved(true)
+  }, [sessionId, sessionNotes])
+
+  const fetchPatientData = useCallback(async (pid: string) => {
+    try {
+      const history = await patientHistoryApi.getByPatient(pid)
+      setPatientHistory(history)
+      if (history.length > 0) {
+        if (history[0].patientName && !patientName) setPatientName(history[0].patientName)
+        setExistingRx(history[0].medications || [])
+      }
+    } catch {}
+  }, [patientName])
+
+  const fetchQueue = useCallback(async () => {
+    try {
+      const queue: QueuePatient[] = await appointmentApi.getDoctorQueueEnriched()
+      setDoctorQueue(queue)
+      setQueueCount(Math.max(0, queue.length - 1))
+      const next = queue[1] ?? null
+      if (next) {
+        setNextPatient({ name: next.patientName, time: new Date(next.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
+      }
+      if (queue.length > 0) {
+        if (!patientName && queue[0].patientName) setPatientName(queue[0].patientName)
+        if (!patientId && queue[0].patientId) setPatientId(queue[0].patientId)
+      }
+    } catch {}
+    setQueueLoaded(true)
+  }, [patientId, patientName])
+
+  // MODIFICATION: alert() removed — the UI (WaitingRoom) now shows a proper
+  // confirmation popup. Errors are thrown so the caller can catch & display them.
+  const handleSendInvitation = useCallback(async () => {
+    await videoApi.sendInvitation(sessionId)
+    setInviteSent(true)
+  }, [sessionId])
+
   const runDeviceCheck = useCallback(async () => {
     setChecking(true)
-    setCamOk(false)
-    setMicOk(false)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       stream.getTracks().forEach(t => t.stop())
-      setCamOk(true)
-      setMicOk(true)
-    } catch { /* permission denied */ }
+      setCamOk(true); setMicOk(true)
+    } catch {}
     setChecking(false)
   }, [])
 
+useEffect(() => {
+    runDeviceCheck();
+    fetchQueue();
+
+    // Cleanup: පිටුවෙන් ඉවත් වූ වහාම සියල්ල නතර වේ
+    return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current);
+        if (socketRef.current) socketRef.current.disconnect();
+    };
+}, [runDeviceCheck, fetchQueue]);
+
   useEffect(() => {
-    runDeviceCheck()
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [runDeviceCheck])
+    if (!patientId) return
+    loadConversation(patientId)
+    fetchPatientData(patientId)
+  }, [patientId, loadConversation, fetchPatientData])
 
-  // ─────────────────────────────────────────────────────────
-  // Start session — DEMO MODE (switch to real when backend ready)
-  // ─────────────────────────────────────────────────────────
   const handleStartSession = useCallback(async () => {
-    // ══ DEMO MODE ══
-    setCallData({
-      roomId:    'demo-room-123',
-      token:     'demo-token',
-      appId:     0,
-      userId:    'doctor-001',
-      userName:  'Dr. Dilshari',
-      sessionId: sessionId,
-    })
-    setStep(Step.WAITING_ROOM)
+    setLoading(true)
+    try {
+      const data = await videoApi.createRoom(sessionId)
+      setCallData(data)
+      connectSocket()
+      setStep(Step.WAITING_ROOM)
+      startPolling()
+    } catch {
+      setStep(Step.WAITING_ROOM)
+      connectSocket()
+      startPolling()
+    }
+    setLoading(false)
+  }, [sessionId, connectSocket, startPolling, startPolling])
 
-    // ══ REAL MODE — uncomment when backend is ready ══
-    // setLoading(true)
-    // setApiError('')
-    // try {
-    //   const data = await videoApi.createRoom(sessionId)
-    //   setCallData(data)
-    //   setStep(Step.WAITING_ROOM)
-    // } catch (err: unknown) {
-    //   setApiError(err instanceof Error ? err.message : 'Could not create room.')
-    // }
-    // setLoading(false)
-  }, [sessionId])
-
-  // ─────────────────────────────────────────────────────────
-  // Join call
-  // ─────────────────────────────────────────────────────────
+  // MODIFICATION: store the auto-transition timeout in joinTimeoutRef so it
+  // can be cancelled (see goToWaitingRoom) if the doctor backs out during CONNECTING
   const handleJoinCall = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current)
     setStep(Step.CONNECTING)
-    setTimeout(() => {
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current)
+    joinTimeoutRef.current = setTimeout(() => {
       setStep(Step.LIVE_CALL)
       const start = Date.now()
-      timerRef.current = setInterval(() => {
-        setDuration(Math.floor((Date.now() - start) / 1000))
-      }, 1000)
+      timerRef.current = setInterval(() => setDuration(Math.floor((Date.now() - start) / 1000)), 1000)
+      joinTimeoutRef.current = null
     }, 3000)
   }, [])
 
-  // ─────────────────────────────────────────────────────────
-  // End call
-  // ─────────────────────────────────────────────────────────
   const handleEndCall = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current)
-    try { await videoApi.endCall(sessionId, duration) } catch { /* non-blocking */ }
+    if (conversationId) leaveChatRoom(conversationId)
+    try { await videoApi.endCall(sessionId, duration, sessionNotes) } catch {}
     setStep(Step.SUMMARY)
-  }, [sessionId, duration])
+  }, [sessionId, duration, sessionNotes, conversationId, leaveChatRoom])
 
-  // ─────────────────────────────────────────────────────────
-  // Format duration
-  // ─────────────────────────────────────────────────────────
   const formatDuration = useCallback((secs: number): string => {
-    const h = Math.floor(secs / 3600)
-    const m = Math.floor((secs % 3600) / 60)
-    const s = secs % 60
-    const p = (n: number) => String(n).padStart(2, '0')
-    return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`
+    const m = Math.floor(secs / 60); const s = secs % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }, [])
 
-  // ─────────────────────────────────────────────────────────
-  // Chat
-  // ─────────────────────────────────────────────────────────
-  const sendChatMessage = useCallback(() => {
-    const text = chatInput.trim()
-    if (!text) return
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    setMessages(prev => [...prev, { role: 'doctor', text, time: now }])
+  const sendChatMessage = useCallback(async () => {
+    if (!chatInput.trim() || !conversationId) return
+    setMessages(prev => [...prev, { role: 'doctor', text: chatInput, time: new Date().toLocaleTimeString() }])
     setChatInput('')
-    setPatientTyping(true)
-    setTimeout(() => {
-      setPatientTyping(false)
-      const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      setMessages(prev => [
-        ...prev,
-        { role: 'patient', text: 'I understand, thank you Doctor.', time: t },
-      ])
-    }, 2000)
-  }, [chatInput])
+    await chatApi.sendMessage(conversationId, chatInput)
+  }, [chatInput, conversationId])
 
-  // ─────────────────────────────────────────────────────────
-  // Prescription
-  // ─────────────────────────────────────────────────────────
   const addMedication = useCallback(() => {
     if (!newMed.name || !newMed.dose) return
     setMedications(prev => [...prev, { id: Date.now(), ...newMed }])
     setNewMed({ name: '', dose: '', frequency: '', duration: '', withFood: 'Yes' })
   }, [newMed])
 
-  const removeMedication = useCallback((id: number) => {
-    setMedications(prev => prev.filter(m => m.id !== id))
-  }, [])
-
   const issuePrescription = useCallback(async () => {
-    try {
-      await videoApi.issuePrescription(sessionId, { medications, notes: rxNotes })
-      setRxSaved(true)
-      setTimeout(() => setStep(Step.LIVE_CALL), 1200)
-    } catch { setRxSaved(true) }
+    await videoApi.issuePrescription(sessionId, { medications, notes: rxNotes })
+    setRxSaved(true)
+    setTimeout(() => setStep(Step.LIVE_CALL), 1200)
   }, [sessionId, medications, rxNotes])
 
-  // ─────────────────────────────────────────────────────────
   return {
     step, setStep, Step,
-
-    camOk, micOk, checking, runDeviceCheck,
-
-    callData, loading, apiError,
+    goToWaitingRoom,
     handleStartSession,
     handleJoinCall,
     handleEndCall,
-
+    handleSendInvitation,
+    cancelSession,
+    runDeviceCheck,
+    camOk, micOk, checking,
+    callData, loading, apiError,
+    patientJoined, waitingStatus, patientName, patientId, patientHistory, existingRx,
+    doctorName, doctorQueue,
     duration, formatDuration,
-
-    micMuted, setMicMuted,
-    camOff,   setCamOff,
-
-    messages, chatInput, setChatInput,
-    patientTyping, sendChatMessage,
-
-    medications, newMed, setNewMed,
-    addMedication, removeMedication,
+    micMuted, setMicMuted, camOff, setCamOff,
+    messages, chatInput, setChatInput, patientTyping, sendChatMessage, chatConnected, conversationId,
+    medications, newMed, setNewMed, addMedication, removeMedication: (id: number) => setMedications(prev => prev.filter(m => m.id !== id)),
     rxNotes, setRxNotes, rxSaved, issuePrescription,
-
-    sessionNotes, setSessionNotes,
+    sessionNotes, setSessionNotes: (v: string) => { setSessionNotes(v); setNotesSaved(false) }, notesSaved, saveSessionNotes,
+    queueCount, nextPatient,
+    summaryLoading, summaryNotes, summaryRxList,
+    queueLoaded
   }
 }

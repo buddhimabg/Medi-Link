@@ -93,6 +93,97 @@
   white-space: nowrap;
 }
 
+/* ── User Dropdown ── */
+.userRow {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 210px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 200;
+  overflow: hidden;
+  animation: fadeDown 0.15s ease;
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dropHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #f9fafb;
+}
+
+.dropAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2b52d4, #1a3baa);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dropName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.dropRole {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 1px;
+}
+
+.dropDivider {
+  height: 1px;
+  background: #f3f4f6;
+  margin: 0;
+}
+
+.dropItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.dropItem:hover {
+  background: #f3f4f6;
+}
+
+.dropItemLogout {
+  color: #ef4444;
+}
+
+.dropItemLogout:hover {
+  background: #fef2f2;
+}
+
 @media (max-width: 1024px) {
   .topbar {
     padding: 0 14px;

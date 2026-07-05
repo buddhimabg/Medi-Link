@@ -1,4 +1,5 @@
 // src/types/videoCall.ts
+import type { Medication as ApiMedication } from './api'
 
 export interface CallData {
   roomId:    string
@@ -9,27 +10,23 @@ export interface CallData {
   sessionId: string
 }
 
-export interface Medication {
-  id:        number
-  name:      string
-  dose:      string
-  frequency: string
-  duration:  string
-  withFood:  string
+// Invitation status type for better state management
+export interface InvitationStatus {
+  sent:      boolean
+  timestamp: string | null
+  error:     string | null
 }
 
-export type NewMedication = Omit<Medication, 'id'>
+// Medication with id — used in local state
+export interface Medication extends ApiMedication {
+  id: number
+}
+
+// NewMedication — no id, used for form input (matches api.ts Medication)
+export type NewMedication = ApiMedication
 
 export interface ChatMessage {
   role: 'doctor' | 'patient'
   text: string
   time: string
-}
-
-export interface QueuePatient {
-  initials: string
-  name:     string
-  time:     string
-  status:   'invited' | 'upcoming'
-  bg:       string
 }

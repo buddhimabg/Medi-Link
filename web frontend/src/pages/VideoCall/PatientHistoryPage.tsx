@@ -1,78 +1,118 @@
 // src/pages/VideoCall/PatientHistoryPage.tsx
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Sidebar from '../../components/layout/Sidebar'
 import TopBar  from '../../components/layout/TopBar'
 import styles  from './PatientHistoryPage.module.css'
+import { patientHistoryApi } from '../../types/api'
+import type { PatientHistoryRecord } from '../../types/api'
 
 interface Props {
-  sessionId?: string
-  onBack:     () => void
-  onJoin?:    () => void
+  sessionId: string;
+  patientId: string;
+  patientName: string; // 👈 Add this
+  onBack: () => void;
+  onJoin: () => void;
 }
 
-// ── Demo data ──────────────────────────────────────────
-const DEMO_HISTORY = {
-  patient: {
-    name:      'Priyanka Jayawardhana',
-    id:        '#P-3af301',
-    age:       28,
-    gender:    'Female',
-    condition: 'GAD + MDD',
-    since:     'Jan 2025',
-  },
-  sessions: [
-    {
-      id:       'S-001',
-      date:     'Feb 20, 2026',
-      time:     '5:00 PM',
-      duration: '47 min',
-      doctor:   'Dr. Dilshari',
-      notes:    'Patient reports reduced panic attacks. Sleep improved. Cortisol trending down. Continue CBT.',
-      rx:       ['Sertraline 75mg', 'Lorazepam 0.5mg PRN'],
-      mood:     'Improving',
-      moodColor:'#22C55E',
-    },
-    {
-      id:       'S-002',
-      date:     'Jan 30, 2026',
-      time:     '5:00 PM',
-      duration: '52 min',
-      doctor:   'Dr. Dilshari',
-      notes:    'Discussed breathing techniques. Patient showing improvement in sleep patterns.',
-      rx:       ['Sertraline 50mg'],
-      mood:     'Moderate',
-      moodColor:'#F59E0B',
-    },
-    {
-      id:       'S-003',
-      date:     'Jan 10, 2026',
-      time:     '4:30 PM',
-      duration: '38 min',
-      doctor:   'Dr. Dilshari',
-      notes:    'Initial assessment. High anxiety levels noted. Started medication plan.',
-      rx:       ['Sertraline 25mg'],
-      mood:     'Poor',
-      moodColor:'#EF4444',
-    },
-    {
-      id:       'S-004',
-      date:     'Dec 20, 2025',
-      time:     '3:00 PM',
-      duration: '45 min',
-      doctor:   'Dr. Dilshari',
-      notes:    'First consultation. Diagnosed with GAD. Referred for CBT therapy.',
-      rx:       [],
-      mood:     'Poor',
-      moodColor:'#EF4444',
-    },
-  ],
+// ── Duration seconds → "X min" format ─────────────────
+const formatDuration = (secs: number): string => {
+  if (!secs) return '—'
+  const m = Math.floor(secs / 60)
+  return m > 0 ? `${m} min` : `${secs}s`
 }
 
-const PatientHistoryPage: React.FC<Props> = ({ onBack, onJoin }) => {
-  const [selected, setSelected] = useState<string | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
+// ── Date string → "Feb 20, 2026" format ───────────────
+const formatDate = (dateStr: string): string => {
+  if (!dateStr) return '—'
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+    })
+  } catch {
+    return dateStr
+  }
+}
 
-  const selectedSession = DEMO_HISTORY.sessions.find(s => s.id === selected)
+// ── Date string → "5:00 PM" format ────────────────────
+const formatTime = (dateStr: string): string => {
+  if (!dateStr) return '—'
+  try {
+    return new Date(dateStr).toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return '—'
+  }
+}
+
+// ── Average duration calculator ────────────────────────
+const avgDuration = (records: PatientHistoryRecord[]): string => {
+  if (records.length === 0) return '—'
+  const total = records.reduce((sum, r) => sum + (r.duration || 0), 0)
+  return formatDuration(Math.round(total / records.length))
+}
+
+// ── Latest session date ────────────────────────────────
+const lastSessionDate = (records: PatientHistoryRecord[]): string => {
+  if (records.length === 0) return '—'
+  const sorted = [...records].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
+  return formatDate(sorted[0].date)
+}
+
+// Enriched record type — backend sends patientName in response
+interface EnrichedRecord extends PatientHistoryRecord {
+  patientName?: string
+}
+
+const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJoin }) => {
+  const [selected,     setSelected]     = useState<string | null>(null)
+  const [menuOpen,     setMenuOpen]     = useState(false)
+  const [records,      setRecords]      = useState<EnrichedRecord[]>([])
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
+  // FIX: real patient name from DB — not hardcoded
+  const [patientName,  setPatientName]  = useState<string>('')
+
+  // ✅ API fetch — patientId ලැබුනාම fetch කරනවා
+  useEffect(() => {
+    if (!patientId) return
+
+    const fetchHistory = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await patientHistoryApi.getByPatient(patientId) as EnrichedRecord[]
+
+        // Latest first sort
+        const sorted = [...data].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+        setRecords(sorted)
+
+        // FIX: real patient name — backend enriched response ලෙන්
+        if (sorted.length > 0 && sorted[0].patientName) {
+          setPatientName(sorted[0].patientName)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'History load කිරීමේ error.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchHistory()
+  }, [patientId])
+
+  const selectedRecord = records.find(r => r._id === selected)
+
+  // FIX: real patient name from DB — fallback chain
+  // 1. patientName from API response
+  // 2. patientName state (set from first record)
+  // 3. Generic ID-based name (no hardcoding)
+  const displayName    = patientName || (patientId ? `Patient #${patientId.slice(-6).toUpperCase()}` : 'Patient')
+  const patientInitial = displayName[0]?.toUpperCase() ?? 'P'
 
   return (
     <div className={styles.page}>
@@ -81,136 +121,247 @@ const PatientHistoryPage: React.FC<Props> = ({ onBack, onJoin }) => {
         <Sidebar activePath="/video-call" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
         <main className={styles.main}>
 
-          {/* Header */}
+          {/* ── Header ── */}
           <div className={styles.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* ── Back Button ── */}
               <button className={styles.backBtn} onClick={onBack} title="Back to Waiting Room">
                 ← Back
               </button>
               <div>
                 <h2 className={styles.title}>Patient History</h2>
-                <p className={styles.sub}>
-                  {DEMO_HISTORY.patient.name} · {DEMO_HISTORY.patient.condition}
-                </p>
+                <p className={styles.sub}>Previous sessions and prescriptions</p>
               </div>
             </div>
             {onJoin && (
-              <button className={styles.startCallBtn} onClick={onJoin}>📹 Start Call</button>
+              <button className={styles.joinBtn} onClick={onJoin}>
+                📹 Start Call Now
+              </button>
             )}
           </div>
 
-          {/* Patient info strip */}
-          <div className={styles.patientStrip}>
-            <div className={styles.patientAvatar}>P</div>
-            <div>
-              <div className={styles.patientName}>{DEMO_HISTORY.patient.name}</div>
-              <div className={styles.patientMeta}>
-                {DEMO_HISTORY.patient.id} · Age {DEMO_HISTORY.patient.age} · {DEMO_HISTORY.patient.gender} · Patient since {DEMO_HISTORY.patient.since}
+          {/* ── No patientId yet ── */}
+          {!patientId && (
+            <div style={{
+              background: '#FEF3C7', border: '1.5px solid #FCD34D',
+              borderRadius: 12, padding: '20px 24px', display: 'flex',
+              alignItems: 'center', gap: 14,
+            }}>
+              <span style={{ fontSize: 28 }}>⏳</span>
+              <div>
+                <div style={{ fontWeight: 700, color: '#92400E', fontSize: 14, marginBottom: 4 }}>
+                  Patient data loading…
+                </div>
+                <div style={{ fontSize: 13, color: '#B45309' }}>
+                  "No patient has been selected from the patient queue. Data only loads after a patient joins the Waiting Room."
+                </div>
               </div>
             </div>
-            <div className={styles.conditionBadge}>{DEMO_HISTORY.patient.condition}</div>
-          </div>
+          )}
 
-          {/* Stats */}
-          <div className={styles.statsRow}>
-            {[
-              { label: 'Total Sessions',  value: '4',         color: '#2B52D4' },
-              { label: 'Last Session',    value: 'Feb 20',    color: '#7C3AED' },
-              { label: 'Avg Duration',    value: '45 min',    color: '#059669' },
-              { label: 'Current Mood',    value: 'Improving', color: '#22C55E' },
-            ].map((s, i) => (
-              <div key={i} className={styles.statCard}>
-                <div className={styles.statVal} style={{ color: s.color }}>{s.value}</div>
-                <div className={styles.statLabel}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+          {/* ── Loading ── */}
+          {patientId && loading && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280', fontSize: 14 }}>
+              ⏳ Loading patient history…
+            </div>
+          )}
 
-          {/* Sessions list + detail */}
-          <div className={styles.grid}>
+          {/* ── Error ── */}
+          {error && (
+            <div style={{
+              background: '#FEE2E2', border: '1.5px solid #FECACA',
+              borderRadius: 10, padding: '14px 18px', color: '#DC2626', fontSize: 13,
+            }}>
+              <strong>History load කිරීමේ error:</strong> {error}
+              <br />
+              <span style={{ fontSize: 12, color: '#EF4444' }}>
+                Backend running ද? Token valid ද?
+              </span>
+            </div>
+          )}
 
-            {/* Sessions list */}
-            <div className={styles.sessionsList}>
-              <h3 className={styles.sectionTitle}>Session History</h3>
-              {DEMO_HISTORY.sessions.map(s => (
-                <div
-                  key={s.id}
-                  className={`${styles.sessionCard} ${selected === s.id ? styles.sessionCardActive : ''}`}
-                  onClick={() => setSelected(selected === s.id ? null : s.id)}
-                >
-                  <div className={styles.sessionCardLeft}>
-                    <div className={styles.moodDot} style={{ background: s.moodColor }} />
-                    <div>
-                      <div className={styles.sessionDate}>{s.date} · {s.time}</div>
-                      <div className={styles.sessionDuration}>Duration: {s.duration}</div>
-                    </div>
-                  </div>
-                  <div className={styles.moodBadge} style={{ background: s.moodColor + '20', color: s.moodColor }}>
-                    {s.mood}
+          {/* ── Main content — patientId ඇති + load ඉවර ── */}
+          {patientId && !loading && (
+            <>
+              {/* Patient info strip — real name from DB */}
+              <div className={styles.patientStrip}>
+                <div className={styles.patientAvatar}>{patientInitial}</div>
+                <div>
+                  {/* FIX: real patient name, not hardcoded */}
+                  <div className={styles.patientName}>{displayName}</div>
+                  <div className={styles.patientMeta}>
+                    ID: {patientId}
+                    {records.length > 0 && (
+                      <> · Patient since {formatDate(records[records.length - 1].date)}</>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className={styles.conditionBadge}>
+                  {records.length > 0 ? `${records.length} Sessions` : 'New Patient'}
+                </div>
+              </div>
 
-            {/* Session detail */}
-            <div className={styles.sessionDetail}>
-              {selectedSession ? (
-                <>
-                  <h3 className={styles.sectionTitle}>
-                    Session Details — {selectedSession.date}
-                  </h3>
-
-                  <div className={styles.detailCard}>
-                    <div className={styles.detailRow}>
-                      <span className={styles.detailKey}>Date</span>
-                      <span className={styles.detailVal}>{selectedSession.date} at {selectedSession.time}</span>
-                    </div>
-                    <div className={styles.detailRow}>
-                      <span className={styles.detailKey}>Duration</span>
-                      <span className={styles.detailVal}>{selectedSession.duration}</span>
-                    </div>
-                    <div className={styles.detailRow}>
-                      <span className={styles.detailKey}>Doctor</span>
-                      <span className={styles.detailVal}>{selectedSession.doctor}</span>
-                    </div>
-                    <div className={styles.detailRow}>
-                      <span className={styles.detailKey}>Mood</span>
-                      <span
-                        className={styles.detailVal}
-                        style={{ color: selectedSession.moodColor, fontWeight: 700 }}
-                      >
-                        {selectedSession.mood}
-                      </span>
-                    </div>
+              {/* Stats row */}
+              <div className={styles.statsRow}>
+                {[
+                  { label: 'Total Sessions', value: String(records.length),    color: '#2B52D4' },
+                  { label: 'Last Session',   value: lastSessionDate(records),  color: '#7C3AED' },
+                  { label: 'Avg Duration',   value: avgDuration(records),      color: '#059669' },
+                  {
+                    label: 'Latest Mood',
+                    value: records[0]?.moodLabel || '—',
+                    color: records[0]?.moodColor || '#6B7280',
+                  },
+                ].map((s, i) => (
+                  <div key={i} className={styles.statCard}>
+                    <div className={styles.statVal} style={{ color: s.color }}>{s.value}</div>
+                    <div className={styles.statLabel}>{s.label}</div>
                   </div>
+                ))}
+              </div>
 
-                  <div className={styles.notesCard}>
-                    <div className={styles.notesTitle}>📋 Session Notes</div>
-                    <p className={styles.notesText}>{selectedSession.notes}</p>
+              {/* ── Empty state — new patient ── */}
+              {records.length === 0 && (
+                <div style={{
+                  background: '#F0FDF4', border: '1.5px solid #BBF7D0',
+                  borderRadius: 12, padding: '32px', textAlign: 'center', marginTop: 8,
+                }}>
+                  <div style={{ fontSize: 36, marginBottom: 12 }}>🌱</div>
+                  <div style={{ fontWeight: 700, color: '#166534', fontSize: 15, marginBottom: 6 }}>
+                    New Patient — {displayName}
                   </div>
-
-                  {selectedSession.rx.length > 0 && (
-                    <div className={styles.rxCard}>
-                      <div className={styles.notesTitle}>💊 Prescribed Medications</div>
-                      {selectedSession.rx.map((rx, i) => (
-                        <div key={i} className={styles.rxItem}>
-                          <span className={styles.rxDot} />
-                          {rx}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className={styles.selectPrompt}>
-                  <div className={styles.selectIcon}>📋</div>
-                  <div className={styles.selectText}>Select a session to view details</div>
+                  <div style={{ fontSize: 13, color: '#16A34A' }}>
+                    මෙම patient ට previous sessions නැහැ. මෙය ඔවුන්ගේ first session.
+                  </div>
                 </div>
               )}
-            </div>
 
-          </div>
+              {/* Sessions list + detail */}
+              {records.length > 0 && (
+                <div className={styles.grid}>
+
+                  {/* Sessions list */}
+                  <div className={styles.sessionsList}>
+                    <h3 className={styles.sectionTitle}>Session History — {displayName}</h3>
+                    {records.map(r => (
+                      <div
+                        key={r._id}
+                        className={`${styles.sessionCard} ${selected === r._id ? styles.sessionCardActive : ''}`}
+                        onClick={() => setSelected(selected === r._id ? null : r._id)}
+                      >
+                        <div className={styles.sessionCardLeft}>
+                          <div className={styles.moodDot} style={{ background: r.moodColor || '#6B7280' }} />
+                          <div>
+                            <div className={styles.sessionDate}>
+                              {formatDate(r.date)} · {formatTime(r.date)}
+                            </div>
+                            <div className={styles.sessionDuration}>
+                              Duration: {formatDuration(r.duration)}
+                            </div>
+                          </div>
+                        </div>
+                        <div
+                          className={styles.moodBadge}
+                          style={{
+                            background: (r.moodColor || '#6B7280') + '20',
+                            color: r.moodColor || '#6B7280',
+                          }}
+                        >
+                          {r.moodLabel || 'Neutral'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Session detail */}
+                  <div className={styles.sessionDetail}>
+                    {selectedRecord ? (
+                      <>
+                        <h3 className={styles.sectionTitle}>
+                          Session Details — {formatDate(selectedRecord.date)}
+                        </h3>
+
+                        <div className={styles.detailCard}>
+                          <div className={styles.detailRow}>
+                            <span className={styles.detailKey}>Patient</span>
+                            <span className={styles.detailVal}>{displayName}</span>
+                          </div>
+                          <div className={styles.detailRow}>
+                            <span className={styles.detailKey}>Date</span>
+                            <span className={styles.detailVal}>
+                              {formatDate(selectedRecord.date)} at {formatTime(selectedRecord.date)}
+                            </span>
+                          </div>
+                          <div className={styles.detailRow}>
+                            <span className={styles.detailKey}>Duration</span>
+                            <span className={styles.detailVal}>
+                              {formatDuration(selectedRecord.duration)}
+                            </span>
+                          </div>
+                          <div className={styles.detailRow}>
+                            <span className={styles.detailKey}>Session ID</span>
+                            <span className={styles.detailVal} style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                              #{selectedRecord.sessionId}
+                            </span>
+                          </div>
+                          <div className={styles.detailRow}>
+                            <span className={styles.detailKey}>Mood</span>
+                            <span
+                              className={styles.detailVal}
+                              style={{ color: selectedRecord.moodColor || '#6B7280', fontWeight: 700 }}
+                            >
+                              {selectedRecord.moodLabel || 'Neutral'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Session Notes */}
+                        <div className={styles.notesCard}>
+                          <div className={styles.notesTitle}>📋 Session Notes</div>
+                          {selectedRecord.notes ? (
+                            <p className={styles.notesText}>{selectedRecord.notes}</p>
+                          ) : (
+                            <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
+                              මෙම session ට notes නැහැ.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Medications */}
+                        <div className={styles.rxCard}>
+                          <div className={styles.notesTitle}>💊 Prescribed Medications</div>
+                          {selectedRecord.medications && selectedRecord.medications.length > 0 ? (
+                            selectedRecord.medications.map((med, i) => (
+                              <div key={i} className={styles.rxItem}>
+                                <span className={styles.rxDot} />
+                                <span>
+                                  <strong>{med.name}</strong> {med.dose}
+                                  {med.frequency && ` · ${med.frequency}`}
+                                  {med.duration && ` · ${med.duration}`}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
+                              මෙම session ට prescriptions නැහැ.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className={styles.selectPrompt}>
+                        <div className={styles.selectIcon}>📋</div>
+                        <div className={styles.selectText}>
+                          Session එකක් select කරන්න details බලන්න
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )}
+            </>
+          )}
+
         </main>
       </div>
     </div>

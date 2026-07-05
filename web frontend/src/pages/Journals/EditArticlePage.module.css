@@ -1,0 +1,145 @@
+/* ප්‍රධාන පිටුවේ ව්‍යුහය */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #f8fafc;
+}
+
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebarContainer {
+  height: 100%;
+  flex-shrink: 0;
+}
+
+/* Scroll කළ හැකි ප්‍රධාන කොටස */
+.main {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* ලිපිය මැදට පෙන්වීමට */
+}
+
+/* Header කොටස (Title සහ Save Button) */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1000px;
+  margin-bottom: 25px;
+}
+
+.header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+/* Save බොත්තම */
+.saveBtn {
+  background-color: #4f46e5; /* Medi-Link Primary Color */
+  color: white;
+  padding: 12px 28px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.saveBtn:hover {
+  background-color: #4338ca;
+}
+
+/* Editor එක අඩංගු කාඩ්පත */
+.editorContainer {
+  background: white;
+  width: 100%;
+  max-width: 1000px;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  min-height: 80vh;
+}
+
+/* මාතෘකාව ඇතුළත් කරන Input එක */
+.titleInput {
+  width: 100%;
+  font-size: 32px;
+  font-weight: 800;
+  padding: 15px 0;
+  margin-bottom: 30px;
+  border: none;
+  border-bottom: 2px solid #e2e8f0;
+  color: #1e293b;
+  outline: none;
+  font-family: 'Poppins', sans-serif;
+}
+
+.titleInput:focus {
+  border-bottom-color: #4f46e5;
+}
+
+.titleInput::placeholder {
+  color: #cbd5e1;
+}
+
+/* ReactQuill Editor එක සඳහා Styles */
+.quillEditor {
+  height: auto;
+  min-height: 450px;
+  margin-bottom: 60px; /* Toolbar එක පහළට යාම වැළැක්වීමට */
+}
+
+/* Editor එකේ ඇතුළත සුදු පාට කොටස (Editing Area) */
+.quillEditor :global(.ql-container) {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.quillEditor :global(.ql-editor) {
+  min-height: 450px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+/* Editor එකේ උඩ ඇති Toolbar එක */
+.quillEditor :global(.ql-toolbar) {
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  border: 1px solid #e2e8f0 !important;
+  background-color: #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Mobile Responsive කොටස */
+@media (max-width: 768px) {
+  .main {
+    padding: 20px;
+  }
+  
+  .editorContainer {
+    padding: 20px;
+  }
+  
+  .titleInput {
+    font-size: 24px;
+  }
+}

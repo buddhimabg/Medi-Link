@@ -1,0 +1,56 @@
+/* ── PublishSuccessPage.module.css ── */
+.page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.layout { display: flex; flex: 1; overflow: hidden; }
+.main { flex: 1; padding: 28px; background: var(--clr-bg); overflow-y: auto; display: flex; align-items: center; justify-content: center; }
+
+.successScreen {
+  max-width: 580px;
+  width: 100%;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease;
+}
+.visible { opacity: 1; transform: translateY(0); }
+
+.successIcon {
+  font-size: 72px;
+  margin-bottom: 24px;
+  display: block;
+  animation: pop 0.5s cubic-bezier(.36,.07,.19,.97);
+}
+@keyframes pop {
+  0%   { transform: scale(0); }
+  80%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.successTitle { font-size: 30px; font-weight: 800; margin-bottom: 12px; color: var(--clr-text-dark); }
+.successSub { font-size: 16px; color: var(--clr-text-mid); margin-bottom: 32px; }
+
+.successStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.successStat { background: #fff; border-radius: 14px; padding: 20px; box-shadow: var(--shadow-card); }
+.successStatVal { font-size: 26px; font-weight: 700; color: var(--clr-primary); }
+.successStatLabel { font-size: 12px; color: var(--clr-text-mid); margin-top: 4px; }
+
+.successActions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 7px; padding: 12px 24px; border-radius: 10px; font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+  font-family: 'Poppins', sans-serif;
+}
+.btnPrimary { background: var(--clr-primary); color: #fff; }
+.btnPrimary:hover { background: var(--clr-primary-dark); transform: translateY(-1px); }
+.btnSecondary { background: #fff; color: var(--clr-text-dark); border: 1.5px solid var(--clr-border); }
+.btnSecondary:hover { border-color: var(--clr-primary); color: var(--clr-primary); }
+
+@media (max-width: 500px) {
+  .successStats { grid-template-columns: 1fr; }
+}

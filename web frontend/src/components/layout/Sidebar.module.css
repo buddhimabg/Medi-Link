@@ -73,15 +73,17 @@
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  color: rgba(255,255,255,0.65);
+  
+  /* මේ පේළි දෙකට !important එකතු කරන්න */
+  color: rgba(255, 255, 255, 0.936) !important; 
+  text-decoration: none !important;
+  
   cursor: pointer;
   transition: all 0.18s ease;
-  text-decoration: none;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
   border-left: 3px solid transparent;
-  letter-spacing: 0.1px;
 }
 
 .navItem:hover {

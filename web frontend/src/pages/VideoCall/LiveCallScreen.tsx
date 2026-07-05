@@ -1,6 +1,6 @@
-// src/pages/VideoCall/LiveCallScreen.tsx
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import type { CallData, ChatMessage } from '../../types/videoCall'
+import type { CallData, ChatMessage, Medication, NewMedication } from '../../types/videoCall'
+import type { Medication as ApiMedication, PatientHistoryRecord } from '../../types/api'
 import styles from './LiveCallScreen.module.css'
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt'
 
@@ -23,6 +23,28 @@ interface Props {
   onPrescribe:     () => void
   onEndConfirm:    () => void
   onBack:          () => void
+
+  // Prescription overlay props
+  showPrescription?:    boolean
+  medications?:         Medication[]
+  removeMedication?:    (id: number) => void
+  newMed?:              NewMedication
+  setNewMed?:           (v: NewMedication) => void
+  onAddMed?:            () => void
+  rxNotes?:             string
+  setRxNotes?:          (v: string) => void
+  onIssue?:             () => void
+  rxSaved?:             boolean
+  onClosePrescription?: () => void
+
+  //NEW — real data props
+  patientName?:     string
+  doctorName?:      string
+  sessionId?:       string
+  onSaveNote?:      () => Promise<void>
+  existingRx?:      ApiMedication[]
+  patientHistory?:  PatientHistoryRecord[]
+  chatConnected?:   boolean
 }
 
 const QUICK_REPLIES = ["That's great!", 'I understand.', "Let's discuss.", 'Please continue.']
@@ -35,6 +57,28 @@ const LiveCallScreen: React.FC<Props> = ({
   messages, chatInput, setChatInput,
   patientTyping, sendChatMessage,
   onShare, onPrescribe, onEndConfirm, onBack,
+
+  // prescription overlay
+  showPrescription = false,
+  medications = [],
+  removeMedication,
+  newMed,
+  setNewMed,
+  onAddMed,
+  rxNotes = '',
+  setRxNotes,
+  onIssue,
+  rxSaved = false,
+  onClosePrescription,
+
+  // NEW props
+  patientName    = 'Patient',
+  doctorName     = 'Doctor',
+  sessionId      = '',
+  onSaveNote,
+  existingRx     = [],
+  patientHistory = [],
+  chatConnected  = false,
 }) => {
   const containerRef      = useRef<HTMLDivElement>(null)
   const zegoRef           = useRef<InstanceType<typeof ZegoUIKitPrebuilt> | null>(null)
@@ -50,12 +94,14 @@ const LiveCallScreen: React.FC<Props> = ({
   const [inviteCopied,     setInviteCopied]     = useState(false)
   const [toast,            setToast]            = useState<string | null>(null)
   const [showBackConfirm,  setShowBackConfirm]  = useState(false)
+  const [noteSaving,       setNoteSaving]       = useState(false)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }, [])
 
+  // ZegoCloud initialize
   useEffect(() => {
     if (!callData || !containerRef.current) return
     if (!callData.appId || callData.appId === 0) return
@@ -70,6 +116,14 @@ const LiveCallScreen: React.FC<Props> = ({
       showLeaveRoomConfirmDialog: false,
       showUserList: false,
       maxUsers: 2,
+      showScreenSharingButton: false,
+      showTextChat: false,
+      showUserName: false,
+      showRoomTimer: false,
+      showMyCameraToggleButton: false,
+      showMyMicrophoneToggleButton: false,
+      showAudioVideoSettingsButton: false,
+      showLayoutButton: false,
       onLeaveRoom: () => {},
     })
     return () => { try { zego.destroy() } catch { /* ignore */ } }
@@ -105,7 +159,7 @@ const LiveCallScreen: React.FC<Props> = ({
   }, [camOff, setCamOff, showToast])
 
   const handleInvite = useCallback(() => {
-    const link = `${window.location.origin}/video-call/${callData?.sessionId || 'Ce9f8c'}`
+    const link = `${window.location.origin}/video-call/${callData?.sessionId || sessionId || 'SESSION'}`
     navigator.clipboard.writeText(link)
       .then(() => {
         setInviteCopied(true)
@@ -113,7 +167,7 @@ const LiveCallScreen: React.FC<Props> = ({
         setTimeout(() => setInviteCopied(false), 3000)
       })
       .catch(() => window.prompt('Copy this link:', link))
-  }, [callData, showToast])
+  }, [callData, sessionId, showToast])
 
   const handleParticipate = useCallback(() => {
     setShowParticipants(prev => { if (!prev) setShowChat(false); return !prev })
@@ -160,15 +214,28 @@ const LiveCallScreen: React.FC<Props> = ({
       .catch(() => showToast('❌ Recording permission denied'))
   }, [isRecording, showToast])
 
-  const handleSaveNote = useCallback(() => {
+  // real DB API call
+  const handleSaveNote = useCallback(async () => {
     if (!sessionNotes.trim()) { showToast('⚠️ Please type a note first'); return }
-    setNoteSaved(true); showToast('✅ Note saved!')
-    setTimeout(() => setNoteSaved(false), 2500)
-  }, [sessionNotes, showToast])
+    setNoteSaving(true)
+    try {
+      await onSaveNote?.()
+      setNoteSaved(true)
+      showToast('✅ Note saved to database!')
+      setTimeout(() => setNoteSaved(false), 2500)
+    } catch {
+      showToast('❌ Failed to save note')
+    }
+    setNoteSaving(false)
+  }, [sessionNotes, onSaveNote, showToast])
 
   const handleChatKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') { e.preventDefault(); sendChatMessage() }
   }
+
+  // Patient initial letter for avatar
+  const patientInitial = patientName ? patientName[0].toUpperCase() : 'P'
+  const doctorInitial  = doctorName  ? doctorName[0].toUpperCase()  : 'D'
 
   return (
     <div className={styles.wrapper}>
@@ -194,7 +261,6 @@ const LiveCallScreen: React.FC<Props> = ({
       )}
 
       <header className={styles.topbar}>
-        {/* ── Back Button ── */}
         <button
           className={styles.backBtn}
           onClick={() => setShowBackConfirm(true)}
@@ -203,15 +269,16 @@ const LiveCallScreen: React.FC<Props> = ({
           ← Back
         </button>
         <div className={styles.logo}><span>Medi</span>Link</div>
-        <div className={styles.livePill}><div className={styles.liveDot}/><span className={styles.liveText}>Live</span></div>
+        <div className={styles.livePill}><div className={styles.liveDot}/><span className={styles.liveText}>{showPrescription ? 'LIVE · Rx' : 'Live'}</span></div>
         <div className={styles.timer}>{formatDuration(duration)}</div>
         <div className={styles.signal}>
           {[8,12,16,20,14].map((h,i)=><span key={i} className={styles.bar} style={{height:h}}/>)}
           <span className={styles.signalLabel}>Strong</span>
         </div>
         <div className={styles.topbarRight}>
-          <span className={styles.badgeBlue}>#{callData?.sessionId||'Ce9f8c'}</span>
-          <span className={styles.badgeGray}>Slot 3/8</span>
+
+          {/* Real sessionId */}
+          <span className={styles.badgeBlue}>#{callData?.sessionId || sessionId || 'SESSION'}</span>
           {isRecording&&<span className={styles.recPill}><span className={styles.recDot}/>REC</span>}
           <button className={styles.endBtn} onClick={onEndConfirm}>↪ End Session</button>
         </div>
@@ -219,32 +286,26 @@ const LiveCallScreen: React.FC<Props> = ({
 
       <div className={styles.body}>
         <div className={styles.videoWrap}>
+
+          {/* ZegoCloud video container */}
           <div ref={containerRef} className={styles.zegoContainer}/>
 
           {(!callData||callData.appId===0)&&(
             <div className={styles.fallback}>
               <div className={styles.waitingBox}>
                 <div className={styles.waitingLabel}>WAITING</div>
-                {[{i:'R',name:'Roshan',time:'5.30 PM'},{i:'K',name:'Kavindi',time:'6.00 PM'}].map((p,i)=>(
-                  <div key={i} className={styles.waitingRow}>
-                    <div className={styles.waitingAvatar}>{p.i}</div>
-                    <span className={styles.waitingName}>{p.name}·{p.time}</span>
-                  </div>
-                ))}
               </div>
-              <div className={styles.overlayBtns}>
-                <button className={styles.overlayBtn}>📋 Notes</button>
-                <button className={styles.overlayBtn} onClick={onPrescribe}>🔗 Rx</button>
-              </div>
+
               {showParticipants&&(
                 <div className={styles.participantsPanel}>
                   <div className={styles.panelHeader}>
-                    <span className={styles.panelTitle}>👥 Participants (2)</span>
+                    <span className={styles.panelTitle}>👥 Participants</span>
                     <button className={styles.panelClose} onClick={()=>setShowParticipants(false)}>✕</button>
                   </div>
+                  {/* ✅ Real doctor + patient names */}
                   {[
-                    {name:'Dr. Dilshari',role:'Doctor (You)',color:'#2B52D4',mic:!micMuted,cam:!camOff},
-                    {name:'Priyanka Jayawardhana',role:'Patient',color:'#059669',mic:true,cam:true},
+                    {name: doctorName, role:'Doctor (You)', color:'#2B52D4', mic:!micMuted, cam:!camOff},
+                    {name: patientName || 'Patient', role:'Patient', color:'#059669', mic:true, cam:true},
                   ].map((p,i)=>(
                     <div key={i} className={styles.participantRow}>
                       <div className={styles.participantAvatar} style={{background:p.color}}>{p.name[0]}</div>
@@ -259,17 +320,21 @@ const LiveCallScreen: React.FC<Props> = ({
                   ))}
                 </div>
               )}
+
+              {/*Real patient name */}
               <div className={styles.patientCenter}>
-                <div className={styles.patientRing}><div className={styles.patientRing2}><div className={styles.patientAvatar}>P</div></div></div>
-                <div className={styles.patientName}>Priyanka Jayawardhana</div>
-                <div className={styles.patientSub}>Patient·Anxiety&amp;Depression</div>
-                <span className={styles.connectedBadge}>●Connected·HD Video</span>
+                <div className={styles.patientRing}><div className={styles.patientRing2}><div className={styles.patientAvatar}>{patientInitial}</div></div></div>
+                <div className={styles.patientName}>{patientName || 'Patient'}</div>
+                <div className={styles.patientSub}>Patient · Connected</div>
+                <span className={styles.connectedBadge}>● Connected · HD Video</span>
                 {micMuted&&<div className={styles.statusBanner}>🔇 Your microphone is muted</div>}
                 {camOff&&<div className={styles.statusBanner}>📷 Your camera is off</div>}
               </div>
+
+              {/*Real doctor name */}
               <div className={`${styles.selfCam} ${camOff?styles.selfCamOff:''}`}>
-                {camOff?<div className={styles.selfCamOffIcon}>📷</div>:<div className={styles.selfCamAvatar}>Dr</div>}
-                <div className={styles.selfCamLabel}>You (Dr.Dilshari)</div>
+                {camOff?<div className={styles.selfCamOffIcon}>📷</div>:<div className={styles.selfCamAvatar}>{doctorInitial}</div>}
+                <div className={styles.selfCamLabel}>You ({doctorName})</div>
                 {micMuted&&<div className={styles.selfMutedIcon}>🔇</div>}
               </div>
             </div>
@@ -351,29 +416,201 @@ const LiveCallScreen: React.FC<Props> = ({
               <span className={styles.ctrlLabelLeave}>Leave</span>
             </button>
           </div>
+
+          {/* PRESCRIPTION OVERLAY */}
+          {showPrescription && (
+            <div style={{
+              position: 'absolute', top: 0, right: 0,
+              width: '400px', height: '100%',
+              background: '#ffffff', zIndex: 50,
+              overflowY: 'auto',
+              boxShadow: '-4px 0 24px rgba(0,0,0,0.25)',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{
+                padding: '16px 20px', borderBottom: '1px solid #e5e7eb',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: '#f9fafb',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '16px', color: '#111827' }}>💊 e-Prescription</div>
+                  {/* ✅ Real patient name */}
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                    {patientName} · #{callData?.sessionId || sessionId || 'SESSION'}
+                  </div>
+                </div>
+                <button
+                  onClick={onClosePrescription}
+                  style={{
+                    background: '#e5e7eb', border: 'none', borderRadius: '50%',
+                    width: '32px', height: '32px', cursor: 'pointer',
+                    fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >✕</button>
+              </div>
+
+              <div style={{ padding: '16px 20px', flex: 1 }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                    PRESCRIBED MEDICATIONS
+                  </div>
+                  {medications.length === 0 && (
+                    <div style={{ color: '#9ca3af', fontSize: '13px', textAlign: 'center', padding: '12px' }}>
+                      No medications added yet
+                    </div>
+                  )}
+                  {medications.map(med => (
+                    <div key={med.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 12px', background: '#f9fafb',
+                      borderRadius: '8px', marginBottom: '6px', border: '1px solid #e5e7eb',
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>{med.name}</div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                          {med.dose} · {med.frequency} · {med.duration}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeMedication?.(med.id)}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e5e7eb' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                    NEW MEDICATION
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Medicine Name</label>
+                    <input
+                      placeholder="e.g. Alprazolam"
+                      value={newMed?.name || ''}
+                      onChange={e => setNewMed?.({ ...newMed!, name: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Dosage</label>
+                      <input
+                        placeholder="e.g. 0.25mg"
+                        value={newMed?.dose || ''}
+                        onChange={e => setNewMed?.({ ...newMed!, dose: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Frequency</label>
+                      <input
+                        placeholder="e.g. Twice daily"
+                        value={newMed?.frequency || ''}
+                        onChange={e => setNewMed?.({ ...newMed!, frequency: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Duration</label>
+                      <input
+                        placeholder="e.g. 14 days"
+                        value={newMed?.duration || ''}
+                        onChange={e => setNewMed?.({ ...newMed!, duration: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>With Food?</label>
+                      <select
+                        value={newMed?.withFood || 'Yes'}
+                        onChange={e => setNewMed?.({ ...newMed!, withFood: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                      >
+                        <option>Yes</option>
+                        <option>No</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={onAddMed}
+                    style={{
+                      width: '100%', padding: '9px', background: '#2B52D4',
+                      color: '#fff', border: 'none', borderRadius: '6px',
+                      fontSize: '13px', cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >+ Add</button>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                    Notes for Patient
+                  </label>
+                  <textarea
+                    placeholder="e.g. Avoid alcohol. Follow up in 2 weeks."
+                    value={rxNotes}
+                    onChange={e => setRxNotes?.(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px', border: '1px solid #e5e7eb',
+                      borderRadius: '8px', minHeight: '80px', fontSize: '13px',
+                      resize: 'vertical', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button
+                    onClick={onClosePrescription}
+                    style={{
+                      padding: '11px', background: '#f3f4f6',
+                      color: '#374151', border: '1px solid #e5e7eb',
+                      borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                    }}
+                  >Save Draft</button>
+                  <button
+                    onClick={onIssue}
+                    style={{
+                      padding: '11px',
+                      background: rxSaved ? '#059669' : '#2B52D4',
+                      color: '#fff', border: 'none', borderRadius: '8px',
+                      cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    {rxSaved ? '✓ Issued!' : '🚀 Issue Prescription'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {showChat?(
+        {showChat ? (
           <div className={styles.chatPanel}>
             <div className={styles.chatHeader}>
               <div className={styles.chatHeaderLeft}>
                 <span className={styles.chatTitle}>💬 Session Chat</span>
-                <span className={styles.chatOnline}>● Priyanka online</span>
+                <span className={styles.chatOnline}>
+                  {chatConnected
+                    ? `● ${patientName || 'Patient'} online`
+                    : '○ Connecting chat…'}
+                </span>
               </div>
               <button className={styles.chatCloseBtn} onClick={()=>setShowChat(false)}>✕</button>
             </div>
             <div className={styles.chatMessages}>
-              <div className={styles.chatTs}>Session started·{new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+              <div className={styles.chatTs}>Session started · {new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
               {messages.map((m,i)=>(
                 <div key={i} className={`${styles.msgWrap} ${m.role==='patient'?styles.msgPatient:styles.msgDoctor}`}>
-                  {m.role==='patient'&&<div className={styles.msgSender}>Priyanka</div>}
+                  {/* ✅ Real patient name */}
+                  {m.role==='patient'&&<div className={styles.msgSender}>{patientName || 'Patient'}</div>}
                   <div className={`${styles.bubble} ${m.role==='patient'?styles.bubblePatient:styles.bubbleDoctor}`}>{m.text}</div>
                   <div className={`${styles.msgTime} ${m.role==='doctor'?styles.msgTimeRight:''}`}>{m.time}{m.role==='doctor'?' ✓✓':''}</div>
                 </div>
               ))}
               {patientTyping&&(
                 <div className={`${styles.msgWrap} ${styles.msgPatient}`}>
-                  <div className={styles.msgSender}>Priyanka</div>
+                  <div className={styles.msgSender}>{patientName || 'Patient'}</div>
                   <div className={styles.typingBubble}>
                     {[0,0.2,0.4].map((d,i)=><div key={i} className={styles.typingDot} style={{animationDelay:`${d}s`}}/>)}
                   </div>
@@ -389,34 +626,57 @@ const LiveCallScreen: React.FC<Props> = ({
               <button className={styles.chatSendBtn} onClick={sendChatMessage} disabled={!chatInput.trim()}>➤</button>
             </div>
           </div>
-        ):(
+        ) : (
           <div className={styles.sidebar}>
+            {/* ✅ Patient Info — real data */}
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>👤 Patient Info</h3>
-              {[{k:'ID',v:'#P-3af301'},{k:'Age/Sex',v:'28/Female'},{k:'Sessions',v:'4 Total'},{k:'Condition',v:'GAD+MDD'}].map((r,i)=>(
-                <div key={i} className={styles.kv}><span className={styles.kvK}>{r.k}</span><span className={styles.kvV}>{r.v}</span></div>
-              ))}
+              <div className={styles.kv}>
+                <span className={styles.kvK}>Name</span>
+                <span className={styles.kvV}>{patientName || '—'}</span>
+              </div>
+              <div className={styles.kv}>
+                <span className={styles.kvK}>Sessions</span>
+                <span className={styles.kvV}>{patientHistory.length > 0 ? `${patientHistory.length} Total` : 'First session'}</span>
+              </div>
+              {patientHistory.length === 0 && (
+                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>No previous history found</div>
+              )}
             </div>
+
+            {/* ✅ Active Rx — real data from DB */}
             <div className={styles.card}>
-              <h3 className={styles.cardTitle}>🔗 Active Rx</h3>
-              {[{name:'Sertraline',dose:'50mg·Once daily'},{name:'Lorazepam',dose:'0.5mg·As needed'}].map((rx,i)=>(
-                <div key={i} className={styles.rxItem}><div className={styles.rxName}>{rx.name}</div><div className={styles.rxDose}>{rx.dose}</div></div>
-              ))}
+              <h3 className={styles.cardTitle}>🔗 Previous Rx</h3>
+              {existingRx.length === 0 ? (
+                <div style={{ fontSize: '13px', color: '#9ca3af' }}>No previous prescriptions</div>
+              ) : (
+                existingRx.slice(0, 3).map((rx, i) => (
+                  <div key={i} className={styles.rxItem}>
+                    <div className={styles.rxName}>{rx.name}</div>
+                    <div className={styles.rxDose}>{rx.dose} · {rx.frequency}</div>
+                  </div>
+                ))
+              )}
               <button className={styles.prescribeBtn} onClick={onPrescribe}>💊 Write Prescription</button>
             </div>
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>📊 Mood Trend</h3>
-              <div className={styles.moodBars}>
-                {[['#FECACA','50%'],['#FECACA','40%'],['#FDE68A','65%'],['#BBF7D0','78%'],['#BBF7D0','90%'],['#2B52D4','88%']].map(([bg,h],i)=>(
-                  <div key={i} className={styles.moodBar} style={{background:bg,height:h}}/>
-                ))}
-              </div>
-              <div className={styles.moodLabels}>{['Oct','Nov','Dec','Jan','Feb','Now'].map(l=><span key={l}>{l}</span>)}</div>
-            </div>
+
+            {/* Session Notes */}
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>📋 Session Notes</h3>
-              <textarea className={styles.notesArea} placeholder="Type observations..." value={sessionNotes} onChange={e=>setSessionNotes(e.target.value)}/>
-              <button className={`${styles.saveNoteBtn} ${noteSaved?styles.saveNoteSaved:''}`} onClick={handleSaveNote}>{noteSaved?'✓ Saved!':'Save Note'}</button>
+              <textarea
+                className={styles.notesArea}
+                placeholder="Type observations..."
+                value={sessionNotes}
+                onChange={e=>setSessionNotes(e.target.value)}
+              />
+              {/* ✅ FIX: Save Note button — real API call */}
+              <button
+                className={`${styles.saveNoteBtn} ${noteSaved?styles.saveNoteSaved:''}`}
+                onClick={handleSaveNote}
+                disabled={noteSaving}
+              >
+                {noteSaving ? 'Saving...' : noteSaved ? '✓ Saved to DB!' : 'Save Note'}
+              </button>
             </div>
           </div>
         )}
