@@ -13,6 +13,7 @@ import {
 } from "../utils/reminderHelpers";
 import { formatDateYMDInTimeZone, getTodayYmdLocal } from "../utils/reminderSchedule";
 import { useNavigate } from "react-router-dom";
+import { PageLoadingSpinner, EmptyState } from "../components/ui";
 
 type Reminder = {
   _id: string;
@@ -31,6 +32,8 @@ type Reminder = {
   isDisabledToday?: boolean;
   status?: string;
   disabledDates?: string[];
+  snoozedUntil?: string | null;
+  completionHistory?: any[];
 };
 
 type NotificationReminder = Reminder & {
@@ -71,7 +74,7 @@ const buildDueNotifications = (loadedReminders: Reminder[]): NotificationReminde
         ...reminder,
         title: reminder.title || "Untitled",
         dueAt: dueDate.toISOString(),
-        statusLabel: isOverdue ? "Overdue" : "Due now",
+        statusLabel: isOverdue ? "Ready when you are" : "Gentle reminder",
         isOverdue,
       };
     })
@@ -107,7 +110,16 @@ const NotificationsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busyReminderId, setBusyReminderId] = useState<string | null>(null);
   const lastLoadedDayRef = useRef(getTodayYmdLocal());
+  const notifiedReminderIdsRef = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
 
   const loadReminders = async () => {
     setLoading(true);
@@ -125,6 +137,27 @@ const NotificationsPage: React.FC = () => {
       }
 
       setReminders(dueTodayReminders);
+
+      // Trigger native browser notifications for newly due/overdue reminders
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        dueTodayReminders.forEach((reminder) => {
+          if (!notifiedReminderIdsRef.current.has(reminder._id)) {
+            new Notification(`Gentle reminder: ${reminder.title}`, {
+              body: reminder.description || "Time for your self-care check-in.",
+            });
+            notifiedReminderIdsRef.current.add(reminder._id);
+          }
+        });
+
+        // Clean up notified set for reminders that are no longer in the active due list
+        const currentDueIds = new Set(dueTodayReminders.map(r => r._id));
+        notifiedReminderIdsRef.current.forEach((id) => {
+          if (!currentDueIds.has(id)) {
+            notifiedReminderIdsRef.current.delete(id);
+          }
+        });
+      }
+
       setStats({
         total: loadedReminders.length,
         offToday: getTodayReminders(loadedReminders, now).filter((reminder) => isReminderOffToday(reminder, now)).length,
@@ -142,7 +175,7 @@ const NotificationsPage: React.FC = () => {
   };
 
   useReminderAutoRefresh(loadReminders, {
-    intervalMs: 30000,
+    intervalMs: 300000,
     refreshOnFocus: true,
     refreshOnVisibility: true,
     refreshOnMidnight: true,
@@ -170,11 +203,23 @@ const NotificationsPage: React.FC = () => {
         : [];
       const nextDisabledDates = Array.from(new Set([...disabledDates, todayDate]));
 
+      const nextHistory = [
+        ...(reminder.completionHistory || []),
+        {
+          date: todayDate,
+          status: "completed",
+          notes: "Marked done today",
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
       await updateReminder(
         reminder._id,
         {
           disabledDates: nextDisabledDates,
           isDisabledToday: true,
+          snoozedUntil: null,
+          completionHistory: nextHistory,
         },
         userId
       );
@@ -182,6 +227,71 @@ const NotificationsPage: React.FC = () => {
       await loadReminders();
     } catch (requestError) {
       const errorMessage = requestError instanceof Error ? requestError.message : "Unable to mark reminder done for today.";
+      setError(errorMessage);
+    } finally {
+      setBusyReminderId(null);
+    }
+  };
+
+  const handleSnooze = async (reminder: NotificationReminder, option: string) => {
+    if (!reminder._id) {
+      return;
+    }
+
+    setBusyReminderId(reminder._id);
+    setError(null);
+
+    try {
+      const userId = getCurrentUserId();
+      const timeZone = reminder.timezone || "Asia/Colombo";
+      const todayDate = formatDateYMDInTimeZone(new Date(), timeZone);
+
+      let payload: any = {};
+
+      if (option === "15" || option === "60") {
+        const snoozeMinutes = Number(option);
+        const snoozeTime = new Date(Date.now() + snoozeMinutes * 60 * 1000).toISOString();
+        const nextHistory = [
+          ...(reminder.completionHistory || []),
+          {
+            date: todayDate,
+            status: "snoozed",
+            notes: `Snoozed for ${snoozeMinutes} minutes`,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+
+        payload = {
+          snoozedUntil: snoozeTime,
+          completionHistory: nextHistory,
+        };
+      } else if (option === "tomorrow") {
+        const disabledDates = Array.isArray(reminder.disabledDates)
+          ? reminder.disabledDates.map((value: string) => String(value).trim()).filter(Boolean)
+          : [];
+        const nextDisabledDates = Array.from(new Set([...disabledDates, todayDate]));
+        const nextHistory = [
+          ...(reminder.completionHistory || []),
+          {
+            date: todayDate,
+            status: "skipped",
+            notes: "Skipped today (Snoozed until tomorrow)",
+            createdAt: new Date().toISOString(),
+          },
+        ];
+
+        payload = {
+          disabledDates: nextDisabledDates,
+          isDisabledToday: true,
+          snoozedUntil: null,
+          completionHistory: nextHistory,
+        };
+      }
+
+      await updateReminder(reminder._id, payload, userId);
+      await loadReminders();
+    } catch (requestError) {
+      const errorMessage = requestError instanceof Error ? requestError.message : "Unable to snooze reminder.";
       setError(errorMessage);
     } finally {
       setBusyReminderId(null);
@@ -204,7 +314,7 @@ const NotificationsPage: React.FC = () => {
         pendingRemindersCount={visibleReminders.length}
         unreadNotificationsCount={visibleReminders.length}
       />
-      
+
       <main className={`flex-1 overflow-y-auto transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
         <div className="p-8">
           {/* Header */}
@@ -241,8 +351,8 @@ const NotificationsPage: React.FC = () => {
 
           {/* Loading State */}
           {loading && (
-            <div className="text-center py-12">
-              <p className="text-gray-600">Loading reminders...</p>
+            <div className="py-12">
+              <PageLoadingSpinner message="Loading notifications…" fullHeight={false} />
             </div>
           )}
 
@@ -252,7 +362,7 @@ const NotificationsPage: React.FC = () => {
               {visibleReminders.map((r) => (
                 <div
                   key={r._id}
-                  className={`rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow border ${r.isOverdue ? "bg-rose-50 border-rose-200" : "bg-blue-50 border-gray-100"}`}
+                  className={`rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow border ${r.isOverdue ? "bg-blue-50/50 border-blue-100" : "bg-blue-50/50 border-blue-100"}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -270,11 +380,10 @@ const NotificationsPage: React.FC = () => {
                         <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium capitalize">
                           {String(r.category || "reminder")}
                         </span>
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          r.isOverdue
-                            ? "bg-rose-100 text-rose-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${r.isOverdue
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
+                          }`}>
                           {r.statusLabel}
                         </span>
                       </div>
@@ -288,6 +397,22 @@ const NotificationsPage: React.FC = () => {
                       >
                         {busyReminderId === r._id ? "Saving..." : "Mark done today"}
                       </button>
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            handleSnooze(r, val);
+                            e.target.value = "";
+                          }
+                        }}
+                        disabled={busyReminderId === r._id}
+                        className="px-3 py-2 rounded-lg text-sm font-medium transition-all bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <option value="">Snooze...</option>
+                        <option value="15">Snooze 15 min</option>
+                        <option value="60">Snooze 1 hour</option>
+                        <option value="tomorrow">Snooze until tomorrow</option>
+                      </select>
                       <button
                         type="button"
                         onClick={() => navigate("/reminders")}
@@ -304,12 +429,8 @@ const NotificationsPage: React.FC = () => {
 
           {/* Empty State */}
           {!loading && visibleReminders.length === 0 && !error && (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">No reminders</h3>
-              <p className="mt-2 text-gray-600">There are no reminders due right now.</p>
+            <div className="bg-white rounded-lg border border-gray-200">
+              <EmptyState title="No reminders" description="There are no reminders due right now." />
             </div>
           )}
         </div>

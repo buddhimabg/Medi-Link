@@ -15,22 +15,23 @@ import MoodFixIcon from "../assets/MoodFixIcon";
 import HistoryIcon from "../assets/HistoryIcon";
 
 import { useDashboardData } from "../hooks/useMood";
+import { PageLoadingSpinner, PageErrorState, InlineAlert } from "../components/ui";
 
 const WeeklyMoodChart = React.memo(({ data }) => {
-  if (!data || data.length===0) return <div className="text-gray-500 text-sm py-6 text-center">No mood data available</div>;
+  if (!data || data.length === 0) return <div className="text-gray-500 text-sm py-6 text-center">No mood data available</div>;
   return (
     <div className="space-y-3">
-      {data.map((item,index)=>(
+      {data.map((item, index) => (
         <div key={index} className="flex items-center gap-3">
           <span className="w-24 text-sm text-gray-600">{item?.displayDate || "-"}</span>
           <div className="flex-1 flex items-center gap-2">
             <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#0C5BD5] rounded-full transition-all duration-500"
-                style={{ width: `${((item?.value||0)/10)*100}%`, opacity:item?.hasData?1:0.3 }}
+                style={{ width: `${((item?.value || 0) / 10) * 100}%`, opacity: item?.hasData ? 1 : 0.3 }}
               />
             </div>
-            <span className="w-12 text-right text-sm text-gray-700">{item?.value?.toFixed(1)||0}/10</span>
+            <span className="w-12 text-right text-sm text-gray-700">{item?.value?.toFixed(1) || 0}/10</span>
           </div>
         </div>
       ))}
@@ -54,14 +55,36 @@ const Dashboard = () => {
     }
   }, [location.state]);
 
-  if (loading) return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
-  if (error) return <div className="flex justify-center items-center min-h-screen text-red-600">{error}</div>;
+  if (loading) {
+    return (
+      <div className="flex bg-gray-50 min-h-screen">
+        <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
+        <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+          <PageLoadingSpinner message="Loading dashboard…" />
+        </main>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex bg-gray-50 min-h-screen">
+        <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
+        <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+          <PageErrorState message="We couldn't load your dashboard. Please try again." />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
-      <main className={`flex-1 transition-all duration-300 ${collapsed?"ml-20":"ml-64"} p-8`}>
-        {showSuccess && <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg">Check-in completed!</div>}
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+        {showSuccess && (
+          <div className="fixed bottom-4 right-4 z-50 w-80 animate-slide-in">
+            <InlineAlert type="success" message="Check-in completed!" onClose={() => setShowSuccess(false)} />
+          </div>
+        )}
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Mood Track Dashboard</h1>
@@ -79,7 +102,7 @@ const Dashboard = () => {
             <h2 className="text-xl font-semibold">Daily Check-in</h2>
             <p className="text-sm opacity-90 mt-1">How are you feeling today?</p>
           </div>
-          <button onClick={()=>navigate("/check-in")} className="bg-black text-white px-8 py-3 rounded-xl hover:bg-gray-900 transition">Start Check-in →</button>
+          <button onClick={() => navigate("/check-in")} className="bg-black text-white px-8 py-3 rounded-xl hover:bg-gray-900 transition">Start Check-in →</button>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">

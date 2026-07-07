@@ -49,6 +49,7 @@ const getMoodValue = (mood) => {
 };
 
 const num = (v, def = 5) => {
+  if (v === null || v === undefined || v === "") return def;
   const n = Number(v);
   return isNaN(n) ? def : n;
 };
@@ -97,7 +98,8 @@ const calculateMentalHealthScore = (m) => {
 // ==========================================
 
 const normalizeMetric = (value, min, max, inverse = false) => {
-  const clamped = Math.max(min, Math.min(max, value));
+  const val = num(value, 5);
+  const clamped = Math.max(min, Math.min(max, val));
   let score = ((clamped - min) / (max - min)) * 100;
   return inverse ? 100 - score : score;
 };

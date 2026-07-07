@@ -46,6 +46,7 @@ export const API_CONFIG = {
     reminders: (_userId: string) => `/api/reminders`,
     reminderCreate: `/api/reminders`,
     reminderById: (reminderId: string) => `/api/reminders/${reminderId}`,
+    prescriptionUpload: "/api/reminders/upload-prescription",
   },
 };
 

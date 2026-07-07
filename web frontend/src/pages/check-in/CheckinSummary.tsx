@@ -1,11 +1,26 @@
 // @ts-nocheck
-// pages/CheckinSummary.jsx
+// pages/check-in/CheckinSummary.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from "../components/Sidebar";
+import Sidebar from "../../components/Sidebar";
 import "./CheckinSummary.css";
-import { useMoodStore } from "../store/moodStore";
-import { updateCheckIn } from "../api/moodApi";
+import { useMoodStore } from "../../store/moodStore";
+import { updateCheckIn } from "../../api/moodApi";
+import { PageLoadingSpinner, InlineAlert } from "../../components/ui";
+
+// Type definitions for summary data
+interface SummaryData {
+  date: string;
+  time: string;
+  mood: string;
+  note?: string;
+  levels: { [key: string]: number | null | undefined };
+  moodScore?: number | null;
+  questionsCompleted: number;
+  totalQuestions: number;
+  checkInStreak: number;
+  checkInId?: string;
+}
 
 const CheckinSummary = () => {
   const navigate = useNavigate();
@@ -15,7 +30,7 @@ const CheckinSummary = () => {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [savingSharePreference, setSavingSharePreference] = useState(false);
-  const [summaryData, setSummaryData] = useState(null);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
 
   const lastSubmission = useMoodStore((state) => state.lastSubmission);
 
@@ -26,9 +41,24 @@ const CheckinSummary = () => {
     if (backendSummary) {
       const data = { ...backendSummary };
 
-      data.moodScore = data.mentalHealthScore ?? 0;
-      data.questionsCompleted = 7;
-      data.totalQuestions = 7;
+      // Compute moodScore from provided level fields (ignore null/undefined)
+      const levelFields = [
+        'sleepLevel',
+        'anxietyLevel',
+        'energyLevel',
+        'motivationLevel',
+        'socialInteraction',
+        'stressLevel',
+        'focusLevel',
+      ];
+      const values = levelFields
+        .map((k) => data.levels?.[k])
+        .filter((v) => v != null && v !== undefined);
+      const moodScore = values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1) : null;
+
+      data.moodScore = moodScore !== null ? Number(moodScore) : null;
+      data.questionsCompleted = values.length;
+      data.totalQuestions = levelFields.length;
       data.checkInStreak = Number(data.checkInStreak ?? 0);
       setSummaryData(data);
     } else {
@@ -40,10 +70,8 @@ const CheckinSummary = () => {
     return (
       <div className="flex bg-[#F8FAFC] min-h-screen">
         <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
-        <main className={`flex-1 transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'} p-6`}>
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-pulse text-gray-400">Loading summary...</div>
-          </div>
+        <main className={`flex-1 transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'}`}>
+          <PageLoadingSpinner message="Loading summary…" />
         </main>
       </div>
     );
@@ -64,7 +92,9 @@ Note: "${summaryData.note || 'No note added'}"
 
 TODAY'S LEVELS (1-10 scale)
 ---------------------------
-${Object.entries(summaryData.levels).map(([key, value]) => `• ${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}/10`).join('\n')}
+${Object.entries(summaryData.levels)
+          .filter(([, v]) => v != null && v !== undefined)
+          .map(([key, value]) => `• ${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}/10`).join('\n')}
 
 YOUR STATS
 ----------
@@ -108,6 +138,15 @@ Streak: ${summaryData.checkInStreak} days`;
     }
   };
 
+  const getBarColor = (levelName: string, value: number | null | undefined) => {
+    if (value == null) return '#CCCCCC'; // fallback for missing values
+    const lower = levelName.toLowerCase();
+    if (lower.includes('anxiety') || lower.includes('stress')) {
+      return value <= 3 ? '#10B981' : value <= 6 ? '#F59E0B' : '#EF4444';
+    }
+    return value >= 7 ? '#10B981' : value >= 4 ? '#0C5BD5' : '#F59E0B';
+  };
+
   const getMoodColor = (mood) => {
     const moodMap = {
       'terrible': '#8B0000',
@@ -136,12 +175,7 @@ Streak: ${summaryData.checkInStreak} days`;
     return 'High';
   };
 
-  const getBarColor = (levelName, value) => {
-    if (levelName === 'anxiety' || levelName === 'stress') {
-      return value <= 3 ? '#10B981' : value <= 6 ? '#F59E0B' : '#EF4444';
-    }
-    return value >= 7 ? '#10B981' : value >= 4 ? '#0C5BD5' : '#F59E0B';
-  };
+
 
   const persistSharePreference = async (shouldShare) => {
     if (!summaryData?.checkInId) {
@@ -172,19 +206,13 @@ Streak: ${summaryData.checkInStreak} days`;
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
       <main className={`flex-1 transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'} p-6 overflow-y-auto`}>
         {downloadSuccess && (
-          <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 animate-slide-in">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span>Downloaded successfully!</span>
+          <div className="fixed top-4 right-4 z-50 w-80 animate-slide-in">
+            <InlineAlert type="success" message="Downloaded successfully!" onClose={() => setDownloadSuccess(false)} />
           </div>
         )}
         {shareSuccess && (
-          <div className="fixed top-4 right-4 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 animate-slide-in">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-            </svg>
-            <span>Copied to clipboard!</span>
+          <div className="fixed top-4 right-4 z-50 w-80 animate-slide-in">
+            <InlineAlert type="success" message="Copied to clipboard!" onClose={() => setShareSuccess(false)} />
           </div>
         )}
 
@@ -286,7 +314,7 @@ Streak: ${summaryData.checkInStreak} days`;
               </div>
               <div className="text-center p-2 bg-[#F8FAFC] rounded-lg">
                 <p className="text-xs text-gray-400">Completed</p>
-                <p className="text-lg font-semibold text-[#0C5BD5]">7/7</p>
+                <p className="text-lg font-semibold text-[#0C5BD5]">{summaryData.questionsCompleted}/{summaryData.totalQuestions}</p>
               </div>
               <div className="text-center p-2 bg-[#F8FAFC] rounded-lg">
                 <p className="text-xs text-gray-400">Streak</p>
@@ -308,20 +336,19 @@ Streak: ${summaryData.checkInStreak} days`;
 
             {/* Levels Bars */}
             <div className="space-y-3">
-              {Object.entries(summaryData.levels).map(([key, value]) => (
-                <div key={key}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-gray-500 capitalize">{key}</span>
-                    <span className="text-xs font-medium" style={{ color: getBarColor(key, value) }}>{value}/10</span>
+              {Object.entries(summaryData.levels)
+                .filter(([, v]) => v != null && v !== undefined)
+                .map(([key, value]) => (
+                  <div key={key}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-500 capitalize">{key}</span>
+                      <span className="text-xs font-medium" style={{ color: getBarColor(key, value) }}>{value}/10</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-2 rounded-full" style={{ width: `${(value/10)*100}%`, backgroundColor: getBarColor(key, value) }}></div>
+                    </div>
                   </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{ width: `${(value/10)*100}%`, backgroundColor: getBarColor(key, value) }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         </div>

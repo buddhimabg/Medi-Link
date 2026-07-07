@@ -62,6 +62,7 @@ const DEFAULT_FACTOR_META = {
 const clamp = (value) => Math.max(0, Math.min(100, value));
 
 const toLevel100 = (value) => {
+  if (value === null || value === undefined || value === "") return 50;
   const n = Number(value);
   if (Number.isNaN(n)) return 50;
   return clamp(n, 1, 10) * 10;

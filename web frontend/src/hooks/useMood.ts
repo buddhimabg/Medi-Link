@@ -1,10 +1,10 @@
 import { useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMoodStore } from "../store/moodStore";
+import type { OverviewData } from "../types/mood";
 
 import {
-  fetchDashboardStats,
-  fetchWeeklyData,
+  fetchOverview,
   createCheckIn,
   fetchMoodHistory,
   fetchInsights,
@@ -77,13 +77,10 @@ export const useDashboardData = (userId: string = getCurrentUserId()) => {
       setLoading(true);
       setError(null);
 
-      const [statsData, weeklyData] = await Promise.all([
-        fetchDashboardStats(userId),
-        fetchWeeklyData(userId),
-      ]);
-
-      const statsDataTyped = statsData as any;
-      const weeklyDataTyped = weeklyData as any;
+      const overview = await fetchOverview(userId) as unknown as OverviewData;
+      const statsDataTyped = overview.dashboardStats;
+      const weeklyDataTyped = overview.weeklyChart;
+      
       const avgValue = Number(statsDataTyped?.sevenDayAverage || 0);
 
       setDashboardData({
@@ -94,6 +91,11 @@ export const useDashboardData = (userId: string = getCurrentUserId()) => {
         recoveryScore: statsDataTyped?.recoveryScore || 0,
         weeklyData: Array.isArray(weeklyDataTyped) ? weeklyDataTyped : [],
       });
+      
+      // Also set insights if available
+      if (overview.insights) {
+        useMoodStore.getState().setInsights(overview.insights);
+      }
     } catch (err) {
       setError(handleError(err, "useDashboardData.fetchData"));
     } finally {
@@ -143,7 +145,7 @@ export const useCheckIn = () => {
         ...currentCheckIn?.levels,
       };
 
-      const response = (await createCheckIn(payload)) as any;
+      const response = await createCheckIn(payload) as { mentalHealthScore?: number; checkInStreak?: number; isFirstCheckInToday?: boolean; [key: string]: any };
       setLastSubmission(response || null);
 
       if (typeof response?.checkInStreak === "number") {

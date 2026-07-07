@@ -8,6 +8,7 @@ import {
   deleteReminder,
   fetchReminders,
   updateReminder,
+  uploadPrescription,
 } from "../api/reminderApi";
 import useReminderAutoRefresh from "../hooks/useReminderAutoRefresh";
 import {
@@ -15,6 +16,7 @@ import {
   getTodayYmdLocal,
 } from "../utils/reminderSchedule";
 import { getTodayReminders, isReminderOffToday } from "../utils/reminderHelpers";
+import { PageLoadingSpinner, EmptyState, ConfirmDialog, InlineAlert } from "../components/ui";
 
 interface CategoryMeta {
   label: string;
@@ -26,6 +28,11 @@ interface Reminder {
   _id: string;
   title: string;
   description?: string;
+  instruction?: string;
+  durationDays?: number;
+  endDate?: string;
+  isDuplicate?: boolean;
+  duplicateMessage?: string;
   category: string;
   time: string;
   frequency: string;
@@ -44,6 +51,8 @@ interface Reminder {
 interface ReminderForm {
   title: string;
   description: string;
+  instruction: string;
+  durationDays: number | string;
   category: string;
   time: string;
   frequency: string;
@@ -148,6 +157,8 @@ const formatTime = (timeValue) => {
 const getInitialReminderForm = () => ({
   title: "",
   description: "",
+  instruction: "",
+  durationDays: 0,
   category: "mood",
   time: "08:00",
   frequency: "daily",
@@ -258,11 +269,17 @@ const RemindersPage = () => {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [busyActionKey, setBusyActionKey] = useState("");
+  const [reminderToDelete, setReminderToDelete] = useState<any>(null);
   const [reminders, setReminders] = useState([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState(getInitialReminderForm);
   const [editingReminderId, setEditingReminderId] = useState("");
   const [editForm, setEditForm] = useState(getInitialReminderForm);
+  const [isUploading, setIsUploading] = useState(false);
+  const [reviewReminders, setReviewReminders] = useState<any[]>([]);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSavingReview, setIsSavingReview] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   const userId = getCurrentUserId();
 
@@ -323,6 +340,8 @@ const RemindersPage = () => {
     setEditForm({
       title: reminder.title || "",
       description: reminder.description || "",
+      instruction: reminder.instruction || "",
+      durationDays: reminder.durationDays !== undefined ? reminder.durationDays : 0,
       category: reminder.category || "mood",
       time: reminder.time || "08:00",
       frequency: reminder.frequency || "daily",
@@ -530,6 +549,8 @@ const RemindersPage = () => {
     const payload = {
       title: createForm.title.trim(),
       description: createForm.description.trim(),
+      instruction: createForm.instruction.trim(),
+      durationDays: Number(createForm.durationDays || 0),
       category: createForm.category,
       time: createForm.time,
       frequency: createForm.frequency,
@@ -550,6 +571,108 @@ const RemindersPage = () => {
     } catch (requestError) {
       setActionError(requestError.message || "Unable to create reminder.");
     } finally {
+      clearBusyAction();
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const response = await uploadPrescription(file, userId);
+      const extractedReminders = response?.reminders || response?.data?.reminders || [];
+      
+      if (!extractedReminders || extractedReminders.length === 0) {
+        setActionError("No medication reminders could be extracted from this image. Please ensure the image is a valid prescription.");
+        return;
+      }
+
+      setReviewReminders(extractedReminders);
+      setIsReviewModalOpen(true);
+      setActionMessage("Prescription analyzed successfully! Please review the extracted reminders below.");
+    } catch (error: any) {
+      setActionError(error?.response?.data?.message || error?.message || "Failed to process prescription image.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const updateReviewReminder = (index, field, value) => {
+    setReviewReminders((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const removeReviewReminder = (index) => {
+    setReviewReminders((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addReviewReminder = () => {
+    setReviewReminders((prev) => [
+      ...prev,
+      {
+        title: "New Medication",
+        description: "Prescription medication",
+        instruction: "Take 1 tablet after meals",
+        durationDays: 0,
+        category: "meditation",
+        time: "08:00",
+        frequency: "daily",
+      },
+    ]);
+  };
+
+  const handleConfirmReview = async () => {
+    if (reviewReminders.length === 0) {
+      setActionError("Please keep at least one reminder to save.");
+      return;
+    }
+
+    setIsSavingReview(true);
+    setActionError("");
+    setActionMessage("");
+    startBusyAction("review", "save");
+
+    try {
+      await Promise.all(
+        reviewReminders.map((rem) =>
+          createReminder(
+            {
+              title: rem.title,
+              description: rem.description || "Prescription medication",
+              instruction: rem.instruction || "Take as prescribed",
+              durationDays: rem.durationDays !== undefined ? Number(rem.durationDays) : 0,
+              category: rem.category || "meditation",
+              time: rem.time || "08:00",
+              frequency: rem.frequency || "daily",
+              date: rem.frequency === "once" ? (rem.date || getTodayYmdLocal()) : null,
+              daysOfWeek: rem.frequency === "weekly" ? (rem.daysOfWeek || [1, 2, 3, 4, 5]) : [],
+              specificDates: rem.frequency === "specific" ? (rem.specificDates || [getTodayYmdLocal()]) : [],
+              createdFrom: "prescription",
+            },
+            userId
+          )
+        )
+      );
+
+      await loadReminders();
+      setIsReviewModalOpen(false);
+      setReviewReminders([]);
+      setActionMessage("Prescription uploaded and reminders generated successfully.");
+    } catch (error: any) {
+      setActionError(error?.message || "Failed to save prescription reminders.");
+    } finally {
+      setIsSavingReview(false);
       clearBusyAction();
     }
   };
@@ -580,6 +703,7 @@ const RemindersPage = () => {
         reminderId,
         {
           disabledDates: nextDisabledDates,
+          isDisabledToday: shouldDisableToday,
         },
         userId
       );
@@ -620,16 +744,14 @@ const RemindersPage = () => {
     return handleToggleToday(reminder, true);
   };
 
-  const handleDeleteReminder = async (reminder) => {
-    const reminderId = reminder?._id;
-    if (!reminderId) {
-      return;
-    }
+  const requestDeleteReminder = (reminder: any) => {
+    setReminderToDelete(reminder);
+  };
 
-    const confirmed = window.confirm("Delete this reminder?");
-    if (!confirmed) {
-      return;
-    }
+  const confirmDeleteReminder = async () => {
+    if (!reminderToDelete) return;
+    const reminderId = reminderToDelete._id;
+    setReminderToDelete(null);
 
     setActionError("");
     setActionMessage("");
@@ -639,7 +761,7 @@ const RemindersPage = () => {
       await deleteReminder(reminderId, userId);
       await loadReminders();
       setActionMessage("Reminder deleted.");
-    } catch (requestError) {
+    } catch (requestError: any) {
       setActionError(requestError.message || "Unable to delete reminder.");
     } finally {
       clearBusyAction();
@@ -673,6 +795,8 @@ const RemindersPage = () => {
     const updatePayload = {
       title: editForm.title,
       description: editForm.description,
+      instruction: editForm.instruction,
+      durationDays: Number(editForm.durationDays || 0),
       time: editForm.time,
       frequency: editForm.frequency,
       date: editForm.frequency === "once" ? editForm.date : null,
@@ -736,14 +860,40 @@ const RemindersPage = () => {
                 <h1 className="text-3xl font-bold text-gray-800">Reminder & Tracking</h1>
                 <p className="text-gray-500 mt-1">Manage reminders directly from the database-backed screen.</p>
               </div>
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#0C5BD5] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#0A4AB0] transition"
-              >
-                <span className="text-base leading-none">+</span>
-                Add Reminder
-              </button>
+              <div className="flex items-center gap-3">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  className="hidden" 
+                  accept="image/*,.pdf" 
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#0C5BD5] to-[#1E40AF] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-[#0A4AB0] hover:to-[#1E3A8A] transition disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <span>Uploading...</span>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload Prescription
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#0C5BD5] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#0A4AB0] transition"
+                >
+                  <span className="text-base leading-none">+</span>
+                  Add Reminder
+                </button>
+              </div>
             </div>
           </div>
 
@@ -754,31 +904,31 @@ const RemindersPage = () => {
           </div>
 
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              {error}
+            <div className="mb-4">
+              <InlineAlert type="error" message={error} onClose={() => setError("")} />
             </div>
           )}
 
           {actionMessage && !actionError && (
-            <div className="mb-4 bg-[#EEF4FF] border border-[#CFE0FF] rounded-lg p-3 text-sm text-[#12459A]">
-              {actionMessage}
+            <div className="mb-4 animate-slide-in">
+              <InlineAlert type="success" message={actionMessage} autoCloseMs={4000} onClose={() => setActionMessage("")} />
             </div>
           )}
 
           {actionError && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              {actionError}
+            <div className="mb-4 animate-slide-in">
+              <InlineAlert type="error" message={actionError} onClose={() => setActionError("")} />
             </div>
           )}
 
           <section className="space-y-6">
             {loading ? (
-              <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-500 shadow-sm">
-                Loading reminders...
+              <div className="py-12">
+                <PageLoadingSpinner message="Loading reminders…" fullHeight={false} />
               </div>
             ) : reminders.length === 0 ? (
-              <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center text-gray-500 shadow-sm">
-                No reminders yet.
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                <EmptyState title="No reminders yet" description="Add your first reminder to get started." actionLabel="Add Reminder" onAction={openCreateModal} />
               </div>
             ) : (
               <div className="space-y-6">
@@ -839,6 +989,19 @@ const RemindersPage = () => {
                                   {reminder.description && (
                                     <p className={`mt-1 text-sm leading-snug ${isDisabledToday ? "text-slate-500" : "text-gray-600"}`}>{reminder.description}</p>
                                   )}
+                                  {reminder.instruction && (
+                                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-xs font-medium text-[#0C5BD5] border border-blue-200/60 shadow-xs">
+                                      <svg className="w-3.5 h-3.5 text-[#0C5BD5] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      <span><strong>Instruction:</strong> {reminder.instruction}</span>
+                                    </div>
+                                  )}
+                                  {reminder.durationDays !== undefined && reminder.durationDays > 0 && (
+                                    <div className="mt-2 ml-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-50/80 px-2.5 py-1 text-xs font-medium text-purple-700 border border-purple-200/60 shadow-xs">
+                                      <span>⏱️ <strong>Duration:</strong> {reminder.durationDays} Days {reminder.endDate ? `(Ends ${reminder.endDate})` : ""}</span>
+                                    </div>
+                                  )}
                                   <div className="flex flex-wrap items-center gap-3 mt-2.5">
                                     <span className={`inline-flex items-center gap-2 font-semibold text-sm ${isDisabledToday ? "text-slate-500" : "text-[#0C5BD5]"}`}>
                                       <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
@@ -877,7 +1040,7 @@ const RemindersPage = () => {
 
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteReminder(reminder)}
+                                    onClick={() => requestDeleteReminder(reminder)}
                                     disabled={isRowBusy}
                                     title="Delete reminder"
                                     className="p-1.5 rounded-md hover:bg-white/60 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
@@ -917,6 +1080,16 @@ const RemindersPage = () => {
         </div>
       </main>
 
+      <ConfirmDialog
+        isOpen={!!reminderToDelete}
+        title="Delete Reminder?"
+        message={`Are you sure you want to delete "${reminderToDelete?.title || 'this reminder'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteReminder}
+        onCancel={() => setReminderToDelete(null)}
+      />
+
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <form
@@ -950,6 +1123,36 @@ const RemindersPage = () => {
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, description: event.target.value }))}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   rows={3}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="create-reminder-instruction" className="block text-sm font-medium text-gray-700">
+                  Instruction (e.g., Take after meals)
+                </label>
+                <input
+                  id="create-reminder-instruction"
+                  type="text"
+                  value={createForm.instruction}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, instruction: event.target.value }))}
+                  placeholder="e.g., Take 1 tablet after meals"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="create-reminder-duration" className="block text-sm font-medium text-gray-700">
+                  Duration (Days, 0 = Continuous/Ongoing)
+                </label>
+                <input
+                  id="create-reminder-duration"
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={createForm.durationDays}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, durationDays: event.target.value }))}
+                  placeholder="0 (Ongoing)"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
 
@@ -1145,6 +1348,36 @@ const RemindersPage = () => {
               </div>
 
               <div>
+                <label htmlFor="reminder-instruction" className="block text-sm font-medium text-gray-700">
+                  Instruction (e.g., Take after meals)
+                </label>
+                <input
+                  id="reminder-instruction"
+                  type="text"
+                  value={editForm.instruction}
+                  onChange={(event) => setEditForm((previous) => ({ ...previous, instruction: event.target.value }))}
+                  placeholder="e.g., Take 1 tablet after meals"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="reminder-duration" className="block text-sm font-medium text-gray-700">
+                  Duration (Days, 0 = Continuous/Ongoing)
+                </label>
+                <input
+                  id="reminder-duration"
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={editForm.durationDays}
+                  onChange={(event) => setEditForm((previous) => ({ ...previous, durationDays: event.target.value }))}
+                  placeholder="0 (Ongoing)"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
                 <label htmlFor="reminder-time" className="block text-sm font-medium text-gray-700">
                   Time
                 </label>
@@ -1293,6 +1526,213 @@ const RemindersPage = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {isReviewModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-3xl bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0C5BD5] to-[#1E40AF] flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-extrabold bg-gradient-to-r from-gray-900 via-gray-800 to-[#0C5BD5] bg-clip-text text-transparent">
+                    Review Extracted Prescription
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                    We analyzed your prescription image using AI & OCR. Review and edit before adding to your schedule.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReviewModalOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-4 mb-2 p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3 text-amber-800 text-xs sm:text-sm shadow-sm">
+              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <span className="font-bold block">AI extraction may contain mistakes.</span>
+                Please review medicine names, dosage, and time before saving.
+              </div>
+            </div>
+
+            {reviewReminders.some((rem) => rem.isDuplicate) && (
+              <div className="mb-2 p-3.5 rounded-2xl bg-red-50 border border-red-200/80 flex items-start gap-3 text-red-800 text-xs sm:text-sm shadow-sm">
+                <svg className="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <span className="font-bold block">Duplicate Medications Detected!</span>
+                  Some medications match your existing active reminders. Please review the highlighted items below or remove them before saving.
+                </div>
+              </div>
+            )}
+
+            <div className="my-6 overflow-y-auto pr-1 space-y-4 flex-1">
+              {reviewReminders.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  No medications remaining. Click "Add Another Medication" below.
+                </div>
+              ) : (
+                reviewReminders.map((rem, idx) => (
+                  <div
+                    key={idx}
+                    className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/40 via-white to-indigo-50/20 border border-[#C4D7FF]/80 shadow-sm hover:shadow-md transition-all duration-300 relative group"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                      {rem.isDuplicate && (
+                        <div className="sm:col-span-12 mb-1 p-3 rounded-xl bg-red-100/80 border border-red-300 text-red-900 text-xs flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span><strong>{rem.duplicateMessage || "Duplicate Detected:"}</strong> Re-uploading may create a duplicate. You can remove or adjust this before saving.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="sm:col-span-5">
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                          Medication Title
+                        </label>
+                        <input
+                          type="text"
+                          value={rem.title || ""}
+                          onChange={(e) => updateReviewReminder(idx, "title", e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-800 shadow-sm focus:border-[#0C5BD5] focus:ring-2 focus:ring-[#C4D7FF] transition"
+                          placeholder="e.g. Take Amoxicillin 500mg"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                          Time
+                        </label>
+                        <input
+                          type="time"
+                          value={rem.time || "08:00"}
+                          onChange={(e) => updateReviewReminder(idx, "time", e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-[#0C5BD5] focus:ring-2 focus:ring-[#C4D7FF] transition"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                          Frequency
+                        </label>
+                        <select
+                          value={rem.frequency || "daily"}
+                          onChange={(e) => updateReviewReminder(idx, "frequency", e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-[#0C5BD5] focus:ring-2 focus:ring-[#C4D7FF] transition"
+                        >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="once">Once</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-1 flex justify-end sm:justify-center mt-2 sm:mt-6">
+                        <button
+                          type="button"
+                          onClick={() => removeReviewReminder(idx)}
+                          title="Remove medication"
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div className="sm:col-span-8 mt-1">
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                          Instruction / Dosage Rule
+                        </label>
+                        <input
+                          type="text"
+                          value={rem.instruction || ""}
+                          onChange={(e) => updateReviewReminder(idx, "instruction", e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-[#0C5BD5] focus:ring-2 focus:ring-[#C4D7FF] transition"
+                          placeholder="e.g. Take 1 tablet after meals"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4 mt-1">
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                          Duration (Days, 0 = Ongoing)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="365"
+                          value={rem.durationDays !== undefined ? rem.durationDays : 0}
+                          onChange={(e) => updateReviewReminder(idx, "durationDays", Number(e.target.value) || 0)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-[#0C5BD5] focus:ring-2 focus:ring-[#C4D7FF] transition"
+                          placeholder="0 (Ongoing)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              <button
+                type="button"
+                onClick={addReviewReminder}
+                className="w-full py-3 rounded-2xl border-2 border-dashed border-[#C4D7FF] bg-[#EEF4FF]/50 hover:bg-[#EEF4FF] text-[#12459A] font-semibold text-sm flex items-center justify-center gap-2 transition"
+              >
+                <span className="text-lg leading-none">+</span>
+                Add Another Medication
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsReviewModalOpen(false)}
+                disabled={isSavingReview}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReview}
+                disabled={isSavingReview || reviewReminders.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0C5BD5] to-[#1E40AF] px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-500/25 hover:from-[#0A4AB0] hover:to-[#1E3A8A] hover:shadow-blue-500/40 transition disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingReview ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Saving Reminders...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Confirm & Add Reminders ({reviewReminders.length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

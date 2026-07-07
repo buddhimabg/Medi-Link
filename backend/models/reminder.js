@@ -18,6 +18,12 @@ const reminderSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, 'Description cannot exceed 500 characters'],
     },
+    instruction: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [300, 'Instruction cannot exceed 300 characters'],
+    },
     category: {
       type: String,
       enum: ['meditation', 'mood', 'activity', 'appointment'],
@@ -36,6 +42,15 @@ const reminderSchema = new mongoose.Schema(
     date: {
       type: String,
       match: [/^\d{4}-\d{2}-\d{2}$/, 'Please provide date in YYYY-MM-DD format'],
+    },
+    durationDays: {
+      type: Number,
+      default: 0,
+    },
+    endDate: {
+      type: String,
+      match: [/^\d{4}-\d{2}-\d{2}$/, 'Please provide date in YYYY-MM-DD format'],
+      default: null,
     },
     daysOfWeek: {
       type: [Number],
@@ -61,6 +76,21 @@ const reminderSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
       index: true,
+    },
+    snoozedUntil: {
+      type: Date,
+      default: null,
+    },
+    completionHistory: {
+      type: [
+        {
+          date: { type: String, required: true },
+          status: { type: String, enum: ['completed', 'skipped', 'snoozed'], required: true },
+          notes: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now },
+        }
+      ],
+      default: [],
     },
     isActive: {
       type: Boolean,

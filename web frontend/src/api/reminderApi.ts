@@ -30,3 +30,15 @@ export const deleteReminder = async (reminderId: string, userId: string): Promis
     data: { userId },
   });
 };
+
+export const uploadPrescription = async (file: File, userId: string): Promise<any> => {
+  const formData = new FormData();
+  formData.append("prescription", file);
+  formData.append("userId", userId);
+  
+  return client.post(API_CONFIG.ENDPOINTS.prescriptionUpload, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};

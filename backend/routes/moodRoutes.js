@@ -8,6 +8,7 @@ const {
   getWeekly,
   getHistory,
   getInsights,
+  getOverview,
 } = require("../controllers/moodController.js");
 const { asyncHandler } = require("../middlewares/errorMiddleware.js");
 
@@ -19,5 +20,6 @@ router.get("/dashboard/:userId", asyncHandler(getDashboard));
 router.get("/weekly/:userId", asyncHandler(getWeekly));
 router.get("/history/:userId", asyncHandler(getHistory));
 router.get("/insights/:userId", asyncHandler(getInsights));
+router.get("/overview/:userId", asyncHandler(getOverview));
 
 module.exports = router;

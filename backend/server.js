@@ -13,6 +13,7 @@ const moodFixRoutes = require("./routes/moodFixRoutes");
 const labReportRoutes = require("./routes/labReportRoutes");
 const biomarkerRoutes = require("./routes/biomarkerRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const MoodFixActivity = require("./models/moodFixActivity");
 
@@ -53,6 +54,7 @@ app.use("/api/lab-reports", labReportRoutes);
 app.use("/api/biomarkers", biomarkerRoutes);
 app.use("/api/reminders", reminderRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/ai", aiRoutes);
 
 
 /* ==================
@@ -127,11 +129,30 @@ const seedMoodFixActivities = async () => {
   }
 };
 
+const seedBiomarkers = async () => {
+  try {
+    const Biomarker = require("./models/biomarker");
+    const defaultBiomarkers = require("./utils/defaultBiomarkers");
+    console.log("Checking and seeding medical biomarkers...");
+    for (const bm of defaultBiomarkers) {
+      await Biomarker.findOneAndUpdate(
+        { name: bm.name },
+        { $set: bm },
+        { upsert: true, new: true }
+      );
+    }
+    console.log(`✅ Medical biomarkers seeded successfully (${defaultBiomarkers.length} documents).`);
+  } catch (err) {
+    console.error("Failed to seed biomarkers:", err.message || err);
+  }
+};
+
 const startServer = async () => {
   try {
     // Connect to DB first so we can seed data if necessary
     await connectDB();
     await seedMoodFixActivities();
+    await seedBiomarkers();
 
     app.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
@@ -142,4 +163,4 @@ const startServer = async () => {
   }
 };
 
-startServer();
+startServer();

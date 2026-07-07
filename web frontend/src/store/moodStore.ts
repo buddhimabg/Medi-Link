@@ -18,6 +18,7 @@ import { create } from "zustand";
  *   note: string,
  *   date: string,
  *   levels: MoodLevels,
+ *   aiFields?: Record<string, any>,
  * }} CurrentCheckIn
  *
  * @typedef {{
@@ -66,13 +67,13 @@ import { create } from "zustand";
 
 /** @type {MoodLevels} */
 const defaultLevels = {
-  sleepLevel: 5,
-  anxietyLevel: 5,
-  energyLevel: 5,
-  motivationLevel: 5,
-  socialInteraction: 5,
-  stressLevel: 5,
-  focusLevel: 5,
+  sleepLevel: null,
+  anxietyLevel: null,
+  energyLevel: null,
+  motivationLevel: null,
+  socialInteraction: null,
+  stressLevel: null,
+  focusLevel: null,
 };
 
 /** @type {CurrentCheckIn} */
@@ -81,6 +82,7 @@ const defaultCurrentCheckIn = {
   note: "",
   date: "",
   levels: defaultLevels,
+  aiFields: {} as Record<string, any>,
 };
 
 /** @type {import("zustand").StateCreator<MoodStoreState, [], []>} */

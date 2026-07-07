@@ -33,6 +33,8 @@ export type ReminderLike = {
   isDisabledToday?: boolean;
   status?: string;
   isActive?: boolean;
+  snoozedUntil?: string | null;
+  completionHistory?: any[];
 };
 
 const getReminderTimeZone = (reminder: ReminderLike) => reminder?.timezone || DEFAULT_REMINDER_TIMEZONE;
@@ -144,6 +146,13 @@ export const getTodayReminders = <T extends ReminderLike>(reminders: T[], refere
 export const isReminderDue = <T extends ReminderLike>(reminder: T, referenceDate = new Date()) => {
   if (!reminder || isReminderOffToday(reminder, referenceDate)) {
     return false;
+  }
+
+  if (reminder.snoozedUntil) {
+    const snoozeDate = new Date(reminder.snoozedUntil);
+    if (!Number.isNaN(snoozeDate.getTime()) && snoozeDate.getTime() > referenceDate.getTime()) {
+      return false;
+    }
   }
 
   const scheduledDateTime = getScheduledDateTimeForReferenceDay(reminder, referenceDate);

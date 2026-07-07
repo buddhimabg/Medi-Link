@@ -36,7 +36,12 @@ const validateCheckInData = (data) => {
   ];
 
   levelFields.forEach((field) => {
-    const value = Number(data[field]);
+    const raw = data[field];
+    if (raw === undefined || raw === null || raw === "") {
+      // Field omitted is allowed; no error
+      return;
+    }
+    const value = Number(raw);
     if (isNaN(value) || value < VALID_LEVELS.min || value > VALID_LEVELS.max) {
       errors[field] = `${field} must be a number between ${VALID_LEVELS.min} and ${VALID_LEVELS.max}`;
     }

@@ -94,12 +94,27 @@ const createMoodEntry = async (data) => {
    - Recovery score
 ===================================================== */
 const getDashboardStats = async (userId) => {
-  const moods = await Mood.find({ userId })
-    .sort({ createdAt: -1 }) // get latest entries first for easier processing of streaks and recent data
-    .lean();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); 
+  const last7Days = new Date(today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS);
+
+  // Fetch only recent full moods for average/recovery, and only dates for streak
+  const [recentMoods, allMoodDates] = await Promise.all([
+    Mood.find({
+      userId,
+      createdAt: {
+        $gte: last7Days,
+        $lte: new Date(today.getTime() + ONE_DAY_MS - 1)
+      }
+    }).sort({ createdAt: -1 }).lean(),
+    Mood.find({ userId })
+      .select({ createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean()
+  ]);
 
   // If no mood entries found
-  if (!moods.length) {
+  if (!allMoodDates.length) {
     return {
       sevenDayAverage: 0,
       checkInStreak: 0,
@@ -107,28 +122,10 @@ const getDashboardStats = async (userId) => {
     };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); 
-
-  // Start date for last 7 days
-  const last7Days = new Date(
-    today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS
-  );
-
-  // Filter only recent mood entries
-  const moodsLast7Days = moods.filter((mood) => {
-    const moodDate = new Date(mood.createdAt);
-
-    return (
-      moodDate >= last7Days &&
-      moodDate <= new Date(today.getTime() + ONE_DAY_MS - 1)
-    );
-  });
-
   return {
-    sevenDayAverage: calculateSevenDayAverage(moodsLast7Days),
-    checkInStreak: calculateCheckInStreak(moods),
-    recoveryScore: calculateRecoveryScore(moodsLast7Days),
+    sevenDayAverage: calculateSevenDayAverage(recentMoods),
+    checkInStreak: calculateCheckInStreak(allMoodDates),
+    recoveryScore: calculateRecoveryScore(recentMoods),
   };
 };
 
@@ -214,9 +211,13 @@ const getWeeklyChart = async (userId) => {
    MOOD HISTORY
    Returns mood records with optimized fields
 ===================================================== */
-const getMoodHistory = async (userId) => {
+const getMoodHistory = async (userId, limit = 50, skip = 0) => {
+  const totalCount = await Mood.countDocuments({ userId });
+  
   const moods = await Mood.find({ userId })
     .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
     .select({
       mood: 1,
       mentalHealthScore: 1,  // Get stored score (no calculation needed)
@@ -237,6 +238,7 @@ const getMoodHistory = async (userId) => {
   return {
     success: true,
     count: moods.length,
+    total: totalCount,
     data: moods,
   };
 };
@@ -263,22 +265,14 @@ const getWeeklyInsights = async (userId) => {
     ? new Date(latestEntry.createdAt)
     : null;
 
+  const latestEntryTimestamp = latestCreatedAt ? latestCreatedAt.getTime() : 0;
+  const currentCacheKey = `${todayKey}_${latestEntryTimestamp}`;
+
   // Return cached insight if still valid
   if (
     existingInsight &&
     hasEnhancedInsightShape(existingInsight) &&
-    existingInsight.lastGeneratedDate === todayKey &&
-    existingInsight.sourceEntryCount === entryCount &&
-    (
-      (existingInsight.sourceLastEntryAt === null &&
-        latestCreatedAt === null) ||
-      (
-        existingInsight.sourceLastEntryAt &&
-        latestCreatedAt &&
-        new Date(existingInsight.sourceLastEntryAt).getTime() ===
-          latestCreatedAt.getTime()
-      )
-    )
+    existingInsight.cacheKey === currentCacheKey
   ) {
     return existingInsight;
   }
@@ -321,8 +315,7 @@ const getWeeklyInsights = async (userId) => {
 
     userId,
     lastGeneratedDate: todayKey,
-    sourceEntryCount: entryCount,
-    sourceLastEntryAt: latestCreatedAt,
+    cacheKey: currentCacheKey,
   };
 
   // Save / update insight
@@ -331,7 +324,7 @@ const getWeeklyInsights = async (userId) => {
     payload,
     {
       upsert: true,
-      new: true,
+      returnDocument: 'after',
       setDefaultsOnInsert: true,
     }
   ).lean();

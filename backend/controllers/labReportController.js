@@ -38,6 +38,9 @@ const uploadAndAnalyzeReport = async (req, res) => {
   } catch (error) {
     // Error handling added for stability (important for production + marking)
     console.error("Upload Report Error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json(apiFail(error.message));
+    }
     return res.status(500).json(apiFail("Internal server error"));
   }
 };

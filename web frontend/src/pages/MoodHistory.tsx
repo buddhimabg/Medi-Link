@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import "./MoodHistory.css";
 import StatsCard from "../components/StatsCard";
+import { PageLoadingSpinner, PageErrorState, EmptyState } from "../components/ui";
 import AverageIcon from "../assets/AverageIcon";
 import HistoryIcon from "../assets/HistoryIcon";
 import InsightIcon from "../assets/InsightIcon";
@@ -169,7 +170,7 @@ const MoodHistory = () => {
       <div className="flex bg-gray-50 min-h-screen">
         <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
         <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-          <div className="h-[70vh] flex items-center justify-center text-gray-500">Loading mood history...</div>
+          <PageLoadingSpinner message="Loading mood history…" />
         </main>
       </div>
     );
@@ -180,7 +181,7 @@ const MoodHistory = () => {
       <div className="flex bg-gray-50 min-h-screen">
         <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
         <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-          <div className="h-[70vh] flex items-center justify-center text-red-600">{moodHistoryError}</div>
+          <PageErrorState message="We couldn't load your mood history. Please try again." />
         </main>
       </div>
     );
@@ -280,21 +281,27 @@ const MoodHistory = () => {
           </div>
 
           <div className="grid grid-cols-7 gap-3 items-end min-h-[180px]">
-            {(weeklySummary?.dailyMoodAverages || []).map((item) => (
-              <div key={item.date} className="flex flex-col items-center">
-                <div className="w-full max-w-[42px] h-[120px] bg-[#E9F0FB] rounded-xl relative overflow-hidden">
-                  <div
-                    className="absolute left-0 bottom-0 w-full rounded-xl transition-all duration-500"
-                    style={{
-                      height: `${Math.max(4, (item.averageMoodScore / 10) * 100)}%`,
-                      background: "linear-gradient(180deg, #0C5BD9 0%, #0A4AB0 100%)",
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">{item.day}</p>
-                <p className="text-xs text-gray-700 font-medium">{item.averageMoodScore}</p>
+            {(!weeklySummary?.dailyMoodAverages || weeklySummary.dailyMoodAverages.length === 0) ? (
+              <div className="col-span-7 flex justify-center py-6">
+                <EmptyState title="No mood data available for this week" />
               </div>
-            ))}
+            ) : (
+              weeklySummary.dailyMoodAverages.map((item) => (
+                <div key={item.date} className="flex flex-col items-center">
+                  <div className="w-full max-w-[42px] h-[120px] bg-[#E9F0FB] rounded-xl relative overflow-hidden">
+                    <div
+                      className="absolute left-0 bottom-0 w-full rounded-xl transition-all duration-500"
+                      style={{
+                        height: `${Math.max(4, (item.averageMoodScore / 10) * 100)}%`,
+                        background: "linear-gradient(180deg, #0C5BD9 0%, #0A4AB0 100%)",
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">{item.day}</p>
+                  <p className="text-xs text-gray-700 font-medium">{item.averageMoodScore}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

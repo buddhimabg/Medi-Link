@@ -11,10 +11,12 @@ const MAX_OCR_PAGES = 4;
 // OCR language
 const OCR_LANGUAGE = "eng";
 
-// Clean extracted text by removing extra spaces/new lines
+// Clean extracted text by removing extra horizontal spaces while preserving line breaks
 const normalizeText = (text = "") =>
   String(text)
-    .replace(/\s+/g, " ")
+    .replace(/\r\n|\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
 // Run OCR on image/page buffer
@@ -51,7 +53,14 @@ const extractScannedPdfText = async (parser) => {
     if (text) textParts.push(text);
   }
 
-  return normalizeText(textParts.join(" "));
+  return normalizeText(textParts.join("\n"));
+};
+
+// Extract text directly from an image file (JPG, PNG, WEBP, etc.)
+const extractImageText = async (filePath) => {
+  const fileBuffer = await readFile(filePath);
+  const text = await runOcr(fileBuffer);
+  return text || "";
 };
 
 // Main PDF extraction logic
@@ -79,16 +88,22 @@ const extractPdfText = async (filePath) => {
 };
 
 // Exported function used by controller/service
-const extractTextFromReport = async ({ filePath }) => {
+const extractTextFromReport = async ({ filePath, mimeType }) => {
   if (!filePath) {
-    throw new Error("Missing PDF file path.");
+    throw new Error("Missing file path.");
   }
 
-  const extractedText = await extractPdfText(filePath);
+  const isImage =
+    mimeType?.startsWith("image/") ||
+    /\.(jpg|jpeg|png|webp|bmp|tiff?)$/i.test(filePath);
+
+  const extractedText = isImage
+    ? await extractImageText(filePath)
+    : await extractPdfText(filePath);
 
   if (!extractedText) {
     throw new Error(
-      "Could not extract readable text from the uploaded PDF."
+      "Could not extract readable text from the uploaded report."
     );
   }
 

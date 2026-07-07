@@ -3,6 +3,16 @@ export type ReportMarker = {
   value?: string | number | null;
   unit?: string | null;
   status?: string | null;
+  score?: number | null;
+  confidence?: string | number | null;
+  reviewNote?: string | null;
+  explanation?: string | null;
+  weight?: number | null;
+  recommendations?: any;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  normalRange?: string | null;
+  [key: string]: any;
 };
 
 export type ReportData = {
@@ -12,6 +22,13 @@ export type ReportData = {
   reportBiomarkers?: string[] | null;
   overallScore?: number | null;
   summary?: string | null;
+  dataQuality?: any;
+  analysisCoverage?: any;
+  keyIssues?: any[];
+  recommendations?: any;
+  confidence?: number | null;
+  unmatchedMarkers?: ReportMarker[] | null;
+  [key: string]: any;
 };
 
 const toTitleCase = (value = ""): string => {
@@ -48,11 +65,43 @@ export const getVisibleReportMarkers = (report?: ReportData | null): ReportMarke
   const reportBiomarkers = Array.isArray(report?.reportBiomarkers) ? report.reportBiomarkers : [];
 
   if (reportBiomarkers.length > 0) {
-    return markers.filter((marker) => !!marker?.name && reportBiomarkers.includes(marker.name));
+    // Only show DB-matched markers in the main biomarker results section
+    return markers.filter(
+      (marker) => !!marker?.name && reportBiomarkers.includes(marker.name)
+    );
   }
 
-  // Legacy reports may not have reportBiomarkers populated.
-  return markers;
+  // Legacy reports: exclude obvious not-configured entries
+  return markers.filter(
+    (m) =>
+      !!m?.name &&
+      m.status !== "not-found" &&
+      m.reviewNote !== "This biomarker is not yet configured in the database."
+  );
+};
+
+/**
+ * Returns markers that were extracted from the report but are NOT in the DB.
+ * These are shown in a separate "Unmatched tests" section on the UI.
+ */
+export const getUnmatchedReportMarkers = (report?: ReportData | null): ReportMarker[] => {
+  const markers = Array.isArray(report?.markers) ? report.markers : [];
+  const reportBiomarkers = Array.isArray(report?.reportBiomarkers) ? report.reportBiomarkers : [];
+
+  if (reportBiomarkers.length > 0) {
+    return markers.filter(
+      (m) =>
+        !!m?.name &&
+        !reportBiomarkers.includes(m.name) &&
+        m.status === "not-found"
+    );
+  }
+
+  return markers.filter(
+    (m) =>
+      m?.status === "not-found" &&
+      m.reviewNote === "This biomarker is not yet configured in the database."
+  );
 };
 
 const buildReportText = (report?: ReportData | null): string => {

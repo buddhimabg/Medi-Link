@@ -1,6 +1,10 @@
 import client from "./client";
 import { API_CONFIG } from "../config";
 
+export const fetchOverview = async (userId: string) => {
+  return client.get(`/api/moods/overview/${userId}`);
+};
+
 export const fetchDashboardStats = async (userId: string) => {
   return client.get(API_CONFIG.ENDPOINTS.dashboard(userId));
 };

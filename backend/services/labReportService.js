@@ -66,17 +66,26 @@ const hydrateReportMarkerRanges = async (report) => {
 const createLabReportAnalysis = async ({ userId, file }) => {
   try {
     if (!file) {
-      throw new Error("Report file is required.");
+      const err = new Error("Report file is required.");
+      err.statusCode = 400;
+      throw err;
     }
 
     if (typeof parseAndAnalyzeMarkers !== "function") {
       throw new Error("labReportAnalysisService is missing parseAndAnalyzeMarkers export.");
     }
 
-    const extractedText = await extractTextFromReport({
-      filePath: file.path,
-      mimeType: file.mimetype,
-    });
+    let extractedText;
+    try {
+      extractedText = await extractTextFromReport({
+        filePath: file.path,
+        mimeType: file.mimetype,
+      });
+    } catch (ocrErr) {
+      const err = new Error(ocrErr.message || "Could not extract readable text from the uploaded report.");
+      err.statusCode = 400;
+      throw err;
+    }
 
     const analysisResult = await parseAndAnalyzeMarkers(extractedText);
     const {
@@ -89,6 +98,12 @@ const createLabReportAnalysis = async ({ userId, file }) => {
       recommendations,
       confidence,
     } = analysisResult || {};
+
+    if (!reportBiomarkers || reportBiomarkers.length === 0) {
+      const err = new Error("The uploaded document does not appear to be a valid lab report. No recognized biomarkers were found.");
+      err.statusCode = 400;
+      throw err;
+    }
 
     const reportDoc = await LabReport.create({
       userId,
@@ -109,6 +124,9 @@ const createLabReportAnalysis = async ({ userId, file }) => {
     return reportDoc;
   } catch (err) {
     console.error("createLabReportAnalysis error:", err);
+    if (err.statusCode) {
+      throw err;
+    }
     throw new Error("Failed to create lab report analysis.");
   }
 };

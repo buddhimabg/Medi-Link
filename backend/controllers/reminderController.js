@@ -1,5 +1,6 @@
 const Reminder = require("../models/reminder.js");
 const { apiSuccess, apiFail } = require("../utils/apiResponse.js");
+const { analyzePrescription } = require("../services/ai/prescriptionAnalyzer.js");
 
 const DEFAULT_TIME_ZONE = "Asia/Colombo";
 
@@ -287,6 +288,113 @@ const buildReminderPayload = (req) => {
   return reminderPayload;
 };
 
+const calculateEndDate = (startDateStr, durationDays) => {
+  if (!durationDays || Number(durationDays) <= 0) return null;
+  const baseDate = startDateStr ? new Date(startDateStr) : new Date();
+  if (isNaN(baseDate.getTime())) return null;
+  baseDate.setDate(baseDate.getDate() + Number(durationDays));
+  return baseDate.toISOString().split("T")[0];
+};
+
+const IGNORE_WORDS = new Set([
+  "take", "morning", "afternoon", "evening", "night", "midnight", "bedtime",
+  "tablet", "tablets", "tab", "tabs", "capsule", "capsules", "cap", "caps",
+  "pill", "pills", "drop", "drops", "syrup", "injection", "iv", "oral", "sublingual",
+  "daily", "every", "hours", "hour", "hr", "hrs", "with", "food", "after",
+  "meals", "meal", "before", "once", "twice", "thrice", "slot", "medication",
+  "medicine", "prescribed", "prescription", "drug", "dose", "dosage", "label",
+  "auto", "generated", "ocr", "review", "am", "pm", "day", "days", "week",
+  "weeks", "month", "months", "ongoing", "continuous", "step", "time", "times",
+  "med", "meds", "first", "second", "third", "fourth", "1", "2", "3", "4", "0",
+  "vitamin", "supplement", "extract", "oil", "gel", "cream", "spray", "inhaler",
+  "powder", "solution", "suspension", "lotion", "ointment", "liquid", "mg", "ml", "mcg", "g", "l", "iu"
+]);
+
+const isDosageOrNumber = (str = "") => {
+  if (/^\d+(?:\.\d+)?(?:mg|ml|mcg|g|kg|l|iu|%|meq|cc|u)?$/i.test(str)) return true;
+  if (/^(?:mg|ml|mcg|g|kg|l|iu|%|meq|cc|u)$/i.test(str)) return true;
+  if (/^\d+$/i.test(str)) return true;
+  return false;
+};
+
+const getDrugKeywords = (title = "") => {
+  if (!title) return [];
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .map(w => w.trim())
+    .filter(w => w.length >= 2 && !IGNORE_WORDS.has(w) && !isDosageOrNumber(w));
+};
+
+const keywordsMatch = (kw1 = [], kw2 = []) => {
+  if (!kw1.length || !kw2.length) return false;
+  for (const w1 of kw1) {
+    for (const w2 of kw2) {
+      if (w1 === w2) return true;
+      if (w1.length >= 4 && w2.length >= 4 && (w1.includes(w2) || w2.includes(w1))) return true;
+      if (w1.length >= 3 && w2.length >= 3 && (w1.startsWith(w2) || w2.startsWith(w1))) return true;
+    }
+  }
+  return false;
+};
+
+const getTimeDifferenceMinutes = (t1, t2) => {
+  if (!t1 || !t2) return 0;
+  const [h1, m1] = t1.split(":").map(Number);
+  const [h2, m2] = t2.split(":").map(Number);
+  if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 0;
+  const mins1 = h1 * 60 + m1;
+  const mins2 = h2 * 60 + m2;
+  const diff = Math.abs(mins1 - mins2);
+  return Math.min(diff, 1440 - diff);
+};
+
+const checkMedicationDuplicate = (newReminder, existingReminders = [], allNewReminders = []) => {
+  if (!newReminder || !existingReminders.length) return null;
+  
+  const newTitle = typeof newReminder === "string" ? newReminder : (newReminder.title || "");
+  const newTime = typeof newReminder === "string" ? "08:00" : (newReminder.time || "08:00");
+  const newKeywords = getDrugKeywords(newTitle);
+  
+  const countInNew = allNewReminders.filter(r => {
+    const title = typeof r === "string" ? r : (r.title || "");
+    const kw = getDrugKeywords(title);
+    return keywordsMatch(newKeywords, kw);
+  }).length;
+  
+  for (const existing of existingReminders) {
+    if (!existing.title) continue;
+    const existingKeywords = getDrugKeywords(existing.title);
+    const existingTime = existing.time || "08:00";
+    
+    let isNameMatch = false;
+    if (newKeywords.length > 0 && existingKeywords.length > 0) {
+      isNameMatch = keywordsMatch(newKeywords, existingKeywords);
+    } else {
+      isNameMatch = newTitle.toLowerCase().trim() === existing.title.toLowerCase().trim();
+    }
+    
+    if (isNameMatch) {
+      const timeDiff = getTimeDifferenceMinutes(newTime, existingTime);
+      
+      if (timeDiff <= 180) {
+        return existing;
+      }
+      
+      const countInExisting = existingReminders.filter(r => {
+        const kw = getDrugKeywords(r.title);
+        return keywordsMatch(newKeywords, kw);
+      }).length;
+      
+      if (countInNew <= 1 && countInExisting <= 1) {
+        return existing;
+      }
+    }
+  }
+  return null;
+};
+
  const createReminder = async (req, res) => {
   const userId = getRequestUserId(req);
 
@@ -305,9 +413,14 @@ const buildReminderPayload = (req) => {
     return res.status(400).json(apiFail(scheduleFields.error));
   }
 
+  const durationDays = Number(reminderPayload.durationDays || req.body.durationDays || 0);
+  const endDate = calculateEndDate(scheduleFields.date || formatDateToYMD(new Date()), durationDays);
+
   const reminder = await Reminder.create({
     ...reminderPayload,
     ...scheduleFields,
+    durationDays,
+    endDate,
     userId,
   });
 
@@ -339,6 +452,19 @@ const buildReminderPayload = (req) => {
     const remindersWithUiState = (await Promise.all(reminders.map(async (reminder) => {
       const timeZone = reminder.timezone || DEFAULT_TIME_ZONE;
       const todayDate = formatDateToYMDInTimeZone(new Date(), timeZone);
+
+      // Check if reminder has expired based on duration/endDate
+      if (reminder.endDate && todayDate > reminder.endDate) {
+        if (reminder.isActive !== false) {
+          await Reminder.updateOne({ _id: reminder._id }, { $set: { isActive: false } }).catch(() => {});
+        }
+        return {
+          ...reminder,
+          isActive: false,
+          disabledToday: true,
+          status: "completed",
+        };
+      }
 
       // If flag is set, check whether it was set today in the same timezone.
       let isDisabledFlag = Boolean(reminder.isDisabledToday);
@@ -444,12 +570,17 @@ const buildReminderPayload = (req) => {
   const allowedFields = [
     "title",
     "description",
+    "instruction",
+    "durationDays",
+    "endDate",
     "category",
     "time",
     "disabledDates",
     "isActive",
     "timezone",
     "isDisabledToday",
+    "snoozedUntil",
+    "completionHistory",
   ];
 
   const previousDisabledDates = getReminderDisabledDates(reminder);
@@ -459,6 +590,12 @@ const buildReminderPayload = (req) => {
       reminder[field] = req.body[field];
     }
   });
+
+  if (hasOwn(req.body, "durationDays")) {
+    const dur = Number(req.body.durationDays || 0);
+    reminder.durationDays = dur;
+    reminder.endDate = calculateEndDate(reminder.date || formatDateToYMD(new Date()), dur);
+  }
 
   const updatedReminder = await reminder.save();
 
@@ -514,9 +651,68 @@ const buildReminderPayload = (req) => {
   );
 };
 
+const uploadPrescription = async (req, res) => {
+  const userId = getRequestUserId(req);
+
+  if (!userId) {
+    return res.status(400).json(apiFail("userId is required."));
+  }
+
+  if (!req.file) {
+    return res.status(400).json(apiFail("Prescription file is required."));
+  }
+
+  try {
+    const parsedReminders = await analyzePrescription(req.file.buffer, req.file.mimetype, req.file.originalname);
+    const existingReminders = await Reminder.find({ userId, isActive: { $ne: false } }).lean();
+    
+    const validatedReminders = [];
+    for (const reminderData of parsedReminders) {
+      const scheduleFields = buildScheduleFields({
+        source: reminderData,
+        timeZone: req.body.timezone || DEFAULT_TIME_ZONE,
+        requireFrequency: true,
+      });
+
+      if (scheduleFields.error) {
+        continue; // skip invalid parsed reminder
+      }
+
+      const duplicateExisting = checkMedicationDuplicate(reminderData, existingReminders, parsedReminders);
+      const isDuplicate = Boolean(duplicateExisting);
+      const duplicateMessage = isDuplicate
+        ? `Duplicate Detected: You already have an active reminder "${duplicateExisting.title}" (${duplicateExisting.time}).`
+        : "";
+
+      const durationDays = Number(reminderData.durationDays || 0);
+      const endDate = calculateEndDate(scheduleFields.date || formatDateToYMDInTimeZone(new Date(), req.body.timezone || DEFAULT_TIME_ZONE), durationDays);
+
+      validatedReminders.push({
+        ...reminderData,
+        ...scheduleFields,
+        durationDays,
+        endDate,
+        isDuplicate,
+        duplicateMessage,
+        createdFrom: "prescription",
+      });
+    }
+
+    return res.status(200).json(
+      apiSuccess(
+        { reminders: validatedReminders },
+        "Prescription parsed successfully. Please review the generated reminders."
+      )
+    );
+  } catch (error) {
+    return res.status(400).json(apiFail(error.message || "Failed to process prescription."));
+  }
+};
+
  module.exports = {
    createReminder,
    getTodayReminders,
    updateReminder,
    deleteReminder,
+   uploadPrescription,
  };

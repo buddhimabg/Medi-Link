@@ -15,6 +15,7 @@ import {
   getVisibleReportMarkers,
   shareReport,
 } from "../utils/reportPresentation";
+import { PageLoadingSpinner, InlineAlert, LoadingButton, EmptyState } from "../components/ui";
 
 const statusClassMap = {
   normal: "bg-green-100 text-green-700",
@@ -36,6 +37,7 @@ const ReportAnalysisPage = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [reports, setReports] = useState([]);
   const [latestReport, setLatestReport] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -46,6 +48,7 @@ const ReportAnalysisPage = () => {
 
   const loadHistory = async () => {
     try {
+      setLoading(true);
       setError("");
       const response = await fetchReportHistory(userId);
       const nextReports = response?.reports || [];
@@ -53,8 +56,10 @@ const ReportAnalysisPage = () => {
       if (nextReports.length > 0) {
         setLatestReport(nextReports[0]);
       }
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message || "Failed to load report history");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,11 +91,12 @@ const ReportAnalysisPage = () => {
 
       if (report) {
         setLatestReport(report);
+        setActionMessage("Report uploaded and analyzed successfully.");
       }
 
       await loadHistory();
-    } catch (err) {
-      setError(err.message || "Upload failed");
+    } catch (err: any) {
+      setError(err.message || "Upload failed. Please try a PDF or image file and try again.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -113,7 +119,7 @@ const ReportAnalysisPage = () => {
       if (result === "unsupported") {
         setActionMessage("Sharing is not supported on this device.");
       }
-    } catch (shareError) {
+    } catch (shareError: any) {
       if (shareError?.name !== "AbortError") {
         setActionMessage("Unable to share this report right now.");
       }
@@ -150,29 +156,36 @@ const ReportAnalysisPage = () => {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <button
+              <LoadingButton
+                isLoading={uploading}
+                loadingText="Analyzing…"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="px-6 py-2 rounded-lg bg-[#0C5BD5] text-white font-semibold hover:bg-[#0A4AB0] disabled:opacity-70 transition flex items-center gap-2 shadow-sm"
+                className="px-6 py-2 rounded-lg"
               >
-                <UploadIcon className="w-4 h-4" />
-                {uploading ? "Analyzing..." : "Upload Report"}
-              </button>
+                <UploadIcon className="w-4 h-4 mr-2 inline-block" />
+                Upload Report
+              </LoadingButton>
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              {error}
+          {loading ? (
+            <div className="py-12">
+              <PageLoadingSpinner message="Loading your reports…" fullHeight={false} />
             </div>
-          )}
+          ) : (
+            <>
+              {/* Error Message */}
+              {error && (
+                <div className="mb-6">
+                  <InlineAlert type="error" message={error} onClose={() => setError("")} />
+                </div>
+              )}
 
-          {actionMessage && !error && (
-            <div className="mb-6 bg-[#EEF4FF] border border-[#CFE0FF] rounded-lg p-3 text-sm text-[#12459A]">
-              {actionMessage}
-            </div>
-          )}
+              {actionMessage && !error && (
+                <div className="mb-6 animate-slide-in">
+                  <InlineAlert type="success" message={actionMessage} autoCloseMs={4000} onClose={() => setActionMessage("")} />
+                </div>
+              )}
 
           {/* Stats Cards - Simple style like mood tracker */}
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
@@ -264,11 +277,7 @@ const ReportAnalysisPage = () => {
             {/* Reports List */}
             <div className="space-y-3">
               {reports.length === 0 ? (
-                <div className="bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <LabReportIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 text-sm font-medium">No reports yet</p>
-                  <p className="text-xs text-gray-500 mt-1">Upload a PDF or image of your lab report</p>
-                </div>
+                <EmptyState title="No reports yet" description="Upload a PDF or image of your lab report to get started." />
               ) : (
                 visibleReports.map((report) => {
                   const visibleMarkers = getVisibleReportMarkers(report);
@@ -395,7 +404,7 @@ const ReportAnalysisPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(latestReport.markers || []).map((marker, idx) => (
+                    {getVisibleReportMarkers(latestReport).map((marker, idx) => (
                       <tr key={marker.name} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FBFF]'}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-800">{marker.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{marker.value ?? "—"}</td>
@@ -418,6 +427,8 @@ const ReportAnalysisPage = () => {
             <p className="font-medium text-gray-900">ⓘ Medical Disclaimer</p>
             <p className="mt-1 text-xs">This analysis is not a medical diagnosis. Please consult a healthcare professional.</p>
           </div>
+          </>
+          )}
         </div>
       </main>
     </div>

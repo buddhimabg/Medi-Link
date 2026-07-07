@@ -1,6 +1,6 @@
 const DEFAULT_REMINDER_TIMEZONE = "Asia/Colombo";
 
-type ReminderLike = {
+export type ReminderLike = {
   _id?: string;
   date?: string;
   time?: string;
