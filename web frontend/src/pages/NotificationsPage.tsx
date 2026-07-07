@@ -14,6 +14,7 @@ import {
 import { formatDateYMDInTimeZone, getTodayYmdLocal } from "../utils/reminderSchedule";
 import { useNavigate } from "react-router-dom";
 import { PageLoadingSpinner, EmptyState } from "../components/ui";
+import { getErrorMessage } from "../utils/errorHandler";
 
 type Reminder = {
   _id: string;
@@ -174,7 +175,7 @@ const NotificationsPage: React.FC = () => {
       loadedRemindersRef.current = loadedReminders;
       checkDueRemindersLocal();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      const errorMessage = getErrorMessage(err, "Unable to load reminders.");
       setError(`Unable to load reminders: ${errorMessage}`);
     } finally {
       setLoading(false);
@@ -240,7 +241,7 @@ const NotificationsPage: React.FC = () => {
 
       await loadReminders();
     } catch (requestError) {
-      const errorMessage = requestError instanceof Error ? requestError.message : "Unable to mark reminder done for today.";
+      const errorMessage = getErrorMessage(requestError, "Unable to mark reminder done for today.");
       setError(errorMessage);
     } finally {
       setBusyReminderId(null);
@@ -305,7 +306,7 @@ const NotificationsPage: React.FC = () => {
       await updateReminder(reminder._id, payload, userId);
       await loadReminders();
     } catch (requestError) {
-      const errorMessage = requestError instanceof Error ? requestError.message : "Unable to snooze reminder.";
+      const errorMessage = getErrorMessage(requestError, "Unable to snooze reminder.");
       setError(errorMessage);
     } finally {
       setBusyReminderId(null);

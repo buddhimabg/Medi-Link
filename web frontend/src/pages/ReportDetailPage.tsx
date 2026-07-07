@@ -12,6 +12,7 @@ import {
   shareReport,
 } from "../utils/reportPresentation";
 import { PageLoadingSpinner, PageErrorState, InlineAlert, EmptyState } from "../components/ui";
+import { getErrorMessage } from "../utils/errorHandler";
 import "./ReportDetailPage.css";
 import reportIllustration from "../assets/report_summary_illustration.png";
 
@@ -73,7 +74,7 @@ const ReportDetailPage: React.FC = () => {
         const res = await fetchReportById(reportId as string);
         setReport(res?.report || null);
       } catch (err: any) {
-        setError(err.message || "Failed to load report details");
+        setError(getErrorMessage(err, "Failed to load report details"));
       } finally {
         setLoading(false);
       }

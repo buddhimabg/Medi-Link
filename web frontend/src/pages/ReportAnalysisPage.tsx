@@ -16,6 +16,7 @@ import {
   shareReport,
 } from "../utils/reportPresentation";
 import { PageLoadingSpinner, InlineAlert, LoadingButton, EmptyState } from "../components/ui";
+import { getErrorMessage } from "../utils/errorHandler";
 
 const statusClassMap = {
   normal: "bg-green-100 text-green-700",
@@ -57,7 +58,7 @@ const ReportAnalysisPage = () => {
         setLatestReport(nextReports[0]);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to load report history");
+      setError(getErrorMessage(err, "Failed to load report history"));
     } finally {
       setLoading(false);
     }
@@ -96,7 +97,7 @@ const ReportAnalysisPage = () => {
 
       await loadHistory();
     } catch (err: any) {
-      setError(err.message || "Upload failed. Please try a PDF or image file and try again.");
+      setError(getErrorMessage(err, "Upload failed. Please try a PDF or image file and try again."));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

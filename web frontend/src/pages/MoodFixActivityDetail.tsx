@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Camera } from 'lucide-react';
 import { fetchMoodFixActivities, saveMoodAfterFeedback } from "../api/moodApi";
-import { getCurrentUserId } from "../config";
+import { getCurrentUserId, FACE_API_MODEL_CDN_URL } from "../config";
 import { useMoodStore } from "../store/moodStore";
 import './MoodFixActivityDetail.css';
 import { PageLoadingSpinner, InlineAlert, EmptyState, LoadingButton } from "../components/ui";
@@ -223,10 +223,10 @@ const MoodFixActivityDetail = () => {
       await tf.setBackend('webgl');
       await tf.ready();
       if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+        await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODEL_CDN_URL);
       }
       if (!faceapi.nets.faceExpressionNet.isLoaded) {
-        await faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+        await faceapi.nets.faceExpressionNet.loadFromUri(FACE_API_MODEL_CDN_URL);
       }
 
       const video = videoRef.current;

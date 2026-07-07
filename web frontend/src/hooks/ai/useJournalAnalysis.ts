@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { analyzeJournal } from '../../api/aiApi';
 import type { JournalAnalysisResult } from '../../types/ai';
+import { getErrorMessage } from '../../utils/errorHandler';
 
 export const useJournalAnalysis = () => {
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@ export const useJournalAnalysis = () => {
       setResult(data);
       return data;
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to analyze journal';
+      const errorMessage = getErrorMessage(err, 'Failed to analyze journal');
       setError(errorMessage);
       throw err;
     } finally {

@@ -15,8 +15,10 @@ const {
  */
 const uploadAndAnalyzeReport = async (req, res) => {
   try {
-    // NOTE: Temporary userId handling (no auth system integrated yet)
-    const userId = req.body?.userId || "testuser001";
+    const userId = req.body?.userId || req.query?.userId;
+    if (!userId) {
+      return res.status(400).json(apiFail("userId is required."));
+    }
 
     // Validate file existence
     if (!req.file) {

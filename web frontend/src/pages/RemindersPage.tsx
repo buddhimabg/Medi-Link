@@ -17,6 +17,7 @@ import {
 } from "../utils/reminderSchedule";
 import { getTodayReminders, isReminderOffToday } from "../utils/reminderHelpers";
 import { PageLoadingSpinner, EmptyState, ConfirmDialog, InlineAlert } from "../components/ui";
+import { getErrorMessage } from "../utils/errorHandler";
 
 interface CategoryMeta {
   label: string;
@@ -289,7 +290,7 @@ const RemindersPage = () => {
       const data = await fetchReminders(userId);
       setReminders(data?.reminders || []);
     } catch (requestError) {
-      setError(requestError.message || "Failed to load reminders.");
+      setError(getErrorMessage(requestError, "Failed to load reminders."));
     } finally {
       setLoading(false);
     }
@@ -569,7 +570,7 @@ const RemindersPage = () => {
       closeCreateModal();
       setActionMessage("Reminder created.");
     } catch (requestError) {
-      setActionError(requestError.message || "Unable to create reminder.");
+      setActionError(getErrorMessage(requestError, "Unable to create reminder."));
     } finally {
       clearBusyAction();
     }
@@ -596,7 +597,7 @@ const RemindersPage = () => {
       setIsReviewModalOpen(true);
       setActionMessage("Prescription analyzed successfully! Please review the extracted reminders below.");
     } catch (error: any) {
-      setActionError(error?.response?.data?.message || error?.message || "Failed to process prescription image.");
+      setActionError(getErrorMessage(error, "Failed to process prescription image."));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -670,7 +671,7 @@ const RemindersPage = () => {
       setReviewReminders([]);
       setActionMessage("Prescription uploaded and reminders generated successfully.");
     } catch (error: any) {
-      setActionError(error?.message || "Failed to save prescription reminders.");
+      setActionError(getErrorMessage(error, "Failed to save prescription reminders."));
     } finally {
       setIsSavingReview(false);
       clearBusyAction();
@@ -725,7 +726,7 @@ const RemindersPage = () => {
       await loadReminders();
       setActionMessage(shouldDisableToday ? "Reminder turned off for today." : "Reminder turned on for today.");
     } catch (requestError) {
-      setActionError(requestError.message || "Unable to update reminder.");
+      setActionError(getErrorMessage(requestError, "Unable to update reminder."));
     } finally {
       clearBusyAction();
     }
@@ -762,7 +763,7 @@ const RemindersPage = () => {
       await loadReminders();
       setActionMessage("Reminder deleted.");
     } catch (requestError: any) {
-      setActionError(requestError.message || "Unable to delete reminder.");
+      setActionError(getErrorMessage(requestError, "Unable to delete reminder."));
     } finally {
       clearBusyAction();
     }
@@ -820,7 +821,7 @@ const RemindersPage = () => {
       closeEditModal();
       setActionMessage("Reminder updated.");
     } catch (requestError) {
-      setActionError(requestError.message || "Unable to update reminder.");
+      setActionError(getErrorMessage(requestError, "Unable to update reminder."));
     } finally {
       clearBusyAction();
     }

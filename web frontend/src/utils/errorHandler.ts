@@ -11,8 +11,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const toAppError = (err: unknown): AppError => (isObject(err) ? (err as AppError) : {});
 
-export const getErrorMessage = (err: unknown): string => {
-  if (!err) return fallbackMessage;
+export const getErrorMessage = (err: unknown, customFallback: string = fallbackMessage): string => {
+  if (!err) return customFallback;
 
   const error = toAppError(err);
 
@@ -31,14 +31,16 @@ export const getErrorMessage = (err: unknown): string => {
       if (typeof first === "string") return first;
     }
 
-    return error.message || "Please check your input and try again.";
+    const msg = typeof error.message === "string" && error.message !== "[object Object]" ? error.message : null;
+    return msg || "Please check your input and try again.";
   }
 
   if (error.type === "ServerError") {
     return "Server error. Please try again in a moment.";
   }
 
-  return error.message || fallbackMessage;
+  const msg = typeof error.message === "string" && error.message !== "[object Object]" ? error.message : null;
+  return msg || customFallback;
 };
 
 export const logError = (err: unknown, context: string = "app"): void => {

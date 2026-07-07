@@ -7,9 +7,9 @@ const { apiSuccess, apiFail } = require("../utils/apiResponse.js");
 // POST /api/ai/analyze-journal
 const processJournal = async (req, res) => {
   try {
-    const { journalText } = req.body;
-    if (!journalText) {
-      return res.status(400).json(apiFail("Journal text is required"));
+    const { journalText } = req.body || {};
+    if (!journalText || typeof journalText !== "string" || !journalText.trim()) {
+      return res.status(400).json(apiFail("Journal text is required and must be a non-empty string"));
     }
 
     const result = await analyzeJournal(journalText);
@@ -35,6 +35,11 @@ const processSpeech = async (req, res) => {
   try {
     // In a real implementation, you'd handle file uploads with multer
     // const audioFile = req.file;
+    const body = req.body || {};
+    const speechText = body.speechText || body.transcript || body.text || (typeof body === "string" ? body : null);
+    if ((!speechText || (typeof speechText === "string" && !speechText.trim())) && !req.file && Object.keys(body).length === 0) {
+      return res.status(400).json(apiFail("Speech analysis input is required"));
+    }
     const result = await analyzeSpeech(req.body);
     res.json(apiSuccess(result, "Speech analyzed successfully"));
   } catch (error) {
@@ -61,22 +66,30 @@ const { aggregateEmotions } = require("../services/ai/emotionalAggregator.js");
 // POST /api/ai/analyze-combined
 const processCombinedAnalysis = async (req, res) => {
   try {
-    const { journalText, speechText, cameraData } = req.body;
+    const { journalText, speechText, cameraData } = req.body || {};
+
+    const hasJournal = journalText && typeof journalText === "string" && journalText.trim().length > 0;
+    const hasSpeech = speechText && typeof speechText === "string" && speechText.trim().length > 0;
+    const hasCamera = cameraData && typeof cameraData === "object" && Object.keys(cameraData).length > 0;
+
+    if (!hasJournal && !hasSpeech && !hasCamera) {
+      return res.status(400).json(apiFail("At least one input (journalText, speechText, or cameraData) is required for combined analysis"));
+    }
 
     let journalResult = null;
     let speechResult = null;
     let cameraResult = null;
 
-    if (journalText) {
+    if (hasJournal) {
       journalResult = await analyzeJournal(journalText);
     }
     
-    if (speechText) {
+    if (hasSpeech) {
       // simulate speech analysis with the provided text
       speechResult = await analyzeSpeech(speechText);
     }
 
-    if (cameraData) {
+    if (hasCamera) {
       // Mock camera data processing
       cameraResult = {
         detectedMood: {

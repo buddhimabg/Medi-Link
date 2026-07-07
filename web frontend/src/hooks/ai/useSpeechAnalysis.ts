@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { analyzeSpeech } from '../../api/aiApi';
 import type { SpeechAnalysisResult } from '../../types/ai';
+import { getErrorMessage } from '../../utils/errorHandler';
 
 export const useSpeechAnalysis = () => {
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@ export const useSpeechAnalysis = () => {
       setResult(data);
       return data;
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to analyze speech';
+      const errorMessage = getErrorMessage(err, 'Failed to analyze speech');
       setError(errorMessage);
       throw err;
     } finally {

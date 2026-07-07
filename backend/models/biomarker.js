@@ -61,6 +61,8 @@ const biomarkerSchema = new mongoose.Schema(
 );
 
 biomarkerSchema.index({ aliases: 1 });
+biomarkerSchema.index({ isActive: 1, name: 1 });
+biomarkerSchema.index({ category: 1, isActive: 1 });
 
 const Biomarker = mongoose.model("Biomarker", biomarkerSchema);
 

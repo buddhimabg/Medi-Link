@@ -114,6 +114,9 @@ const reminderSchema = new mongoose.Schema(
   }
 );
 
+reminderSchema.index({ userId: 1, isActive: 1 });
+reminderSchema.index({ userId: 1, time: 1, isActive: 1 });
+
 const Reminder = mongoose.model("Reminder", reminderSchema);
 
 module.exports = Reminder;

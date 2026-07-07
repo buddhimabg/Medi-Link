@@ -50,6 +50,8 @@ export const API_CONFIG = {
   },
 };
 
+export const FACE_API_MODEL_CDN_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+
 /** @returns {string} */
 export const getCurrentUserId = () => {
   return sessionStorage.getItem("userId") || getEnvValue("VITE_MEDITRACK_USER_ID") || "testuser001";

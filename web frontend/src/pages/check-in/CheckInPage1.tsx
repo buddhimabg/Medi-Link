@@ -11,6 +11,7 @@ import { analyzeCombined } from '../../api/aiApi';
 import type { AggregatedAnalysisResult } from '../../types/ai';
 import { Camera, Mic, BookOpen, Sparkles, Shield } from 'lucide-react';
 import { InlineAlert, LoadingButton } from '../../components/ui';
+import { FACE_API_MODEL_CDN_URL } from '../../config';
 
 type DetectionStatus = 'idle' | 'loading' | 'success' | 'failed' | 'error';
 
@@ -209,10 +210,10 @@ const CheckInPage1: React.FC = () => {
       await tf.setBackend('webgl');
       await tf.ready();
       if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+        await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODEL_CDN_URL);
       }
       if (!faceapi.nets.faceExpressionNet.isLoaded) {
-        await faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+        await faceapi.nets.faceExpressionNet.loadFromUri(FACE_API_MODEL_CDN_URL);
       }
 
       const video = videoRef.current;
