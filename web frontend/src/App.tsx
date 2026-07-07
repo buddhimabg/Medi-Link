@@ -24,6 +24,51 @@ const RemindersPage = React.lazy(() => import("./pages/RemindersPage"));
 
 import "./App.css";
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class RouteErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: any): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Route loading error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-sm border border-gray-100">
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">Page failed to load</h1>
+            <p className="text-gray-600 mb-6 text-sm">
+              Something went wrong while loading this page. Please refresh and try again.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-[#0C5BD5] text-white px-6 py-2.5 rounded-xl font-medium hover:bg-[#0A4AB0] transition"
+            >
+              Reload page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const App: React.FC = () => {
   useEffect(() => {
     // (Optional) You can keep other startup logic here later
@@ -32,8 +77,9 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <Suspense fallback={<PageLoadingSpinner message="Loading…" />}>
-        <Routes>
+      <RouteErrorBoundary>
+        <Suspense fallback={<PageLoadingSpinner message="Loading…" />}>
+          <Routes>
           {/* Default */}
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -120,6 +166,7 @@ const App: React.FC = () => {
           />
         </Routes>
       </Suspense>
+      </RouteErrorBoundary>
     </Router>
   );
 };

@@ -188,6 +188,9 @@ Streak: ${summaryData.checkInStreak} days`;
       await updateCheckIn(summaryData.checkInId, {
         shareWithDoctor: shouldShare,
       });
+      useMoodStore.getState().setLastFetchedDashboard(null);
+      useMoodStore.getState().setLastFetchedMoodHistory(null);
+      useMoodStore.getState().setLastFetchedInsights(null);
     } catch (error) {
       console.error('Failed to persist shareWithDoctor preference', error);
     } finally {

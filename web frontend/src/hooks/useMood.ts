@@ -14,6 +14,8 @@ import { handleError } from "../utils/errorHandler";
 import { getCurrentUserId } from "../config";
 // Insights computation moved to backend; frontend displays API data only.
 
+const CACHE_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
+
 /* =========================
    INSIGHTS BUILDER
 ========================= */
@@ -29,15 +31,30 @@ export const useInsightsData = (userId: string = getCurrentUserId()) => {
     setInsights,
     setInsightsLoading,
     setInsightsError,
+    lastFetchedInsights,
+    setLastFetchedInsights,
   } = useMoodStore();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force: boolean = false) => {
+    const isFresh =
+      insights !== null &&
+      lastFetchedInsights !== null &&
+      Date.now() - lastFetchedInsights < CACHE_FRESHNESS_MS;
+
+    if (!force && isFresh) {
+      if (insightsLoading) {
+        setInsightsLoading(false);
+      }
+      return;
+    }
+
     try {
       setInsightsLoading(true);
       setInsightsError(null);
 
       const apiInsights = await fetchInsights(userId);
       setInsights(apiInsights || null);
+      setLastFetchedInsights(Date.now());
     } catch (err) {
       // Do not compute locally; surface a simple offline/error message
       setInsights(null);
@@ -45,7 +62,7 @@ export const useInsightsData = (userId: string = getCurrentUserId()) => {
     } finally {
       setInsightsLoading(false);
     }
-  }, [userId, setInsights, setInsightsLoading, setInsightsError]);
+  }, [userId, insights, lastFetchedInsights, insightsLoading, setInsights, setInsightsLoading, setInsightsError, setLastFetchedInsights]);
 
   useEffect(() => {
     fetchData();
@@ -70,9 +87,22 @@ export const useDashboardData = (userId: string = getCurrentUserId()) => {
     setDashboardData,
     setLoading,
     setError,
+    lastFetchedDashboard,
+    setLastFetchedDashboard,
   } = useMoodStore();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force: boolean = false) => {
+    const isFresh =
+      lastFetchedDashboard !== null &&
+      Date.now() - lastFetchedDashboard < CACHE_FRESHNESS_MS;
+
+    if (!force && isFresh) {
+      if (loading) {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -91,17 +121,19 @@ export const useDashboardData = (userId: string = getCurrentUserId()) => {
         recoveryScore: statsDataTyped?.recoveryScore || 0,
         weeklyData: Array.isArray(weeklyDataTyped) ? weeklyDataTyped : [],
       });
+      setLastFetchedDashboard(Date.now());
       
       // Also set insights if available
       if (overview.insights) {
         useMoodStore.getState().setInsights(overview.insights);
+        useMoodStore.getState().setLastFetchedInsights(Date.now());
       }
     } catch (err) {
       setError(handleError(err, "useDashboardData.fetchData"));
     } finally {
       setLoading(false);
     }
-  }, [userId, setDashboardData, setLoading, setError]);
+  }, [userId, lastFetchedDashboard, loading, setDashboardData, setLoading, setError, setLastFetchedDashboard]);
 
   useEffect(() => {
     fetchData();
@@ -155,6 +187,17 @@ export const useCheckIn = () => {
         });
       }
 
+      // Invalidate mood caches after new check-in
+      useMoodStore.getState().setLastFetchedDashboard(null);
+      useMoodStore.getState().setLastFetchedMoodHistory(null);
+      useMoodStore.getState().setLastFetchedInsights(null);
+
+      try {
+        localStorage.removeItem("moodDraft");
+      } catch (e) {
+        // ignore storage errors
+      }
+
       navigate("/check-in/summary", {
         state: {
           checkInSuccess: true,
@@ -182,36 +225,73 @@ export const useMoodHistoryData = (userId: string = getCurrentUserId()) => {
     setMoodHistoryData,
     setMoodHistoryLoading,
     setMoodHistoryError,
+    lastFetchedMoodHistory,
+    setLastFetchedMoodHistory,
+    insights,
+    lastFetchedInsights,
+    setInsights,
+    setLastFetchedInsights,
   } = useMoodStore();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force: boolean = false) => {
+    const isHistoryFresh =
+      lastFetchedMoodHistory !== null &&
+      Date.now() - lastFetchedMoodHistory < CACHE_FRESHNESS_MS;
+
+    const isInsightsFresh =
+      insights !== null &&
+      lastFetchedInsights !== null &&
+      Date.now() - lastFetchedInsights < CACHE_FRESHNESS_MS;
+
+    if (!force && isHistoryFresh && isInsightsFresh) {
+      if (moodHistoryLoading) {
+        setMoodHistoryLoading(false);
+      }
+      return;
+    }
+
     try {
       setMoodHistoryLoading(true);
       setMoodHistoryError(null);
       
-      // Fetch both history entries and insights in parallel
+      const fetchHistoryPromise = (!force && isHistoryFresh)
+        ? Promise.resolve(moodHistoryData.entries || [])
+        : fetchMoodHistory(userId);
+
+      const fetchInsightsPromise = (!force && isInsightsFresh)
+        ? Promise.resolve(insights)
+        : fetchInsights(userId);
+
       const [historyEntriesRaw, insightsRaw] = await Promise.all([
-        fetchMoodHistory(userId),
-        fetchInsights(userId),
+        fetchHistoryPromise,
+        fetchInsightsPromise,
       ]);
       
       const historyEntries = Array.isArray(historyEntriesRaw)
         ? historyEntriesRaw
         : [];
       
-      const insights = insightsRaw || null;
+      const nextInsights = insightsRaw || null;
 
       // Store both entries and insights
       setMoodHistoryData({
         entries: historyEntries,
-        insights: insights,
+        insights: nextInsights,
       });
+
+      if (!isHistoryFresh || force) {
+        setLastFetchedMoodHistory(Date.now());
+      }
+      if ((!isInsightsFresh || force) && nextInsights !== null) {
+        setInsights(nextInsights);
+        setLastFetchedInsights(Date.now());
+      }
     } catch (err) {
       setMoodHistoryError(handleError(err, "useMoodHistoryData.fetchData"));
     } finally {
       setMoodHistoryLoading(false);
     }
-  }, [userId, setMoodHistoryData, setMoodHistoryLoading, setMoodHistoryError]);
+  }, [userId, lastFetchedMoodHistory, lastFetchedInsights, insights, moodHistoryData.entries, moodHistoryLoading, setMoodHistoryData, setMoodHistoryLoading, setMoodHistoryError, setLastFetchedMoodHistory, setInsights, setLastFetchedInsights]);
 
   useEffect(() => {
     fetchData();

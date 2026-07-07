@@ -75,7 +75,7 @@ const MoodFixPage = () => {
 
   const lastSubmission = useMoodStore((state) => state.lastSubmission);
 
-  useEffect(() => {
+  const syncCompleted = () => {
     try {
       const raw = localStorage.getItem("moodfix-completed");
       const parsed = raw ? JSON.parse(raw) : [];
@@ -90,6 +90,23 @@ const MoodFixPage = () => {
       setCompletedIds([]);
       setCompletedMeta({});
     }
+  };
+
+  useEffect(() => {
+    syncCompleted();
+  }, [location.key]);
+
+  useEffect(() => {
+    const handleFocus = () => syncCompleted();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncCompleted();
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   useEffect(() => {

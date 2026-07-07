@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import StatsCard from "../components/StatsCard";
 import { getCurrentUserId } from "../config";
@@ -279,7 +279,7 @@ const RemindersPage = () => {
   const [reviewReminders, setReviewReminders] = useState<any[]>([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
-  const fileInputRef = React.useRef(null);
+  const fileInputRef = useRef(null);
 
   const userId = getCurrentUserId();
 

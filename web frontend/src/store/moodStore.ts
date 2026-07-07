@@ -62,6 +62,12 @@ import { create } from "zustand";
  *   setInsightsLoading: (insightsLoading: boolean) => void,
  *   setInsightsError: (insightsError: string | null) => void,
  *   clearInsightsError: () => void,
+ *   lastFetchedDashboard: number | null,
+ *   setLastFetchedDashboard: (timestamp: number | null) => void,
+ *   lastFetchedMoodHistory: number | null,
+ *   setLastFetchedMoodHistory: (timestamp: number | null) => void,
+ *   lastFetchedInsights: number | null,
+ *   setLastFetchedInsights: (timestamp: number | null) => void,
  * }} MoodStoreState
  */
 
@@ -187,6 +193,16 @@ const moodStoreCreator = (set: any, _get: any) => ({
   setInsightsLoading: (insightsLoading: boolean) => set({ insightsLoading }),
   setInsightsError: (insightsError: string | null) => set({ insightsError }),
   clearInsightsError: () => set({ insightsError: null }),
+
+  // ========================
+  // Cache timestamps
+  // ========================
+  lastFetchedDashboard: null,
+  setLastFetchedDashboard: (lastFetchedDashboard: number | null) => set({ lastFetchedDashboard }),
+  lastFetchedMoodHistory: null,
+  setLastFetchedMoodHistory: (lastFetchedMoodHistory: number | null) => set({ lastFetchedMoodHistory }),
+  lastFetchedInsights: null,
+  setLastFetchedInsights: (lastFetchedInsights: number | null) => set({ lastFetchedInsights }),
 });
 
 export const useMoodStore = create(moodStoreCreator);

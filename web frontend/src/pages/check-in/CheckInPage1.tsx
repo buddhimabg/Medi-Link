@@ -10,7 +10,7 @@ import SuggestionReviewModal from '../../components/ai/SuggestionReviewModal';
 import { analyzeCombined } from '../../api/aiApi';
 import type { AggregatedAnalysisResult } from '../../types/ai';
 import { Camera, Mic, BookOpen, Sparkles, Shield } from 'lucide-react';
-import { InlineAlert } from '../../components/ui';
+import { InlineAlert, LoadingButton } from '../../components/ui';
 
 type DetectionStatus = 'idle' | 'loading' | 'success' | 'failed' | 'error';
 
@@ -466,15 +466,15 @@ const CheckInPage1: React.FC = () => {
                 rows={3}
               />
               <div className="sma-journal-footer">
-                <button
+                <LoadingButton
+                  isLoading={combinedLoading || speechLoading}
+                  loadingText="Analyzing…"
+                  disabled={!note.trim() && !detectedMood}
                   onClick={handleAnalyzeNote}
-                  disabled={combinedLoading || (!note.trim() && !detectedMood)}
                   className="sma-analyze-btn"
                 >
-                  {combinedLoading
-                    ? <><span className="sma-analyze-spinner" /> Analyzing…</>
-                    : <><Sparkles size={14} strokeWidth={2} /> Analyze note</>}
-                </button>
+                  <Sparkles size={14} strokeWidth={2} /> Analyze note
+                </LoadingButton>
               </div>
             </div>
           </div>
@@ -484,13 +484,15 @@ const CheckInPage1: React.FC = () => {
             <button onClick={() => navigate('/dashboard')} className="back-btn">← Back to Dashboard</button>
             <div className="right-actions">
               <button onClick={handleSaveForLater} className="save-btn">Save for later</button>
-              <button
-                onClick={handleContinue}
+              <LoadingButton
+                isLoading={combinedLoading || speechLoading}
+                loadingText="Analyzing…"
                 disabled={!selectedMood}
-                className={`continue-btn ${selectedMood ? 'enabled' : 'disabled'}`}
+                onClick={handleContinue}
+                className={`continue-btn ${selectedMood && !combinedLoading && !speechLoading ? 'enabled' : 'disabled'}`}
               >
                 Continue →
-              </button>
+              </LoadingButton>
             </div>
           </div>
         </div>

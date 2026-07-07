@@ -111,6 +111,7 @@ const NotificationsPage: React.FC = () => {
   const [busyReminderId, setBusyReminderId] = useState<string | null>(null);
   const lastLoadedDayRef = useRef(getTodayYmdLocal());
   const notifiedReminderIdsRef = useRef<Set<string>>(new Set());
+  const loadedRemindersRef = useRef<Reminder[]>([]);
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -121,6 +122,48 @@ const NotificationsPage: React.FC = () => {
     }
   }, []);
 
+  const checkDueRemindersLocal = () => {
+    const loadedReminders = loadedRemindersRef.current;
+    const dueTodayReminders = buildDueNotifications(loadedReminders);
+    const now = new Date();
+    const todayKey = getTodayYmdLocal();
+
+    if (lastLoadedDayRef.current !== todayKey) {
+      lastLoadedDayRef.current = todayKey;
+    }
+
+    setReminders(dueTodayReminders);
+
+    // Trigger native browser notifications for newly due/overdue reminders
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      dueTodayReminders.forEach((reminder) => {
+        if (!notifiedReminderIdsRef.current.has(reminder._id)) {
+          new Notification(`Gentle reminder: ${reminder.title}`, {
+            body: reminder.description || "Time for your self-care check-in.",
+          });
+          notifiedReminderIdsRef.current.add(reminder._id);
+        }
+      });
+
+      // Clean up notified set for reminders that are no longer in the active due list
+      const currentDueIds = new Set(dueTodayReminders.map(r => r._id));
+      notifiedReminderIdsRef.current.forEach((id) => {
+        if (!currentDueIds.has(id)) {
+          notifiedReminderIdsRef.current.delete(id);
+        }
+      });
+    }
+
+    setStats({
+      total: loadedReminders.length,
+      offToday: getTodayReminders(loadedReminders, now).filter((reminder) => isReminderOffToday(reminder, now)).length,
+      future: getTodayReminders(loadedReminders, now).filter((reminder) => {
+        const nextOccurrence = getNextReminderOccurrence(reminder, now);
+        return Boolean(nextOccurrence && nextOccurrence.getTime() > now.getTime());
+      }).length,
+    });
+  };
+
   const loadReminders = async () => {
     setLoading(true);
     setError(null);
@@ -128,44 +171,8 @@ const NotificationsPage: React.FC = () => {
       const userId = getCurrentUserId();
       const res = await fetchReminders(userId);
       const loadedReminders = extractReminderList(res);
-      const dueTodayReminders = buildDueNotifications(loadedReminders);
-      const now = new Date();
-      const todayKey = getTodayYmdLocal();
-
-      if (lastLoadedDayRef.current !== todayKey) {
-        lastLoadedDayRef.current = todayKey;
-      }
-
-      setReminders(dueTodayReminders);
-
-      // Trigger native browser notifications for newly due/overdue reminders
-      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-        dueTodayReminders.forEach((reminder) => {
-          if (!notifiedReminderIdsRef.current.has(reminder._id)) {
-            new Notification(`Gentle reminder: ${reminder.title}`, {
-              body: reminder.description || "Time for your self-care check-in.",
-            });
-            notifiedReminderIdsRef.current.add(reminder._id);
-          }
-        });
-
-        // Clean up notified set for reminders that are no longer in the active due list
-        const currentDueIds = new Set(dueTodayReminders.map(r => r._id));
-        notifiedReminderIdsRef.current.forEach((id) => {
-          if (!currentDueIds.has(id)) {
-            notifiedReminderIdsRef.current.delete(id);
-          }
-        });
-      }
-
-      setStats({
-        total: loadedReminders.length,
-        offToday: getTodayReminders(loadedReminders, now).filter((reminder) => isReminderOffToday(reminder, now)).length,
-        future: getTodayReminders(loadedReminders, now).filter((reminder) => {
-          const nextOccurrence = getNextReminderOccurrence(reminder, now);
-          return Boolean(nextOccurrence && nextOccurrence.getTime() > now.getTime());
-        }).length,
-      });
+      loadedRemindersRef.current = loadedReminders;
+      checkDueRemindersLocal();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(`Unable to load reminders: ${errorMessage}`);
@@ -181,6 +188,13 @@ const NotificationsPage: React.FC = () => {
     refreshOnMidnight: true,
     initialRefresh: true,
   });
+
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      checkDueRemindersLocal();
+    }, 30000); // Check local due reminders every 30 seconds without backend polling
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const visibleReminders = useMemo(
     () => reminders,

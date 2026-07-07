@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import { Camera } from 'lucide-react';
 import { fetchMoodFixActivities, saveMoodAfterFeedback } from "../api/moodApi";
 import { getCurrentUserId } from "../config";
+import { useMoodStore } from "../store/moodStore";
 import './MoodFixActivityDetail.css';
 import { PageLoadingSpinner, InlineAlert, EmptyState, LoadingButton } from "../components/ui";
 
@@ -376,6 +377,9 @@ const MoodFixActivityDetail = () => {
         activityTitle: activity.title,
         moodAfter,
       });
+      useMoodStore.getState().setLastFetchedDashboard(null);
+      useMoodStore.getState().setLastFetchedMoodHistory(null);
+      useMoodStore.getState().setLastFetchedInsights(null);
     } catch (error) {
       console.error("Failed to save mood feedback", error);
       // Continue with UI success message even if DB save fails

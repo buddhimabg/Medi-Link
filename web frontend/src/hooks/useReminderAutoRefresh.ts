@@ -31,6 +31,8 @@ export default function useReminderAutoRefresh(
 
   const refreshRef = useRef(refresh);
 
+  const lastTriggeredRef = useRef<number>(0);
+
   useEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
@@ -39,6 +41,11 @@ export default function useReminderAutoRefresh(
     let midnightTimeoutId: number | undefined;
 
     const triggerRefresh = () => {
+      const now = Date.now();
+      if (now - lastTriggeredRef.current < 1000) {
+        return;
+      }
+      lastTriggeredRef.current = now;
       void refreshRef.current();
     };
 

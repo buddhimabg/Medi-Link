@@ -197,10 +197,14 @@ const CheckInPage3: React.FC = () => {
     try {
       const userId = getCurrentUserId();
       const payload = { userId, mood, note: note || "", ...currentCheckIn.aiFields, ...levels };
-      const [submission, overview] = await Promise.all([
-        createCheckIn(payload) as unknown as Promise<{ mentalHealthScore?: number; checkInStreak?: number; isFirstCheckInToday?: boolean; [key: string]: any }>,
-        fetchOverview(userId) as unknown as Promise<OverviewData>,
-      ]);
+      const submission = await createCheckIn(payload) as unknown as { mentalHealthScore?: number; checkInStreak?: number; isFirstCheckInToday?: boolean; [key: string]: any };
+
+      // Invalidate mood store caches immediately after check-in creation
+      useMoodStore.getState().setLastFetchedDashboard(null);
+      useMoodStore.getState().setLastFetchedMoodHistory(null);
+      useMoodStore.getState().setLastFetchedInsights(null);
+
+      const overview = await fetchOverview(userId) as unknown as OverviewData;
       const dashboardStats = overview?.dashboardStats;
 
       if (dashboardStats) {
