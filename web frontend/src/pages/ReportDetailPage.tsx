@@ -13,6 +13,7 @@ import {
 } from "../utils/reportPresentation";
 import { PageLoadingSpinner, PageErrorState, InlineAlert, EmptyState } from "../components/ui";
 import { getErrorMessage } from "../utils/errorHandler";
+import { UI_ALERT_TIMEOUT_MS } from "../config";
 import "./ReportDetailPage.css";
 import reportIllustration from "../assets/report_summary_illustration.png";
 
@@ -182,7 +183,7 @@ const ReportDetailPage: React.FC = () => {
 
             {actionMsg && (
               <div className="mt-4 animate-slide-in">
-                <InlineAlert type="info" message={actionMsg} autoCloseMs={4000} onClose={() => setActionMsg("")} />
+                <InlineAlert type="info" message={actionMsg} autoCloseMs={UI_ALERT_TIMEOUT_MS} onClose={() => setActionMsg("")} />
               </div>
             )}
           </div>

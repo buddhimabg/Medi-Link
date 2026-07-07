@@ -34,7 +34,6 @@ const processJournal = async (req, res) => {
 const processSpeech = async (req, res) => {
   try {
     // In a real implementation, you'd handle file uploads with multer
-    // const audioFile = req.file;
     const body = req.body || {};
     const speechText = body.speechText || body.transcript || body.text || (typeof body === "string" ? body : null);
     if ((!speechText || (typeof speechText === "string" && !speechText.trim())) && !req.file && Object.keys(body).length === 0) {

@@ -6,6 +6,10 @@
  * Priority: journal > speech > camera
  */
 
+/**
+ * Merges metric values across multiple AI sources (Journal, Speech).
+ * Priority: Journal over Speech. Agreement boosts confidence; conflict reduces confidence.
+ */
 function mergeMetric(journalVal, speechVal) {
   if (!journalVal && !speechVal) return null;
 

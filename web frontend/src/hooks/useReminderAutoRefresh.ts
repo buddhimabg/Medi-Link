@@ -17,6 +17,8 @@ const getMsUntilNextMidnight = () => {
   return nextMidnight.getTime() - now.getTime();
 };
 
+const DEBOUNCE_THRESHOLD_MS = 1000;
+
 export default function useReminderAutoRefresh(
   refresh: RefreshCallback,
   options: ReminderAutoRefreshOptions = {}
@@ -42,7 +44,7 @@ export default function useReminderAutoRefresh(
 
     const triggerRefresh = () => {
       const now = Date.now();
-      if (now - lastTriggeredRef.current < 1000) {
+      if (now - lastTriggeredRef.current < DEBOUNCE_THRESHOLD_MS) {
         return;
       }
       lastTriggeredRef.current = now;

@@ -134,7 +134,7 @@ Streak: ${summaryData.checkInStreak} days`;
         setTimeout(() => setShareSuccess(false), 3000);
       }
     } catch (err) {
-      console.log('Share cancelled or failed');
+      // Share cancelled or failed by user
     }
   };
 
@@ -167,12 +167,6 @@ Streak: ${summaryData.checkInStreak} days`;
       'great': '😊'
     };
     return moodMap[mood?.toLowerCase()] || '🙂';
-  };
-
-  const getRatingLabel = (value) => {
-    if (value <= 3) return 'Low';
-    if (value <= 6) return 'Moderate';
-    return 'High';
   };
 
 

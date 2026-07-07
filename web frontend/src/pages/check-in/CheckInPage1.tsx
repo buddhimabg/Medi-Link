@@ -11,7 +11,7 @@ import { analyzeCombined } from '../../api/aiApi';
 import type { AggregatedAnalysisResult } from '../../types/ai';
 import { Camera, Mic, BookOpen, Sparkles, Shield } from 'lucide-react';
 import { InlineAlert, LoadingButton } from '../../components/ui';
-import { FACE_API_MODEL_CDN_URL } from '../../config';
+import { FACE_API_MODEL_CDN_URL, UI_ALERT_TIMEOUT_MS } from '../../config';
 
 type DetectionStatus = 'idle' | 'loading' | 'success' | 'failed' | 'error';
 
@@ -286,7 +286,7 @@ const CheckInPage1: React.FC = () => {
         )}
         {pageSuccess && (
           <div className="mb-4 animate-slide-in">
-            <InlineAlert type="success" message={pageSuccess} autoCloseMs={4000} onClose={() => setPageSuccess('')} />
+            <InlineAlert type="success" message={pageSuccess} autoCloseMs={UI_ALERT_TIMEOUT_MS} onClose={() => setPageSuccess('')} />
           </div>
         )}
 

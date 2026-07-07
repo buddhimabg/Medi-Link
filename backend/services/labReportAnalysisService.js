@@ -499,6 +499,9 @@ const resolveBiomarkerFromLabel = (label, dbLookup) => {
 // Scoring helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Classifies a biomarker numeric value against low/high thresholds (low, high, normal, not-found).
+ */
 const resolveStatus = (value, biomarker) => {
   if (value === null || isNaN(value)) return "not-found";
   if (value < biomarker.thresholds.low) return "low";

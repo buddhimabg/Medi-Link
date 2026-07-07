@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import "./ReportAnalysisPage.css";
-import { getCurrentUserId } from "../config";
+import { getCurrentUserId, UI_ALERT_TIMEOUT_MS } from "../config";
 import { fetchReportHistory, uploadAndAnalyzeReport } from "../api/reportApi";
 import LabReportIcon from "../assets/LabReportIcon";
 import HealthScoreIcon from "../assets/HealthScoreIcon";
@@ -184,7 +184,7 @@ const ReportAnalysisPage = () => {
 
               {actionMessage && !error && (
                 <div className="mb-6 animate-slide-in">
-                  <InlineAlert type="success" message={actionMessage} autoCloseMs={4000} onClose={() => setActionMessage("")} />
+                  <InlineAlert type="success" message={actionMessage} autoCloseMs={UI_ALERT_TIMEOUT_MS} onClose={() => setActionMessage("")} />
                 </div>
               )}
 

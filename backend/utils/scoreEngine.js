@@ -41,6 +41,9 @@ const NORMALIZATION_FACTOR = 0.75;
 // HELPERS
 // ==========================================
 
+/**
+ * Maps mood string to normalized 0-10 value. Falls back to default 5 (neutral) if mood is unknown or missing.
+ */
 const getMoodValue = (mood) => {
   const score100 = MOOD_SCORE_MAP_100[mood?.toLowerCase()];
   if (score100 === undefined) return 5;
@@ -48,6 +51,9 @@ const getMoodValue = (mood) => {
   return score100 / 10; // convert to 0–10 scale
 };
 
+/**
+ * Safely parses numeric metric levels. Falls back to default 5 (neutral) if value is null, undefined, or NaN.
+ */
 const num = (v, def = 5) => {
   if (v === null || v === undefined || v === "") return def;
   const n = Number(v);

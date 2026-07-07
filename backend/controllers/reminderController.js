@@ -288,6 +288,10 @@ const buildReminderPayload = (req) => {
   return reminderPayload;
 };
 
+/**
+ * Calculates the end date of a reminder schedule based on start date and duration in days.
+ * Returns YYYY-MM-DD string or null if duration is invalid or ongoing.
+ */
 const calculateEndDate = (startDateStr, durationDays) => {
   if (!durationDays || Number(durationDays) <= 0) return null;
   const baseDate = startDateStr ? new Date(startDateStr) : new Date();
@@ -350,6 +354,10 @@ const getTimeDifferenceMinutes = (t1, t2) => {
   return Math.min(diff, 1440 - diff);
 };
 
+/**
+ * Checks if a new reminder is a duplicate of an existing active reminder.
+ * Matches drug keywords (ignoring dosage/form words) and checks if scheduled times are within 3 hours.
+ */
 const checkMedicationDuplicate = (newReminder, existingReminders = [], allNewReminders = []) => {
   if (!newReminder || !existingReminders.length) return null;
   
