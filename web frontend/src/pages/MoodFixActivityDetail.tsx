@@ -2,9 +2,10 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Camera } from 'lucide-react';
-import { fetchMoodFixActivities, saveMoodAfterFeedback } from "../api/moodApi";
+import { saveMoodAfterFeedback } from "../api/moodApi";
 import { getCurrentUserId, FACE_API_MODEL_CDN_URL } from "../config";
 import { useMoodStore } from "../store/moodStore";
+import { useMoodFixStore, type Activity } from "../store/moodFixStore";
 import './MoodFixActivityDetail.css';
 import { PageLoadingSpinner, InlineAlert, EmptyState, LoadingButton } from "../components/ui";
 
@@ -16,18 +17,6 @@ const MOOD_EMOJI: Record<string, string> = {
 const MOOD_COLOR: Record<string, string> = {
   great: '#10b981', good: '#3b82f6', okay: '#f59e0b', sad: '#8b5cf6', terrible: '#ef4444',
 };
-
-interface Activity {
-  id: string;
-  title: string;
-  duration: string;
-  difficulty: string;
-  focusTag: string;
-  benefit: string;
-  description: string;
-  moods: string[];
-  steps: string[];
-}
 
 const parseDurationMin = (value: string | number | undefined): number => {
   const n = Number(String(value || "").replace(/[^0-9]/g, ""));
@@ -84,14 +73,26 @@ const MoodFixActivityDetail = () => {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [catalogActivities, setCatalogActivities] = useState<Activity[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const activitiesByMood = useMoodFixStore((state) => state.activitiesByMood);
+  const fetchActivitiesByMoodCached = useMoodFixStore((state) => state.fetchActivitiesByMoodCached);
+  const markActivityCompleted = useMoodFixStore((state) => state.markActivityCompleted);
+
+  const cachedActivity = useMemo<Activity | null>(() => {
+    if (!activityId) return null;
+    for (const list of Object.values(activitiesByMood)) {
+      if (Array.isArray(list)) {
+        const found = list.find((item) => item.id === activityId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, [activityId, activitiesByMood]);
+
+  const [fallbackActivity, setFallbackActivity] = useState<Activity | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(!cachedActivity);
   const [isCompleting, setIsCompleting] = useState(false);
 
-  const activity = useMemo<Activity | null>(
-    () => catalogActivities.find((item) => item.id === activityId) ?? null,
-    [activityId, catalogActivities]
-  );
+  const activity = cachedActivity || fallbackActivity;
 
   const [stepStatus, setStepStatus] = useState<boolean[]>(() =>
     activity ? activity.steps.map(() => false) : []
@@ -105,37 +106,25 @@ const MoodFixActivityDetail = () => {
   }, [activity]);
 
   useEffect(() => {
+    if (cachedActivity) {
+      setCatalogLoading(false);
+      return;
+    }
+
     let mounted = true;
 
-    const loadCatalog = async () => {
+    const loadFallback = async () => {
       try {
         setCatalogLoading(true);
         setSavingError("");
-        const response = await fetchMoodFixActivities();
-        const data: any[] = Array.isArray(response?.data)
-          ? response.data
-          : Array.isArray(response)
-          ? response
-          : [];
-
+        const res = await fetchActivitiesByMoodCached("all");
+        const found = res.find((item) => item.id === activityId) || null;
         if (mounted) {
-          setCatalogActivities(
-            data.map((item: any) => ({
-              id: item.activityId || item.id || item._id,
-              title: item.title || "Untitled activity",
-              duration: item.duration || "",
-              difficulty: item.difficulty || "",
-              focusTag: item.focusTag || "",
-              benefit: item.benefit || "",
-              description: item.description || "",
-              moods: Array.isArray(item.moods) ? item.moods : [],
-              steps: Array.isArray(item.steps) ? item.steps : [],
-            }))
-          );
+          setFallbackActivity(found);
         }
       } catch {
         if (mounted) {
-          setCatalogActivities([]);
+          setFallbackActivity(null);
           setSavingError("Could not load mood-fix activities from database.");
         }
       } finally {
@@ -145,12 +134,12 @@ const MoodFixActivityDetail = () => {
       }
     };
 
-    loadCatalog();
+    loadFallback();
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [activityId, cachedActivity, fetchActivitiesByMoodCached]);
 
   useEffect(() => {
     setTimerSeconds(estimatedMin * 60);
@@ -342,33 +331,6 @@ const MoodFixActivityDetail = () => {
     setTimerRunning(false);
     setIsCompleting(true);
 
-    try {
-      const raw = localStorage.getItem("moodfix-completed");
-      const parsed = raw ? JSON.parse(raw) : [];
-      const list: string[] = Array.isArray(parsed) ? parsed : [];
-      if (!list.includes(activity.id)) {
-        localStorage.setItem("moodfix-completed", JSON.stringify([...list, activity.id]));
-      }
-
-      const metaRaw = localStorage.getItem("moodfix-completed-meta");
-      const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
-      const meta: Record<string, unknown> =
-        metaParsed && typeof metaParsed === "object" && !Array.isArray(metaParsed)
-          ? metaParsed
-          : {};
-      localStorage.setItem(
-        "moodfix-completed-meta",
-        JSON.stringify({
-          ...meta,
-          [activity.id]: {
-            completedAt: new Date(now).toISOString(),
-          },
-        })
-      );
-    } catch {
-      // Ignore storage failures and continue with UI feedback.
-    }
-
     // Save mood feedback to database
     try {
       await saveMoodAfterFeedback({
@@ -377,6 +339,7 @@ const MoodFixActivityDetail = () => {
         activityTitle: activity.title,
         moodAfter,
       });
+      markActivityCompleted(activity.id);
       useMoodStore.getState().setLastFetchedDashboard(null);
       useMoodStore.getState().setLastFetchedMoodHistory(null);
       useMoodStore.getState().setLastFetchedInsights(null);
@@ -395,7 +358,7 @@ const MoodFixActivityDetail = () => {
       <Sidebar activePage="Mood Fix" strictActive collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div className="space-y-5">
+        <div className="max-w-6xl mx-auto space-y-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Activity Guide</h1>

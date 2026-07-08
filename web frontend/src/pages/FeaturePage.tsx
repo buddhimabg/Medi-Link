@@ -14,7 +14,7 @@ const FeaturePage = ({ activePage, title, description }) => {
       <Sidebar activePage={activePage} collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div className="max-w-4xl">
+        <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
           <p className="text-gray-500 mt-2">{description}</p>
 

@@ -86,56 +86,58 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Mood Track Dashboard</h1>
-          <p className="text-gray-500 mt-1">Track your emotional wellbeing inside the mood module</p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <StatsCard icon={AverageIcon} title="7-Day Average" value={`${dashboardData.sevenDayAverage}/10`} />
-          <StatsCard icon={StreakIcon} title="Check-in Streak" value={`${dashboardData.checkInStreak} days`} />
-          <StatsCard icon={RecoveryIcon} title="Recovery Score" value={`${dashboardData.recoveryScore}%`} />
-        </div>
-
-        <div className="bg-[#0C5BD522] rounded-2xl p-6 mb-8 flex flex-col md:flex-row justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold">Daily Check-in</h2>
-            <p className="text-sm opacity-90 mt-1">How are you feeling today?</p>
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-800">Mood Track Dashboard</h1>
+            <p className="text-gray-500 mt-1">Track your emotional wellbeing inside the mood module</p>
           </div>
-          <button onClick={() => navigate("/check-in")} className="bg-black text-white px-8 py-3 rounded-xl hover:bg-gray-900 transition">Start Check-in →</button>
-        </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">This Week's Mood Trends</h2>
-            <WeeklyMoodChart data={dashboardData.weeklyData} />
-            <button
-              onClick={() => navigate("/history")}
-              className="mt-6 w-full bg-[#0C5BD5] text-white py-2 rounded-lg hover:bg-[#0A4AB0]"
-            >
-              View Full History
-            </button>
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
+            <StatsCard icon={AverageIcon} title="7-Day Average" value={`${dashboardData.sevenDayAverage}/10`} />
+            <StatsCard icon={StreakIcon} title="Check-in Streak" value={`${dashboardData.checkInStreak} days`} />
+            <StatsCard icon={RecoveryIcon} title="Recovery Score" value={`${dashboardData.recoveryScore}%`} />
           </div>
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Quick Action</h2>
-            <QuickActionCard
-              icon={InsightIcon}
-              title="Insight"
-              description="See patterns & trends"
-              onClick={() => navigate("/insights")}
-            />
-            <QuickActionCard
-              icon={MoodFixIcon}
-              title="Mood Fix"
-              description="Activities to feel better"
-              onClick={() => navigate("/mood-fix", { state: { showLatestOnly: true } })}
-            />
-            <QuickActionCard
-              icon={HistoryIcon}
-              title="History"
-              description="View past check-ins"
-              onClick={() => navigate("/history")}
-            />
+
+          <div className="bg-[#0C5BD522] rounded-2xl p-6 mb-8 flex flex-col md:flex-row justify-between items-center">
+            <div>
+              <h2 className="text-xl font-semibold">Daily Check-in</h2>
+              <p className="text-sm opacity-90 mt-1">How are you feeling today?</p>
+            </div>
+            <button onClick={() => navigate("/check-in")} className="bg-black text-white px-8 py-3 rounded-xl hover:bg-gray-900 transition">Start Check-in →</button>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h2 className="text-lg font-semibold mb-4">This Week's Mood Trends</h2>
+              <WeeklyMoodChart data={dashboardData.weeklyData} />
+              <button
+                onClick={() => navigate("/history")}
+                className="mt-6 w-full bg-[#0C5BD5] text-white py-2 rounded-lg hover:bg-[#0A4AB0]"
+              >
+                View Full History
+              </button>
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-lg font-semibold">Quick Action</h2>
+              <QuickActionCard
+                icon={InsightIcon}
+                title="Insight"
+                description="See patterns & trends"
+                onClick={() => navigate("/insights")}
+              />
+              <QuickActionCard
+                icon={MoodFixIcon}
+                title="Mood Fix"
+                description="Activities to feel better"
+                onClick={() => navigate("/mood-fix", { state: { showLatestOnly: true } })}
+              />
+              <QuickActionCard
+                icon={HistoryIcon}
+                title="History"
+                description="View past check-ins"
+                onClick={() => navigate("/history")}
+              />
+            </div>
           </div>
         </div>
       </main>

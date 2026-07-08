@@ -15,6 +15,7 @@ import { PageLoadingSpinner, PageErrorState, InlineAlert, EmptyState } from "../
 import { getErrorMessage } from "../utils/errorHandler";
 import { UI_ALERT_TIMEOUT_MS } from "../config";
 import "./ReportDetailPage.css";
+import "../components/StatsCard.css";
 import reportIllustration from "../assets/report_summary_illustration.png";
 
 type ReportData = Record<string, any>;

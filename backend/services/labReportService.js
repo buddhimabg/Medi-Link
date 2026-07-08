@@ -132,12 +132,17 @@ const createLabReportAnalysis = async ({ userId, file }) => {
 };
 
 // Fetch all reports for a user, with optional pagination
-const getLabReportHistory = async (userId) => {
+const getLabReportHistory = async (userId, limit) => {
   try {
-    const reports = await LabReport.find({ userId })
+    let query = LabReport.find({ userId })
       .sort({ createdAt: -1 })
-      .select("userId filePath originalFileName markers reportBiomarkers overallScore confidence summary analysisCoverage keyIssues recommendations explanation createdAt")
-      .lean();
+      .select("userId filePath originalFileName markers reportBiomarkers overallScore confidence summary analysisCoverage keyIssues recommendations explanation createdAt");
+
+    if (limit && Number.isInteger(limit) && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const reports = await query.lean();
 
     return reports;
   } catch (err) {

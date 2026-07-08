@@ -18,8 +18,10 @@ export const uploadAndAnalyzeReport = async ({ userId, file }: UploadReportParam
   });
 };
 
-export const fetchReportHistory = async (userId: string): Promise<any> => {
-  return client.get(API_CONFIG.ENDPOINTS.reportHistory(userId));
+export const fetchReportHistory = async (userId: string, limit?: number): Promise<any> => {
+  return client.get(API_CONFIG.ENDPOINTS.reportHistory(userId), {
+    params: limit ? { limit } : undefined,
+  });
 };
 
 export const fetchReportById = async (reportId: string): Promise<any> => {

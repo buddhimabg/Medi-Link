@@ -174,6 +174,13 @@ export const getNextReminderOccurrence = <T extends ReminderLike>(reminder: T, r
     return null;
   }
 
+  if (reminder.snoozedUntil) {
+    const snoozeDate = new Date(reminder.snoozedUntil);
+    if (!Number.isNaN(snoozeDate.getTime()) && snoozeDate.getTime() > referenceDate.getTime()) {
+      return snoozeDate;
+    }
+  }
+
   const timeZone = getReminderTimeZone(reminder);
   const currentDate = new Date(referenceDate);
   const normalizedFrequency = normalizeReminderFrequency(reminder?.frequency);

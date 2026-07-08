@@ -74,13 +74,13 @@ const formatDate = (date) => {
 const calculateMentalHealthScore = (m) => {
   const moodValue = getMoodValue(m.mood);
 
-  const sleep = num(m.sleepLevel);
-  const energy = num(m.energyLevel);
-  const motivation = num(m.motivationLevel);
-  const social = num(m.socialInteraction);
-  const focus = num(m.focusLevel);
-  const anxiety = num(m.anxietyLevel);
-  const stress = num(m.stressLevel);
+  const sleep = Math.max(1, Math.min(10, num(m.sleepLevel)));
+  const energy = Math.max(1, Math.min(10, num(m.energyLevel)));
+  const motivation = Math.max(1, Math.min(10, num(m.motivationLevel)));
+  const social = Math.max(1, Math.min(10, num(m.socialInteraction)));
+  const focus = Math.max(1, Math.min(10, num(m.focusLevel)));
+  const anxiety = Math.max(1, Math.min(10, num(m.anxietyLevel)));
+  const stress = Math.max(1, Math.min(10, num(m.stressLevel)));
 
   const positive =
     moodValue * 0.15 +
@@ -210,7 +210,9 @@ const getMoodScore100 = (mood) => {
 };
 
 const normalize1to100 = (value) => {
-  return num(value, 5) * 10;
+  const val = num(value, 5);
+  const clamped = Math.max(1, Math.min(10, val));
+  return clamped * 10;
 };
 
 const calculateMentalHealthTrend = (m) => {

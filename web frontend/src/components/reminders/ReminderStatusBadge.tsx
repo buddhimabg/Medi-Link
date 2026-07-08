@@ -15,8 +15,8 @@ const ReminderStatusBadge: React.FC<ReminderStatusBadgeProps> = ({
   const statusClass = isDisabledToday
     ? "bg-slate-100 border-slate-300 text-slate-600"
     : isInactive
-        ? "bg-gray-100 border-gray-300 text-gray-600"
-        : "bg-[#EAF2FF] border-[#C4D7FF] text-[#12459A]";
+      ? "bg-gray-100 border-gray-300 text-gray-600"
+      : "bg-[#EAF2FF] border-[#C4D7FF] text-[#12459A]";
 
   return (
     <span
@@ -45,7 +45,7 @@ export const ReminderDurationBadge: React.FC<ReminderDurationBadgeProps> = ({
       className={`mt-2 ml-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-50/80 px-2.5 py-1 text-xs font-medium text-purple-700 border border-purple-200/60 shadow-xs ${className}`.trim()}
     >
       <span>
-        ⏱️ <strong>Duration:</strong> {durationDays} Days {endDate ? `(Ends ${endDate})` : ""}
+        <strong>Duration:</strong> {durationDays} Days {endDate ? `(Ends ${endDate})` : ""}
       </span>
     </div>
   );

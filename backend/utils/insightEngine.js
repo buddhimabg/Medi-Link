@@ -132,6 +132,10 @@ const splitByPeriod = (entries, now = new Date()) => {
 
   const currentStart = new Date(today);
   currentStart.setDate(today.getDate() - 6);
+  currentStart.setHours(0, 0, 0, 0);
+
+  const currentEnd = new Date(today);
+  currentEnd.setHours(23, 59, 59, 999);
 
   const previousEnd = new Date(currentStart);
   previousEnd.setDate(currentStart.getDate() - 1);
@@ -139,10 +143,11 @@ const splitByPeriod = (entries, now = new Date()) => {
 
   const previousStart = new Date(currentStart);
   previousStart.setDate(currentStart.getDate() - 7);
+  previousStart.setHours(0, 0, 0, 0);
 
   const currentWeek = entries.filter((item) => {
     const d = new Date(item.createdAt);
-    return d >= currentStart && d <= new Date(today.getTime() + 86400000 - 1);
+    return d >= currentStart && d <= currentEnd;
   });
 
   const previousWeek = entries.filter((item) => {
@@ -150,7 +155,7 @@ const splitByPeriod = (entries, now = new Date()) => {
     return d >= previousStart && d <= previousEnd;
   });
 
-  return { today, currentStart, previousStart, previousEnd, currentWeek, previousWeek };
+  return { today, currentStart, currentEnd, previousStart, previousEnd, currentWeek, previousWeek };
 };
 
 const aggregateMetrics = (entries) => {
@@ -274,11 +279,13 @@ const buildPatterns = (normalizedEntries) => {
   }
 
   // Additional helpful patterns
-  if (stress > 60) {
+  // Stress Overload: normalized stress < 40 means high raw stress (inverted in normalizeEntry)
+  if (stress < 40) {
     patterns.push({ type: "Stress Overload", detected: true, message: "A recurring emotional pattern was observed." });
   }
 
-  if (anxiety > 60) {
+  // Anxiety Pattern: normalized anxiety < 40 means high raw anxiety (inverted in normalizeEntry)
+  if (anxiety < 40) {
     patterns.push({ type: "Anxiety Pattern", detected: true, message: "A recurring emotional pattern was observed." });
   }
 
@@ -351,7 +358,11 @@ const buildMoodInsights = (entries = [], options = {}) => {
   const safeEntries = Array.isArray(entries) ? entries : [];
   const factorMeta = options.factorMeta || null;
 
-  const { today, currentStart, previousStart, previousEnd, currentWeek, previousWeek } = splitByPeriod(safeEntries, now);
+  const { today, currentStart, currentEnd, previousStart, previousEnd, currentWeek, previousWeek } = splitByPeriod(safeEntries, now);
+
+  const hasEnoughCurrentData = currentWeek.length >= 2;
+  const hasEnoughPreviousData = previousWeek.length >= 2;
+  const hasEnoughComparisonData = hasEnoughCurrentData && hasEnoughPreviousData;
 
   const currentMetrics = aggregateMetrics(currentWeek);
   const previousMetrics = aggregateMetrics(previousWeek);
@@ -360,46 +371,103 @@ const buildMoodInsights = (entries = [], options = {}) => {
   const normalizedCurrent = currentWeek.map((e) => normalizeEntry(e));
   const { patterns, rawAverages } = buildPatterns(normalizedCurrent);
 
-  const metricChanges = {
-    sleep: percentChange(currentMetrics.sleep, previousMetrics.sleep),
-    stress: percentChange(currentMetrics.stress, previousMetrics.stress),
-    anxiety: percentChange(currentMetrics.anxiety, previousMetrics.anxiety),
-    energy: percentChange(currentMetrics.energy, previousMetrics.energy),
-    motivation: percentChange(currentMetrics.motivation, previousMetrics.motivation),
-    focus: percentChange(currentMetrics.focus, previousMetrics.focus),
-    social: percentChange(currentMetrics.social, previousMetrics.social),
-  };
+  const metricChanges = hasEnoughComparisonData
+    ? {
+        sleep: percentChange(currentMetrics.sleep, previousMetrics.sleep),
+        stress: percentChange(currentMetrics.stress, previousMetrics.stress),
+        anxiety: percentChange(currentMetrics.anxiety, previousMetrics.anxiety),
+        energy: percentChange(currentMetrics.energy, previousMetrics.energy),
+        motivation: percentChange(currentMetrics.motivation, previousMetrics.motivation),
+        focus: percentChange(currentMetrics.focus, previousMetrics.focus),
+        social: percentChange(currentMetrics.social, previousMetrics.social),
+      }
+    : { sleep: 0, stress: 0, anxiety: 0, energy: 0, motivation: 0, focus: 0, social: 0 };
 
-  const overallMoodChange = percentChange(currentMetrics.overall, previousMetrics.overall);
-  const overallMoodTrend = getTrendFromChange(overallMoodChange);
+  const overallMoodChange = hasEnoughComparisonData
+    ? percentChange(currentMetrics.overall, previousMetrics.overall)
+    : 0;
 
-  const topFactors = buildFactorImpacts(metricChanges, overallMoodChange, factorMeta);
-  const factorInsights = buildFactorInsights(topFactors, factorMeta);
+  let overallMoodTrend = "insufficient_data";
+  let summaryText = "";
+
+  if (!hasEnoughCurrentData) {
+    overallMoodTrend = "insufficient_data";
+    summaryText = "Not enough current-week data to analyze trends yet. Log at least 2 check-ins over the past 7 days.";
+  } else if (!hasEnoughPreviousData) {
+    overallMoodTrend = "insufficient_comparison";
+    summaryText = "Not enough previous-week data to compare trends yet.";
+  } else {
+    overallMoodTrend = getTrendFromChange(overallMoodChange);
+    summaryText =
+      overallMoodTrend === "improved"
+        ? "Your mental health trend improved this week compared to the previous week."
+        : overallMoodTrend === "declined"
+        ? "Your mental health trend declined this week compared to the previous week."
+        : "Your mental health trend remained stable this week.";
+  }
+
+  const topFactors = hasEnoughComparisonData
+    ? buildFactorImpacts(metricChanges, overallMoodChange, factorMeta)
+    : [];
+  const factorInsights = hasEnoughComparisonData
+    ? buildFactorInsights(topFactors, factorMeta)
+    : [];
   const recommendations = buildRecommendations(currentMetrics, factorMeta);
 
+  // Peak Day and Most Challenging Day calculated ONLY from current-period data
   const dailyTrend = buildDailyTrend(currentStart, currentWeek);
-  const bestDayRaw = dailyTrend.filter((day) => day.entries > 0).sort((a, b) => b.score - a.score)[0] || null;
+  const daysWithEntries = dailyTrend.filter((day) => day.entries > 0).sort((a, b) => b.score - a.score);
+
+  const bestDayRaw = hasEnoughCurrentData && daysWithEntries.length > 0 ? daysWithEntries[0] : null;
+  const worstDayRaw = hasEnoughCurrentData && daysWithEntries.length > 0 ? daysWithEntries[daysWithEntries.length - 1] : null;
 
   const bestDay = bestDayRaw
-    ? { day: bestDayRaw.day, date: bestDayRaw.date, score: bestDayRaw.score }
-    : { day: "", date: "", score: 0 };
+    ? { day: bestDayRaw.day, date: bestDayRaw.date, score: bestDayRaw.score, available: true }
+    : { day: "", date: "", score: 0, available: false };
+
+  const worstDay = worstDayRaw
+    ? { day: worstDayRaw.day, date: worstDayRaw.date, score: worstDayRaw.score, available: true }
+    : { day: "", date: "", score: 0, available: false };
+
+  // Daily insight requires enough check-ins in the current period (`hasEnoughCurrentData`)
+  const latestEntry = currentWeek.length > 0
+    ? [...currentWeek].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+    : null;
+
+  const dailyInsight = hasEnoughCurrentData && latestEntry
+    ? {
+        available: true,
+        date: formatDate(latestEntry.createdAt),
+        message: `Across your ${currentWeek.length} check-ins this past 7 days, your overall well-being score averaged ${currentMetrics.overall}/100.`,
+        highlights: [
+          bestDay.available && bestDay.date ? `Your peak day this week (${bestDay.score}/100) occurred on ${bestDay.day} (${bestDay.date}).` : null,
+          currentMetrics.sleep >= 70 ? "Consistent sleep quality has strongly supported your daily energy and mood." : currentMetrics.sleep < 50 ? "Sleep quality looked lower across recent check-ins, which may affect daytime focus." : null,
+          currentMetrics.stress >= 70 ? "Stress levels remained well-managed across recent check-ins." : currentMetrics.stress < 50 ? "Elevated stress load appeared during recent check-ins; short grounding exercises can help." : null,
+        ].filter(Boolean),
+      }
+    : {
+        available: false,
+        date: formatDate(now),
+        message: "Not enough current-week data for daily insights yet. Log at least 2 check-ins over the past 7 days.",
+        highlights: [],
+      };
 
   const moodDistribution = buildMoodDistribution(currentWeek);
-
-  const summaryText =
-    overallMoodTrend === "improved"
-      ? "Your mental health trend improved this week compared to the previous week."
-      : overallMoodTrend === "declined"
-      ? "Your mental health trend declined this week compared to the previous week."
-      : "Your mental health trend remained stable this week.";
 
   return {
     generatedAt: now.toISOString(),
     period: {
       currentStart: currentStart.toISOString(),
-      currentEnd: today.toISOString(),
+      currentEnd: currentEnd.toISOString(),
       previousStart: previousStart.toISOString(),
       previousEnd: previousEnd.toISOString(),
+    },
+    hasEnoughCurrentData,
+    hasEnoughPreviousData,
+    hasEnoughComparisonData,
+    sourceMeta: {
+      currentWeekEntryCount: currentWeek.length,
+      previousWeekEntryCount: previousWeek.length,
     },
     summaryText,
     overallMoodTrend,
@@ -423,6 +491,12 @@ const buildMoodInsights = (entries = [], options = {}) => {
     topFactors,
     dailyTrend,
     bestDay,
+    worstDay,
+    peakDays: {
+      bestDay,
+      worstDay,
+    },
+    dailyInsight,
     moodDistribution,
     weeklySummary: {
       averageMoodScore: average(dailyTrend.filter((d) => d.entries > 0).map((d) => d.averageMoodScore)),

@@ -36,29 +36,72 @@ const CheckinSummary = () => {
 
   // Load summary data from backend response carried through navigation state
   useEffect(() => {
-    const backendSummary = location.state || lastSubmission;
+    const mergedSummary = lastSubmission 
+      ? { ...lastSubmission, ...location.state } 
+      : location.state;
 
-    if (backendSummary) {
-      const data = { ...backendSummary };
+    if (mergedSummary) {
+      const data = { ...mergedSummary };
 
-      // Compute moodScore from provided level fields (ignore null/undefined)
-      const levelFields = [
-        'sleepLevel',
-        'anxietyLevel',
-        'energyLevel',
-        'motivationLevel',
-        'socialInteraction',
-        'stressLevel',
-        'focusLevel',
-      ];
-      const values = levelFields
-        .map((k) => data.levels?.[k])
-        .filter((v) => v != null && v !== undefined);
-      const moodScore = values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1) : null;
+      // Reconstruct levels if it is flat (which is the case for backend responses)
+      if (!data.levels) {
+        data.levels = {
+          sleepLevel: data.sleepLevel,
+          anxietyLevel: data.anxietyLevel,
+          energyLevel: data.energyLevel,
+          motivationLevel: data.motivationLevel,
+          socialInteraction: data.socialInteraction,
+          stressLevel: data.stressLevel,
+          focusLevel: data.focusLevel,
+        };
+      }
 
-      data.moodScore = moodScore !== null ? Number(moodScore) : null;
-      data.questionsCompleted = values.length;
-      data.totalQuestions = levelFields.length;
+      // Reconstruct date/time from createdAt if missing
+      if (!data.date && data.createdAt) {
+        const d = new Date(data.createdAt);
+        data.date = d.toLocaleDateString();
+      }
+      if (!data.time && data.createdAt) {
+        const d = new Date(data.createdAt);
+        data.time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Fallbacks if still missing
+      if (!data.date) {
+        data.date = new Date().toLocaleDateString();
+      }
+      if (!data.time) {
+        data.time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      data.checkInId = data.checkInId ?? data._id ?? data.id;
+
+      // Use backend mentalHealthScore if available (preferred, computed by scoreEngine.js).
+      // Fallback below is only used when backend score is missing (e.g. navigation edge cases).
+      // Fallback mirrors scoreEngine.js: mood mapping, positive factors, negative factors, clamped 0-10.
+      let fallbackScore = null;
+      const moodMap: Record<string, number> = { terrible: 0, sad: 4, okay: 6, good: 8, great: 10 };
+      const moodVal = moodMap[String(data.mood || '').toLowerCase()];
+      const moodScore = moodVal !== undefined ? moodVal : 5;
+      const sleepV = Number(data.levels?.sleepLevel ?? 5);
+      const energyV = Number(data.levels?.energyLevel ?? 5);
+      const motivationV = Number(data.levels?.motivationLevel ?? 5);
+      const socialV = Number(data.levels?.socialInteraction ?? 5);
+      const focusV = Number(data.levels?.focusLevel ?? 5);
+      const anxietyV = Number(data.levels?.anxietyLevel ?? 5);
+      const stressV = Number(data.levels?.stressLevel ?? 5);
+      const positive = moodScore * 0.15 + sleepV * 0.12 + energyV * 0.10 + motivationV * 0.10 + socialV * 0.10 + focusV * 0.08;
+      const negative = anxietyV * 0.20 + stressV * 0.15;
+      const computed = (positive - negative * 0.5) / 0.75;
+      fallbackScore = Number(Math.max(0, Math.min(10, computed)).toFixed(1));
+
+      data.moodScore = (data.mentalHealthScore !== undefined && data.mentalHealthScore !== null)
+        ? Number(data.mentalHealthScore)
+        : fallbackScore;
+
+      const LEVEL_FIELDS = ['sleepLevel', 'anxietyLevel', 'energyLevel', 'motivationLevel', 'socialInteraction', 'stressLevel', 'focusLevel'];
+      data.questionsCompleted = LEVEL_FIELDS.filter((k) => data.levels?.[k] != null).length;
+      data.totalQuestions = LEVEL_FIELDS.length;
       data.checkInStreak = Number(data.checkInStreak ?? 0);
       setSummaryData(data);
     } else {
@@ -202,7 +245,8 @@ Streak: ${summaryData.checkInStreak} days`;
     <div className="flex bg-[#F8FAFC] min-h-screen">
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
       <main className={`flex-1 transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-64'} p-6 overflow-y-auto`}>
-        {downloadSuccess && (
+        <div className="w-full max-w-6xl mx-auto">
+          {downloadSuccess && (
           <div className="fixed top-4 right-4 z-50 w-80 animate-slide-in">
             <InlineAlert type="success" message="Downloaded successfully!" onClose={() => setDownloadSuccess(false)} />
           </div>
@@ -395,6 +439,7 @@ Streak: ${summaryData.checkInStreak} days`;
         <p className="text-center text-xs text-gray-400 mt-4">
           Your responses help us provide better personalized suggestions
         </p>
+        </div>
       </main>
     </div>
   );

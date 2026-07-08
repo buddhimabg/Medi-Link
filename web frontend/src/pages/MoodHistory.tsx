@@ -209,7 +209,8 @@ const MoodHistory = () => {
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div className="flex items-center justify-between mb-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Mood History</h1>
             <p className="text-gray-500 mt-1">Weekly analytics and full check-in calendar for Mood Track</p>
@@ -477,6 +478,7 @@ const MoodHistory = () => {
         </div>
           </>
         )}
+        </div>
       </main>
     </div>
   );

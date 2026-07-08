@@ -83,7 +83,7 @@ const createMood = async (req, res) => {
       );
     }
 
-    const { saved, mentalHealthScore, emotionalRiskLevel, moodInterpretation } = await createMoodEntry(normalizedBody);
+    const { saved, mentalHealthScore } = await createMoodEntry(normalizedBody);
 
     const savedDoc =
       typeof saved?.toObject === "function"
@@ -102,10 +102,36 @@ const createMood = async (req, res) => {
     ];
     const providedCount = levelFields.filter((field) => normalizedBody[field] != null).length;
     const completionRate = providedCount / levelFields.length;
-    
+
+    // Calculate checkInStreak and isFirstCheckInToday
+    const allMoodDates = await Mood.find({ userId: normalizedBody.userId })
+      .select({ createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+    const { calculateCheckInStreak } = require("../utils/scoreEngine");
+    const checkInStreak = calculateCheckInStreak(allMoodDates);
+
+    const checkInDate = savedDoc.createdAt ? new Date(savedDoc.createdAt) : new Date();
+    const startOfToday = new Date(checkInDate);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(startOfToday.getTime() + 86400000 - 1);
+    const todayCount = await Mood.countDocuments({
+      userId: normalizedBody.userId,
+      createdAt: { $gte: startOfToday, $lte: endOfToday },
+    });
+    const isFirstCheckInToday = todayCount === 1;
+
+    // Spread savedDoc first so its own emotionalRiskLevel/moodInterpretation fields are preserved,
+    // then attach mentalHealthScore and completionRate on top.
     res.status(201).json(
       apiSuccess(
-        { ...savedDoc, mentalHealthScore, emotionalRiskLevel, moodInterpretation, completionRate },
+        {
+          ...savedDoc,
+          mentalHealthScore,
+          completionRate,
+          checkInStreak,
+          isFirstCheckInToday,
+        },
         "Mood saved successfully"
       )
     );

@@ -12,6 +12,7 @@ import type { AggregatedAnalysisResult } from '../../types/ai';
 import { Camera, Mic, BookOpen, Sparkles, Shield } from 'lucide-react';
 import { InlineAlert, LoadingButton } from '../../components/ui';
 import { FACE_API_MODEL_CDN_URL, UI_ALERT_TIMEOUT_MS } from '../../config';
+import { isMeaningfulText } from '../../utils/validation';
 
 type DetectionStatus = 'idle' | 'loading' | 'success' | 'failed' | 'error';
 
@@ -37,6 +38,7 @@ const CheckInPage1: React.FC = () => {
   const [detectionError, setDetectionError]   = useState<string>('');
   const [pageError, setPageError]             = useState<string>('');
   const [pageSuccess, setPageSuccess]         = useState<string>('');
+  const [journalError, setJournalError]       = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -136,13 +138,29 @@ const CheckInPage1: React.FC = () => {
 
   /* ── Note analysis ── */
   const handleAnalyzeNote = async () => {
-    if (!note.trim() && !detectedMood) { setPageError('Please write a note or detect a mood first.'); return; }
+    const hasNote = note.trim().length > 0;
+    setJournalError('');
+    if (hasNote && !isMeaningfulText(note)) {
+      setJournalError('Please enter a meaningful journal note before analyzing.');
+      return;
+    }
+    if (!hasNote && !detectedMood) {
+      setJournalError('Please write a note or detect a mood first.');
+      return;
+    }
     setCombinedLoading(true);
     try {
-      const r = await analyzeCombined({ journalText: note, cameraData: detectedMood ? { mood: detectedMood, confidence: detectedConfidence } : undefined });
+      const r = await analyzeCombined({
+        journalText: hasNote ? note : undefined,
+        cameraData: detectedMood ? { mood: detectedMood, confidence: detectedConfidence } : undefined
+      });
       if (r) triggerReview(r);
-    } catch (e) { console.error(e); setPageError('Failed to run combined analysis'); }
-    finally { setCombinedLoading(false); }
+    } catch (e) {
+      console.error(e);
+      setJournalError('Failed to run combined analysis');
+    } finally {
+      setCombinedLoading(false);
+    }
   };
 
   const VALID_LEVEL_OPTIONS: Record<string, number[]> = {
@@ -272,7 +290,8 @@ const CheckInPage1: React.FC = () => {
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`main-content ${collapsed ? 'collapsed' : 'expanded'}`}>
-        <div className="header">
+        <div className="w-full max-w-6xl mx-auto flex flex-col flex-1">
+          <div className="header">
           <h1>Daily Check-in</h1>
           <p>{formattedDate}</p>
         </div>
@@ -459,10 +478,18 @@ const CheckInPage1: React.FC = () => {
                   <div className="sma-tool-desc">Write a short note about how your day was.</div>
                 </div>
               </div>
+              {journalError && (
+                <div style={{ marginBottom: '1rem' }} className="animate-slide-in">
+                  <InlineAlert type="error" message={journalError} onClose={() => setJournalError('')} />
+                </div>
+              )}
               <textarea
                 className="sma-textarea"
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => {
+                  setNote(e.target.value);
+                  if (journalError) setJournalError('');
+                }}
                 placeholder="What's contributing to this feeling? How was your day?"
                 rows={3}
               />
@@ -516,6 +543,7 @@ const CheckInPage1: React.FC = () => {
           onSkip={skipSuggestions}
           onCancel={skipSuggestions}
         />
+        </div>
       </main>
     </div>
   );

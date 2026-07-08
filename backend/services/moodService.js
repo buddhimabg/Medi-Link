@@ -48,23 +48,17 @@ const hasEnhancedInsightShape = (insight) => {
     hasSummary &&
     hasTrend &&
     Array.isArray(insight.factorInsights) &&
-    Array.isArray(insight.factorChanges) &&
     Array.isArray(insight.recommendations) &&
     Array.isArray(insight.dailyTrend) &&
-    insight.weeklyComparison &&
-    typeof insight.weeklyComparison === "object" &&
-    Array.isArray(insight.correlationInsights) &&
-    Array.isArray(insight.riskAlerts) &&
-    insight.dailyInsight &&
-    typeof insight.dailyInsight === "object" &&
     insight.metrics &&
     typeof insight.metrics === "object" &&
     Array.isArray(insight.patterns) &&
-    typeof insight.confidenceLevel === "string" &&
     insight.bestDay &&
-    typeof insight.bestDay === "object"
+    typeof insight.bestDay === "object" &&
+    typeof insight.hasEnoughComparisonData === "boolean"
   );
 };
+
 
 /* =====================================================
    CREATE MOOD ENTRY

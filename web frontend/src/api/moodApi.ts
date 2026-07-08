@@ -34,8 +34,11 @@ export const fetchInsights = async (userId: string) => {
 };
 
 // Mood Fix Activity APIs
-export const fetchMoodFixActivities = async () => {
-  return client.get("/api/mood-fix/activities");
+export const fetchMoodFixActivities = async (mood?: string) => {
+  const url = mood && mood !== "all"
+    ? `/api/mood-fix/activities?mood=${encodeURIComponent(mood)}`
+    : "/api/mood-fix/activities";
+  return client.get(url);
 };
 
 export const saveMoodAfterFeedback = async (feedbackData: any) => {

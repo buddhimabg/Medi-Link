@@ -6,10 +6,10 @@ import { getCurrentUserId, UI_ALERT_TIMEOUT_MS } from "../config";
 import {
   createReminder,
   deleteReminder,
-  fetchReminders,
   updateReminder,
   uploadPrescription,
 } from "../api/reminderApi";
+import { useReminderStore } from "../store/reminderStore";
 import useReminderAutoRefresh from "../hooks/useReminderAutoRefresh";
 import {
   formatDateYMDInTimeZone,
@@ -95,13 +95,16 @@ const OffTodayIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
 
 const RemindersPage = () => {
   const [collapsed, setCollapsed] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const reminders = useReminderStore((state) => state.reminders);
+  const loading = useReminderStore((state) => state.loading);
+  const error = useReminderStore((state) => state.error);
+  const setReminders = useReminderStore((state) => state.setReminders);
+  const setError = useReminderStore((state) => state.setError);
+  const fetchRemindersCached = useReminderStore((state) => state.fetchRemindersCached);
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [busyActionKey, setBusyActionKey] = useState("");
   const [reminderToDelete, setReminderToDelete] = useState<any>(null);
-  const [reminders, setReminders] = useState([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState(getInitialReminderForm);
   const [editingReminderId, setEditingReminderId] = useState("");
@@ -114,15 +117,11 @@ const RemindersPage = () => {
 
   const userId = getCurrentUserId();
 
-  const loadReminders = async () => {
+  const loadReminders = async (options?: { force?: boolean }) => {
     try {
-      setError("");
-      const data = await fetchReminders(userId);
-      setReminders(data?.reminders || []);
+      await fetchRemindersCached(userId, options);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Failed to load reminders."));
-    } finally {
-      setLoading(false);
+      // Error is handled in fetchRemindersCached
     }
   };
 
@@ -396,7 +395,7 @@ const RemindersPage = () => {
 
     try {
       await createReminder(payload, userId);
-      await loadReminders();
+      await loadReminders({ force: true });
       closeCreateModal();
       setActionMessage("Reminder created.");
     } catch (requestError) {
@@ -469,6 +468,20 @@ const RemindersPage = () => {
       return;
     }
 
+    // Validate each extracted reminder before saving
+    for (let i = 0; i < reviewReminders.length; i++) {
+      const rem = reviewReminders[i];
+      if (!rem.title || !String(rem.title).trim()) {
+        setActionError(`Reminder ${i + 1} is missing a title. Please fill it in before saving.`);
+        return;
+      }
+      const timeVal = rem.time || "";
+      if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(timeVal)) {
+        setActionError(`Reminder ${i + 1} ("${rem.title}") has an invalid time. Use HH:mm format.`);
+        return;
+      }
+    }
+
     setIsSavingReview(true);
     setActionError("");
     setActionMessage("");
@@ -496,7 +509,7 @@ const RemindersPage = () => {
         )
       );
 
-      await loadReminders();
+      await loadReminders({ force: true });
       setIsReviewModalOpen(false);
       setReviewReminders([]);
       setActionMessage("Prescription uploaded and reminders generated successfully.");
@@ -553,7 +566,7 @@ const RemindersPage = () => {
         };
       }));
 
-      await loadReminders();
+      await loadReminders({ force: true });
       setActionMessage(shouldDisableToday ? "Reminder turned off for today." : "Reminder turned on for today.");
     } catch (requestError) {
       setActionError(getErrorMessage(requestError, "Unable to update reminder."));
@@ -590,7 +603,7 @@ const RemindersPage = () => {
 
     try {
       await deleteReminder(reminderId, userId);
-      await loadReminders();
+      await loadReminders({ force: true });
       setActionMessage("Reminder deleted.");
     } catch (requestError: any) {
       setActionError(getErrorMessage(requestError, "Unable to delete reminder."));
@@ -603,6 +616,16 @@ const RemindersPage = () => {
     event.preventDefault();
 
     if (!editingReminderId) {
+      return;
+    }
+
+    if (!editForm.title.trim()) {
+      setActionError("Please add a title.");
+      return;
+    }
+
+    if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(editForm.time)) {
+      setActionError("Please provide time in HH:mm format.");
       return;
     }
 
@@ -646,7 +669,7 @@ const RemindersPage = () => {
         userId
       );
 
-      await loadReminders();
+      await loadReminders({ force: true });
 
       closeEditModal();
       setActionMessage("Reminder updated.");
@@ -684,7 +707,7 @@ const RemindersPage = () => {
       />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div>
+        <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -734,6 +757,32 @@ const RemindersPage = () => {
             <StatsCard icon={ActiveIcon} title="Active" value={counts.active} />
           </div>
 
+          {/* Get Started Notice when no reminders exist at all */}
+          {!loading && reminders.length === 0 && !error && (
+            <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-[#0C5BD5]">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-800">Get Started with Reminders</h3>
+                  <p className="text-sm text-gray-600 mt-0.5">
+                    You haven't added any medication or wellness reminders yet. Click the button below or upload a prescription to create your first reminder.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="px-4 py-2 bg-[#0C5BD5] text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-[#0A4AB0] transition whitespace-nowrap"
+              >
+                + Add First Reminder
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4">
               <InlineAlert type="error" message={error} onClose={() => setError("")} />
@@ -759,7 +808,21 @@ const RemindersPage = () => {
               </div>
             ) : reminders.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-                <EmptyState title="No reminders yet" description="Add your first reminder to get started." actionLabel="Add Reminder" onAction={openCreateModal} />
+                <EmptyState
+                  title="No reminders yet"
+                  description="Add your first reminder to get started."
+                  actionLabel="Add Reminder"
+                  onAction={openCreateModal}
+                />
+              </div>
+            ) : sortedCategoryKeys.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                <EmptyState
+                  title="No reminders scheduled for today"
+                  description="You have reminders saved, but none are active or scheduled for today. Add a new reminder or check future occurrences."
+                  actionLabel="Add Reminder"
+                  onAction={openCreateModal}
+                />
               </div>
             ) : (
               <div className="space-y-6">

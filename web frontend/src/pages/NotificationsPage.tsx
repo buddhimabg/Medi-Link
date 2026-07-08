@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import StatsCard from "../components/StatsCard";
-import { fetchReminders, updateReminder } from "../api/reminderApi";
+import { updateReminder } from "../api/reminderApi";
+import { useReminderStore } from "../store/reminderStore";
 import { getCurrentUserId } from "../config";
 import useReminderAutoRefresh from "../hooks/useReminderAutoRefresh";
 import {
@@ -41,26 +42,6 @@ type NotificationReminder = Reminder & {
   dueAt: string;
   statusLabel: string;
   isOverdue: boolean;
-};
-
-const extractReminderList = (response: any): Reminder[] => {
-  if (Array.isArray(response?.reminders)) {
-    return response.reminders;
-  }
-
-  if (Array.isArray(response?.data?.reminders)) {
-    return response.data.reminders;
-  }
-
-  if (Array.isArray(response?.data)) {
-    return response.data;
-  }
-
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  return [];
 };
 
 const buildDueNotifications = (loadedReminders: Reminder[]): NotificationReminder[] => {
@@ -107,13 +88,21 @@ const NotificationsPage: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [reminders, setReminders] = useState<NotificationReminder[]>([]);
   const [stats, setStats] = useState({ total: 0, offToday: 0, future: 0 });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const storeReminders = useReminderStore((state) => state.reminders);
+  const loading = useReminderStore((state) => state.loading);
+  const error = useReminderStore((state) => state.error);
+  const setError = useReminderStore((state) => state.setError);
+  const fetchRemindersCached = useReminderStore((state) => state.fetchRemindersCached);
   const [busyReminderId, setBusyReminderId] = useState<string | null>(null);
   const lastLoadedDayRef = useRef(getTodayYmdLocal());
   const notifiedReminderIdsRef = useRef<Set<string>>(new Set());
   const loadedRemindersRef = useRef<Reminder[]>([]);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    loadedRemindersRef.current = storeReminders as Reminder[];
+    checkDueRemindersLocal();
+  }, [storeReminders]);
 
   React.useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -125,7 +114,8 @@ const NotificationsPage: React.FC = () => {
 
   const checkDueRemindersLocal = () => {
     const loadedReminders = loadedRemindersRef.current;
-    const dueTodayReminders = buildDueNotifications(loadedReminders);
+    const activeReminders = loadedReminders.filter((r) => r.isActive !== false);
+    const dueTodayReminders = buildDueNotifications(activeReminders);
     const now = new Date();
     const todayKey = getTodayYmdLocal();
 
@@ -155,30 +145,27 @@ const NotificationsPage: React.FC = () => {
       });
     }
 
+    const activeTodayReminders = getTodayReminders(activeReminders, now);
+
     setStats({
-      total: loadedReminders.length,
-      offToday: getTodayReminders(loadedReminders, now).filter((reminder) => isReminderOffToday(reminder, now)).length,
-      future: getTodayReminders(loadedReminders, now).filter((reminder) => {
+      total: activeTodayReminders.length,
+      offToday: activeTodayReminders.filter((reminder) => isReminderOffToday(reminder, now)).length,
+      future: activeTodayReminders.filter((reminder) => {
+        if (isReminderOffToday(reminder, now)) {
+          return false;
+        }
         const nextOccurrence = getNextReminderOccurrence(reminder, now);
         return Boolean(nextOccurrence && nextOccurrence.getTime() > now.getTime());
       }).length,
     });
   };
 
-  const loadReminders = async () => {
-    setLoading(true);
-    setError(null);
+  const loadReminders = async (options?: { force?: boolean }) => {
     try {
       const userId = getCurrentUserId();
-      const res = await fetchReminders(userId);
-      const loadedReminders = extractReminderList(res);
-      loadedRemindersRef.current = loadedReminders;
-      checkDueRemindersLocal();
+      await fetchRemindersCached(userId, options);
     } catch (err) {
-      const errorMessage = getErrorMessage(err, "Unable to load reminders.");
-      setError(`Unable to load reminders: ${errorMessage}`);
-    } finally {
-      setLoading(false);
+      // Error is handled in fetchRemindersCached
     }
   };
 
@@ -239,7 +226,7 @@ const NotificationsPage: React.FC = () => {
         userId
       );
 
-      await loadReminders();
+      await loadReminders({ force: true });
     } catch (requestError) {
       const errorMessage = getErrorMessage(requestError, "Unable to mark reminder done for today.");
       setError(errorMessage);
@@ -304,7 +291,7 @@ const NotificationsPage: React.FC = () => {
       }
 
       await updateReminder(reminder._id, payload, userId);
-      await loadReminders();
+      await loadReminders({ force: true });
     } catch (requestError) {
       const errorMessage = getErrorMessage(requestError, "Unable to snooze reminder.");
       setError(errorMessage);
@@ -331,7 +318,7 @@ const NotificationsPage: React.FC = () => {
       />
 
       <main className={`flex-1 overflow-y-auto transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
-        <div className="p-8">
+        <div className="p-8 max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-800">Notifications</h1>
@@ -442,10 +429,50 @@ const NotificationsPage: React.FC = () => {
             </div>
           )}
 
+          {/* Get Started Notice when no reminders exist at all */}
+          {!loading && (storeReminders as Reminder[]).length === 0 && !error && (
+            <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-[#0C5BD5]">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-800">Get Started with Reminders</h3>
+                  <p className="text-sm text-gray-600 mt-0.5">
+                    You haven't added any medication or wellness reminders yet. Create your first reminder to receive notifications right here.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/reminders")}
+                className="px-4 py-2 bg-[#0C5BD5] text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-[#0A4AB0] transition whitespace-nowrap"
+              >
+                + Add First Reminder
+              </button>
+            </div>
+          )}
+
           {/* Empty State */}
           {!loading && visibleReminders.length === 0 && !error && (
             <div className="bg-white rounded-lg border border-gray-200">
-              <EmptyState title="No reminders" description="There are no reminders due right now." />
+              {(storeReminders as Reminder[]).length === 0 ? (
+                <EmptyState
+                  title="No reminders yet"
+                  description="Get started by adding your first reminder."
+                  actionLabel="Add Reminder"
+                  onAction={() => navigate("/reminders")}
+                />
+              ) : (
+                <EmptyState
+                  title="No reminders due right now"
+                  description="You have active reminders scheduled, but none are currently due right now."
+                  actionLabel="Open Reminders"
+                  onAction={() => navigate("/reminders")}
+                />
+              )}
             </div>
           )}
         </div>

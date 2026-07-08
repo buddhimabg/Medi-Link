@@ -5,9 +5,10 @@ import Sidebar from "../components/Sidebar";
 import "./MoodFixPage.css";
 import InsightIcon from "../assets/InsightIcon";
 import MoodFixIcon from "../assets/MoodFixIcon";
-import { fetchMoodFixActivities, fetchMoodHistory } from "../api/moodApi";
+import { fetchMoodHistory } from "../api/moodApi";
 import { getCurrentUserId } from "../config";
 import { useMoodStore } from "../store/moodStore";
+import { useMoodFixStore } from "../store/moodFixStore";
 
 const moods = ["terrible", "sad", "okay", "good", "great"];
 
@@ -17,10 +18,12 @@ const normalizeMood = (value) => {
 
   const asNumber = Number(value);
   if (!Number.isNaN(asNumber)) {
-    if (asNumber <= 1) return "terrible";
-    if (asNumber <= 2) return "sad";
-    if (asNumber <= 3) return "okay";
-    if (asNumber <= 4) return "good";
+    // Thresholds match backend moodFixController.js scoreToMood:
+    // <=2=terrible, <=4=sad, <=6=okay, <=8=good, >8=great
+    if (asNumber <= 2) return "terrible";
+    if (asNumber <= 4) return "sad";
+    if (asNumber <= 6) return "okay";
+    if (asNumber <= 8) return "good";
     return "great";
   }
 
@@ -29,7 +32,7 @@ const normalizeMood = (value) => {
 
 const toTitle = (value) => {
   const text = String(value || "");
-  if (!text) return "Okay";
+  if (!text || text === "all") return "General";
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
@@ -62,44 +65,32 @@ const MoodFixPage = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [loadingMood, setLoadingMood] = useState(true);
-  const [loadingActivities, setLoadingActivities] = useState(true);
   const [fetchError, setFetchError] = useState("");
-  const [activities, setActivities] = useState([]);
 
   const [currentMood, setCurrentMood] = useState("okay");
   const [selectedMood, setSelectedMood] = useState("okay");
-  const [completedIds, setCompletedIds] = useState([]);
-  const [completedMeta, setCompletedMeta] = useState({});
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [activeSidebarPage, setActiveSidebarPage] = useState("Mood Fix");
 
   const lastSubmission = useMoodStore((state) => state.lastSubmission);
 
-  const syncCompleted = () => {
-    try {
-      const raw = localStorage.getItem("moodfix-completed");
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(parsed)) setCompletedIds(parsed);
-
-      const metaRaw = localStorage.getItem("moodfix-completed-meta");
-      const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
-      if (metaParsed && typeof metaParsed === "object" && !Array.isArray(metaParsed)) {
-        setCompletedMeta(metaParsed);
-      }
-    } catch {
-      setCompletedIds([]);
-      setCompletedMeta({});
-    }
-  };
+  const completedIds = useMoodFixStore((state) => state.completedIds);
+  const completedMeta = useMoodFixStore((state) => state.completedMeta);
+  const initializeCompletedFromStorage = useMoodFixStore((state) => state.initializeCompletedFromStorage);
+  const refreshCompletedFromStorage = useMoodFixStore((state) => state.refreshCompletedFromStorage);
+  const fetchActivitiesByMoodCached = useMoodFixStore((state) => state.fetchActivitiesByMoodCached);
+  const activitiesByMood = useMoodFixStore((state) => state.activitiesByMood);
+  const loadingByMood = useMoodFixStore((state) => state.loadingByMood);
+  const errorByMood = useMoodFixStore((state) => state.errorByMood);
 
   useEffect(() => {
-    syncCompleted();
-  }, [location.key]);
+    initializeCompletedFromStorage();
+  }, [location.key, initializeCompletedFromStorage]);
 
   useEffect(() => {
-    const handleFocus = () => syncCompleted();
+    const handleFocus = () => refreshCompletedFromStorage();
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") syncCompleted();
+      if (document.visibilityState === "visible") refreshCompletedFromStorage();
     };
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
@@ -107,7 +98,7 @@ const MoodFixPage = () => {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, []);
+  }, [refreshCompletedFromStorage]);
 
   useEffect(() => {
     // Determine if this is a "latest only" view
@@ -130,29 +121,41 @@ const MoodFixPage = () => {
         setLoadingMood(true);
         setFetchError("");
 
-        const stateMood = normalizeMood(location.state?.mood);
-        if (location.state?.mood && mounted) {
-          setCurrentMood(stateMood);
-          setSelectedMood(stateMood);
+        let targetMood = null;
+        const stateEntries = useMoodStore.getState().moodHistoryData?.entries;
+
+        // 1. location.state?.mood
+        if (location.state?.mood) {
+          targetMood = normalizeMood(location.state.mood);
+        }
+        // 2. moodStore.lastSubmission?.mood
+        else if (lastSubmission?.mood) {
+          targetMood = normalizeMood(lastSubmission.mood);
+        }
+        // 3. moodStore.moodHistoryData.entries[0]?.mood
+        else if (Array.isArray(stateEntries) && stateEntries.length > 0 && stateEntries[0]?.mood) {
+          targetMood = normalizeMood(stateEntries[0].mood);
+        }
+        // 4. fetchMoodHistory(userId) only if no cached mood exists
+        else {
+          const history = await fetchMoodHistory(getCurrentUserId());
+          const latest = Array.isArray(history) && history.length ? history[0] : null;
+          if (latest?.mood) {
+            targetMood = normalizeMood(latest.mood);
+          } else {
+            targetMood = "all";
+          }
         }
 
-        if (lastSubmission?.mood && mounted && !location.state?.mood) {
-          const normalized = normalizeMood(lastSubmission.mood);
-          setCurrentMood(normalized);
-          setSelectedMood(normalized);
-        }
-
-        const history = await fetchMoodHistory(getCurrentUserId());
-        const latest = Array.isArray(history) && history.length ? history[0] : null;
-
-        if (mounted && !location.state?.mood) {
-          const normalized = normalizeMood(latest?.mood);
-          setCurrentMood(normalized);
-          setSelectedMood(normalized);
+        if (mounted) {
+          setCurrentMood(targetMood);
+          setSelectedMood(targetMood);
         }
       } catch {
         if (mounted) {
           setFetchError("Could not load latest mood. Showing general mood-fix activities.");
+          setCurrentMood("all");
+          setSelectedMood("all");
         }
       } finally {
         if (mounted) {
@@ -166,55 +169,22 @@ const MoodFixPage = () => {
     return () => {
       mounted = false;
     };
-  }, [lastSubmission, location.state]);
+  }, [lastSubmission, location.state?.mood]);
 
   useEffect(() => {
-    let mounted = true;
+    if (selectedMood) {
+      fetchActivitiesByMoodCached(selectedMood);
+    }
+  }, [selectedMood, fetchActivitiesByMoodCached]);
 
-    const loadActivities = async () => {
-      try {
-        setLoadingActivities(true);
-        setFetchError("");
-        const response = await fetchMoodFixActivities();
-        const data = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
-
-        if (mounted) {
-          setActivities(
-            data.map((item) => ({
-              id: item.activityId || item.id || item._id,
-              title: item.title || "Untitled activity",
-              duration: item.duration || "",
-              difficulty: item.difficulty || "",
-              focusTag: item.focusTag || "",
-              benefit: item.benefit || "",
-              description: item.description || "",
-              moods: Array.isArray(item.moods) ? item.moods : [],
-              steps: Array.isArray(item.steps) ? item.steps : [],
-            }))
-          );
-        }
-      } catch {
-        if (mounted) {
-          setActivities([]);
-          setFetchError("Could not load mood-fix activities from database.");
-        }
-      } finally {
-        if (mounted) {
-          setLoadingActivities(false);
-        }
-      }
-    };
-
-    loadActivities();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const currentMoodActivities = activitiesByMood[selectedMood] || [];
+  const loadingActivities = loadingByMood[selectedMood] ?? false;
+  const activitiesError = errorByMood[selectedMood];
 
   const filteredActivities = useMemo(() => {
-    return activities.filter((item) => Array.isArray(item.moods) && item.moods.includes(selectedMood));
-  }, [activities, selectedMood]);
+    if (selectedMood === "all") return currentMoodActivities;
+    return currentMoodActivities.filter((item) => Array.isArray(item.moods) && item.moods.includes(selectedMood));
+  }, [currentMoodActivities, selectedMood]);
 
   const handleSeeAll = () => {
     navigate("/mood-fix", { state: { showLatestOnly: false } });
@@ -229,7 +199,7 @@ const MoodFixPage = () => {
       <Sidebar activePage={activeSidebarPage} strictActive collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div className="space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Mood Fix Suggestions</h1>

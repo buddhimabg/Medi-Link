@@ -888,7 +888,7 @@
   border-radius: 1rem;
   padding: 1.25rem 1.375rem 1.375rem;
   background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 /* Header row */
@@ -990,9 +990,23 @@
   flex-shrink: 0;
 }
 
-.sma-icon-cam     { background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; }
-.sma-icon-mic     { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
-.sma-icon-journal { background: #fdf4ff; border: 1px solid #e9d5ff; color: #7c3aed; }
+.sma-icon-cam {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+}
+
+.sma-icon-mic {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+.sma-icon-journal {
+  background: #fdf4ff;
+  border: 1px solid #e9d5ff;
+  color: #7c3aed;
+}
 
 .sma-tool-name {
   font-size: 0.875rem;
@@ -1024,7 +1038,11 @@
   box-shadow: 0 2px 6px rgba(12, 91, 213, 0.25);
   align-self: flex-start;
 }
-.sma-cam-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(12, 91, 213, 0.35); }
+
+.sma-cam-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(12, 91, 213, 0.35);
+}
 
 /* ── Voice button ── */
 .sma-voice-btn {
@@ -1042,16 +1060,28 @@
   transition: all 0.2s;
   align-self: flex-start;
 }
-.sma-voice-btn:hover { background: #eff6ff; }
+
+.sma-voice-btn:hover {
+  background: #eff6ff;
+}
+
 .sma-voice-btn--rec {
   background: #fef2f2;
   color: #dc2626;
   border-color: #fca5a5;
   animation: pulseRec 1.5s infinite;
 }
+
 @keyframes pulseRec {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.35); }
-  50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
+  }
 }
 
 /* ── Loading ── */
@@ -1060,6 +1090,7 @@
   align-items: center;
   gap: 0.625rem;
 }
+
 .sma-spinner {
   width: 18px;
   height: 18px;
@@ -1069,7 +1100,13 @@
   animation: smaSpinAnim 0.85s linear infinite;
   flex-shrink: 0;
 }
-@keyframes smaSpinAnim { to { transform: rotate(360deg); } }
+
+@keyframes smaSpinAnim {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .sma-loading-text {
   font-size: 0.8rem;
   color: #2563eb;
@@ -1084,9 +1121,17 @@
   padding: 0.875rem;
   animation: smaSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 @keyframes smaSlideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sma-result-mood-row {
@@ -1101,9 +1146,17 @@
   line-height: 1;
   animation: emojiPop2 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 @keyframes emojiPop2 {
-  from { transform: scale(0.4); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .sma-result-info {
@@ -1125,6 +1178,7 @@
   align-items: center;
   gap: 0.375rem;
 }
+
 .sma-conf-label {
   font-size: 0.625rem;
   font-weight: 700;
@@ -1133,6 +1187,7 @@
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
+
 .sma-conf-bar {
   flex: 1;
   height: 5px;
@@ -1140,11 +1195,13 @@
   border-radius: 999px;
   overflow: hidden;
 }
+
 .sma-conf-fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .sma-conf-pct {
   font-size: 0.7rem;
   font-weight: 800;
@@ -1157,6 +1214,7 @@
   display: flex;
   gap: 0.5rem;
 }
+
 .sma-btn-accept {
   flex: 1;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -1170,7 +1228,11 @@
   transition: all 0.2s;
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
 }
-.sma-btn-accept:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(16,185,129,0.35); }
+
+.sma-btn-accept:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+}
 
 .sma-btn-retry {
   background: #f3f4f6;
@@ -1183,7 +1245,10 @@
   cursor: pointer;
   transition: all 0.2s;
 }
-.sma-btn-retry:hover { background: #e5e7eb; }
+
+.sma-btn-retry:hover {
+  background: #e5e7eb;
+}
 
 .sma-btn-cancel {
   background: transparent;
@@ -1196,7 +1261,12 @@
   cursor: pointer;
   transition: all 0.2s;
 }
-.sma-btn-cancel:hover { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
+
+.sma-btn-cancel:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fecaca;
+}
 
 /* ── Failed card (blue tone) ── */
 .sma-failed-card {
@@ -1209,36 +1279,42 @@
   flex-direction: column;
   gap: 0.625rem;
 }
+
 .sma-failed-header-row {
   display: flex;
   align-items: flex-start;
   gap: 0.625rem;
 }
+
 .sma-failed-emoji {
   font-size: 1.75rem;
   line-height: 1;
 }
+
 .sma-failed-title {
   font-size: 0.875rem;
   font-weight: 800;
   color: #1e40af;
 }
+
 .sma-failed-desc {
   font-size: 0.75rem;
   color: #2563eb;
   margin-top: 0.1rem;
 }
+
 .sma-tips-list {
   list-style: none;
   margin: 0;
   padding: 0.625rem 0.75rem;
-  background: rgba(255,255,255,0.65);
+  background: rgba(255, 255, 255, 0.65);
   border: 1px solid #bfdbfe;
   border-radius: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
+
 .sma-tips-list li {
   font-size: 0.72rem;
   color: #1d4ed8;
@@ -1256,6 +1332,7 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+
 .sma-error-title {
   font-size: 0.875rem;
   font-weight: 800;
@@ -1287,7 +1364,10 @@
   box-sizing: border-box;
   font-family: inherit;
 }
-.sma-textarea:focus { border-color: #0C5BD5; }
+
+.sma-textarea:focus {
+  border-color: #0C5BD5;
+}
 
 .sma-journal-footer {
   display: flex;
@@ -1308,20 +1388,22 @@
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .sma-analyze-btn:hover:not(:disabled) {
   background: #eff6ff;
-  box-shadow: 0 4px 10px rgba(12,91,213,0.15);
+  box-shadow: 0 4px 10px rgba(12, 91, 213, 0.15);
 }
+
 .sma-analyze-btn:disabled {
-  opacity: 0.45;
+  background: #f3f4f6;
+  color: #9ca3af;
+  border-color: #d1d5db;
+  opacity: 1;
   cursor: not-allowed;
+  box-shadow: none;
 }
-.sma-analyze-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #bfdbfe;
-  border-top-color: #0C5BD5;
-  border-radius: 50%;
-  animation: smaSpinAnim 0.8s linear infinite;
+
+.sma-analyze-btn:disabled .sma-analyze-spinner {
+  border-color: #e5e7eb;
+  border-top-color: #9ca3af;
 }

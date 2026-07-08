@@ -3,13 +3,14 @@
 const { analyzeJournal } = require("../services/ai/journalAnalyzer.js");
 const { analyzeSpeech } = require("../services/ai/speechAnalyzer.js");
 const { apiSuccess, apiFail } = require("../utils/apiResponse.js");
+const { isMeaningfulText } = require("../utils/validator.js");
 
 // POST /api/ai/analyze-journal
 const processJournal = async (req, res) => {
   try {
     const { journalText } = req.body || {};
-    if (!journalText || typeof journalText !== "string" || !journalText.trim()) {
-      return res.status(400).json(apiFail("Journal text is required and must be a non-empty string"));
+    if (!journalText || typeof journalText !== "string" || !isMeaningfulText(journalText)) {
+      return res.status(400).json(apiFail("Please enter a meaningful journal note before analyzing."));
     }
 
     const result = await analyzeJournal(journalText);
@@ -71,7 +72,15 @@ const processCombinedAnalysis = async (req, res) => {
     const hasSpeech = speechText && typeof speechText === "string" && speechText.trim().length > 0;
     const hasCamera = cameraData && typeof cameraData === "object" && Object.keys(cameraData).length > 0;
 
-    if (!hasJournal && !hasSpeech && !hasCamera) {
+    const isJournalMeaningful = hasJournal && isMeaningfulText(journalText);
+
+    if (hasJournal && !isJournalMeaningful) {
+      if (!hasSpeech && !hasCamera) {
+        return res.status(400).json(apiFail("Please enter a meaningful journal note before analyzing."));
+      }
+    }
+
+    if (!isJournalMeaningful && !hasSpeech && !hasCamera) {
       return res.status(400).json(apiFail("At least one input (journalText, speechText, or cameraData) is required for combined analysis"));
     }
 
@@ -79,7 +88,7 @@ const processCombinedAnalysis = async (req, res) => {
     let speechResult = null;
     let cameraResult = null;
 
-    if (hasJournal) {
+    if (isJournalMeaningful) {
       journalResult = await analyzeJournal(journalText);
     }
     

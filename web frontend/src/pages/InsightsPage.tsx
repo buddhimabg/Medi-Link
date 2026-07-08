@@ -24,23 +24,33 @@ const toSentenceCase = (value) => {
 };
 
 // Maps raw trend values from API to UI label
-const getTrendUI = (trendRaw) => {
+const getTrendUI = (trendRaw, hasEnoughComparisonData = true) => {
   const trend = String(trendRaw || "stable").toLowerCase();
-  if (trend === "improving") {
+  if (!hasEnoughComparisonData || trend === "insufficient_data" || trend === "insufficient_comparison" || trend === "n/a") {
     return {
-      label: "Improving",
-      className: "bg-green-50 text-green-700 border-green-200",
+      label: "Not Enough Data",
+      className: "bg-gray-50 text-gray-600 border-gray-200",
+      isComparisonAvailable: false,
     };
   }
-  if (trend === "declining") {
+  if (trend === "improving" || trend === "improved") {
     return {
-      label: "Declining",
+      label: "Improved",
+      className: "bg-green-50 text-green-700 border-green-200",
+      isComparisonAvailable: true,
+    };
+  }
+  if (trend === "declining" || trend === "declined") {
+    return {
+      label: "Declined",
       className: "bg-red-50 text-red-700 border-red-200",
+      isComparisonAvailable: true,
     };
   }
   return {
     label: "Stable",
     className: "bg-gray-50 text-gray-700 border-gray-200",
+    isComparisonAvailable: true,
   };
 };
 
@@ -70,7 +80,8 @@ const getDayLabelFromDate = (dateStr) => {
 };
 
 // Builds a readable label for best/worst day cards with graceful fallback.
-const getDayCardLabel = (dayObj) => {
+const getDayCardLabel = (dayObj, hasEnoughCurrentData = true) => {
+  if (!hasEnoughCurrentData || dayObj?.available === false) return "Not enough data";
   const day = String(dayObj?.day || "").trim();
   const date = String(dayObj?.date || "").trim();
   const derivedDay = getDayLabelFromDate(date);
@@ -114,10 +125,37 @@ const InsightsPage = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { insights, insightsLoading, insightsError } = useInsightsData();
 
+  const weeklyEntryCount = Number(
+    insights?.sourceMeta?.currentWeekEntryCount ?? insights?.weeklySummary?.totalCheckIns ?? 0
+  );
+  const previousEntryCount = Number(insights?.sourceMeta?.previousWeekEntryCount ?? 0);
+
+  const hasEnoughCurrentData = insights?.hasEnoughCurrentData !== undefined
+    ? Boolean(insights.hasEnoughCurrentData)
+    : weeklyEntryCount >= 2;
+
+  const hasEnoughPreviousData = insights?.hasEnoughPreviousData !== undefined
+    ? Boolean(insights.hasEnoughPreviousData)
+    : previousEntryCount >= 2;
+
+  const hasEnoughComparisonData = insights?.hasEnoughComparisonData !== undefined
+    ? Boolean(insights.hasEnoughComparisonData)
+    : (hasEnoughCurrentData && hasEnoughPreviousData && insights?.overallMoodTrend !== "insufficient_data" && insights?.overallMoodTrend !== "insufficient_comparison");
+
   // Normalize summary and trend fields from possible backend key variants.
-  const summary = insights?.simpleMessage || insights?.summary || insights?.summaryText || "You are doing your best. Keep checking in to understand your emotional patterns gently.";
-  const trend = insights?.overallTrend || insights?.overallMoodTrend || insights?.moodTrend || "stable";
-  const trendUI = getTrendUI(trend);
+  const summaryRaw = insights?.simpleMessage || insights?.summary || insights?.summaryText;
+  const trendRaw = insights?.overallTrend || insights?.overallMoodTrend || insights?.moodTrend || "stable";
+  const trendUI = getTrendUI(trendRaw, hasEnoughComparisonData);
+
+  const summary = !hasEnoughCurrentData
+    ? "Not enough current-week data to analyze trends yet. Log at least 2 check-ins over the past 7 days."
+    : !hasEnoughComparisonData
+    ? "Not enough previous-week data to compare trends yet."
+    : summaryRaw || (trendUI.label === "Improved"
+      ? "Your mental health trend improved this week compared to the previous week."
+      : trendUI.label === "Declined"
+      ? "Your mental health trend declined this week compared to the previous week."
+      : "Your mental health trend remained stable this week.");
 
   // Prepare key data collections with safe defaults.
   const patterns = Array.isArray(insights?.patterns) ? insights.patterns : [];
@@ -133,27 +171,27 @@ const InsightsPage = () => {
     ? [...daysWithScore].sort((a, b) => new Date(b.date) - new Date(a.date))[0]
     : null;
 
-  const bestDay = bestDayRaw || latestDayWithScore || null;
-  const worstDay = worstDayRaw || latestDayWithScore || bestDay || null;
+  const bestDay = bestDayRaw || (hasEnoughCurrentData ? latestDayWithScore : null);
+  const worstDay = worstDayRaw || (hasEnoughCurrentData ? (latestDayWithScore || bestDay) : null);
 
-  // Enable early/low-data behavior for weeks with fewer check-ins.
-  const weeklyEntryCount = Number(
-    insights?.sourceMeta?.currentWeekEntryCount ?? insights?.weeklySummary?.totalCheckIns ?? 0
-  );
   const isLowDataMode = weeklyEntryCount > 0 && weeklyEntryCount < 4;
 
   const topPositiveFactor = insights?.topPositiveFactor || insights?.topPositiveContributors?.[0] || null;
   const topNegativeFactor = insights?.topNegativeFactor || insights?.topNegativeContributors?.[0] || null;
 
-  const factorComparisonMessage = topPositiveFactor && topNegativeFactor
-    ? `${topPositiveFactor.label || "A positive factor"} improved and helped boost mood, while ${String(topNegativeFactor.label || "another factor").toLowerCase()} seemed to pull mood down.`
+  const factorComparisonMessage = !hasEnoughCurrentData
+    ? "Not enough current-week data for factor comparison yet. Log at least 2 check-ins across the past 7 days."
+    : !hasEnoughComparisonData
+    ? "Not enough previous-week data to compare trends yet."
+    : topPositiveFactor && topNegativeFactor
+    ? `${topPositiveFactor.label || topPositiveFactor.factor || "A positive factor"} improved and helped boost mood, while ${String(topNegativeFactor.label || topNegativeFactor.factor || "another factor").toLowerCase()} seemed to pull mood down.`
     : topPositiveFactor
-    ? `${topPositiveFactor.label || "A positive factor"} improved and helped boost mood this week.`
+    ? `${topPositiveFactor.label || topPositiveFactor.factor || "A positive factor"} improved and helped boost mood this week.`
     : topNegativeFactor
-    ? `${topNegativeFactor.label || "A factor"} looked challenging this week and may have lowered mood.`
+    ? `${topNegativeFactor.label || topNegativeFactor.factor || "A factor"} looked challenging this week and may have lowered mood.`
     : isLowDataMode
     ? "This is an early weekly insight. Add more check-ins and we will compare factors more precisely."
-    : "Factor comparison will appear after a few more check-ins.";
+    : "Your contributing well-being factors remained stable compared to the previous week.";
 
   const weakestFactorKey = topNegativeFactor?.factor || topNegativeFactor?.label || "";
   const primaryRecommendation = Array.isArray(insights?.recommendations) && insights.recommendations.length
@@ -198,18 +236,25 @@ const InsightsPage = () => {
   const fallbackSmartInsights = [
     isLowDataMode ? `Early insight mode: ${weeklyEntryCount} check-in(s) this week.` : null,
     topMood !== "n/a" ? `Recent check-ins mostly show "${toSentenceCase(topMood)}" mood.` : null,
-    trend === "improving" ? "Your overall emotional trend is moving in a better direction." : null,
-    trend === "stable" ? "Your emotional trend looks steady this week." : null,
-    trend === "declining" ? "This week looked a little harder, so extra self-care may help." : null,
+    trendUI.label === "Improved" ? "Your overall emotional trend is moving in a better direction." : null,
+    trendUI.label === "Stable" ? "Your emotional trend looks steady this week." : null,
+    trendUI.label === "Declined" ? "This week looked a little harder, so extra self-care may help." : null,
     "Add a few more daily check-ins to unlock more detailed smart insights.",
   ].filter(Boolean);
 
-  // Prefer backend daily insight message; otherwise show a fallback.
-  const dailyInsightMessage =
-    dailyInsight?.message ||
-    (bestDay?.date
-      ? `Your latest weekly check-in was on ${bestDay.date}. Keep logging daily to see more personalized day-by-day guidance.`
-      : "No daily insight available yet. Add at least 2 check-ins this week for day-by-day insight.");
+  const isDailyInsightAvailable = hasEnoughCurrentData && (dailyInsight?.available !== false);
+
+  const dailyInsightDateLabel = isDailyInsightAvailable
+    ? (dailyInsight?.date || (bestDay?.date ? bestDay.date : "Recent"))
+    : "Not enough data";
+
+  const dailyInsightMessage = isDailyInsightAvailable
+    ? (dailyInsight?.message || (bestDay?.date ? `Your latest weekly check-in was on ${bestDay.date}. Keep logging daily to see more personalized day-by-day guidance.` : "No daily insight available yet. Add at least 2 check-ins across the past 7 days for day-by-day insight."))
+    : "Not enough current-week data for daily insights yet. Log at least 2 check-ins over the past 7 days.";
+
+  const dailyInsightHighlights = isDailyInsightAvailable && Array.isArray(dailyInsight?.highlights)
+    ? dailyInsight.highlights
+    : [];
 
   if (insightsLoading) {
     return (
@@ -251,7 +296,7 @@ const InsightsPage = () => {
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-        <div className="space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
           {/* Header Section */}
           <div className="flex items-center justify-between">
             <div>
@@ -264,7 +309,7 @@ const InsightsPage = () => {
           <section className="bg-gradient-to-br from-[#0C5BD5]/5 to-[#0C5BD5]/10 rounded-2xl p-6 border border-[#0C5BD533]">
             <div className="flex flex-wrap gap-3 mb-5">
               <span className={`inline-flex px-4 py-2 rounded-full text-xs font-bold border ${trendUI.className}`}>
-                📊 Trend: {trendUI.label}
+                {trendUI.isComparisonAvailable ? `📊 Trend: ${trendUI.label}` : `📊 Comparison: ${trendUI.label}`}
               </span>
               <span className="inline-flex px-4 py-2 rounded-full text-xs font-bold border border-amber-200 bg-amber-50 text-amber-700">
                 😊 Most common: {toSentenceCase(topMood)}
@@ -291,7 +336,7 @@ const InsightsPage = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs  tracking-wider font-bold text-gray-500"> Peak Day</p>
-                  <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(bestDay)}</p>
+                  <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(bestDay, hasEnoughCurrentData)}</p>
                 </div>
               </div>
             </article>
@@ -303,7 +348,7 @@ const InsightsPage = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs  tracking-wider font-bold text-gray-500"> Most Challenging</p>
-                  <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(worstDay)}</p>
+                  <p className="text-sm font-bold text-gray-800 mt-1">{getDayCardLabel(worstDay, hasEnoughCurrentData)}</p>
                 </div>
               </div>
             </article>
@@ -365,14 +410,14 @@ const InsightsPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs  tracking-wider font-bold text-gray-500">
-                    {dailyInsight?.date || "Recent"}
+                    {dailyInsightDateLabel}
                   </p>
                   <p className="text-sm font-medium text-gray-800 mt-2">{dailyInsightMessage}</p>
                 </div>
               </div>
-              {Array.isArray(dailyInsight?.highlights) && dailyInsight.highlights.length > 0 && (
+              {dailyInsightHighlights.length > 0 && (
                 <ul className="mt-4 space-y-2">
-                  {dailyInsight.highlights.map((line, idx) => (
+                  {dailyInsightHighlights.map((line, idx) => (
                     <li key={`${idx}-${line.slice(0, 18)}`} className="text-sm text-gray-700 flex items-start gap-2">
                       <span className="text-[#0C5BD5] font-bold mt-0.5">→</span>
                       <span>{line}</span>
@@ -415,7 +460,7 @@ const InsightsPage = () => {
               <span className="text-lg">📊</span>
               <h2 className="text-lg font-bold text-gray-800">Mood Distribution</h2>
             </div>
-            <p className="text-xs text-gray-500 mt-2 mb-4">Your mood breakdown across the past week</p>
+            <p className="text-xs text-gray-500 mt-2 mb-4">Mood breakdown across the past 7 days</p>
 
             {moodTotal > 0 ? (
               <div className="space-y-4">

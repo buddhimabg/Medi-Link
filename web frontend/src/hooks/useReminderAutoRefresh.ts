@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-type RefreshCallback = () => void | Promise<void>;
+type RefreshCallback = (options?: { force?: boolean }) => void | Promise<void>;
 
 type ReminderAutoRefreshOptions = {
   intervalMs?: number;
@@ -42,13 +42,13 @@ export default function useReminderAutoRefresh(
   useEffect(() => {
     let midnightTimeoutId: number | undefined;
 
-    const triggerRefresh = () => {
+    const triggerRefresh = (force = true) => {
       const now = Date.now();
       if (now - lastTriggeredRef.current < DEBOUNCE_THRESHOLD_MS) {
         return;
       }
       lastTriggeredRef.current = now;
-      void refreshRef.current();
+      void refreshRef.current({ force });
     };
 
     const scheduleMidnightRefresh = () => {
@@ -59,24 +59,24 @@ export default function useReminderAutoRefresh(
       const delay = getMsUntilNextMidnight();
 
       midnightTimeoutId = window.setTimeout(() => {
-        triggerRefresh();
+        triggerRefresh(true);
         scheduleMidnightRefresh();
       }, delay);
     };
 
     if (initialRefresh) {
-      triggerRefresh();
+      triggerRefresh(false);
     }
 
-    const intervalId = intervalMs > 0 ? window.setInterval(triggerRefresh, intervalMs) : undefined;
+    const intervalId = intervalMs > 0 ? window.setInterval(() => triggerRefresh(true), intervalMs) : undefined;
     const handleFocus = () => {
       if (refreshOnFocus) {
-        triggerRefresh();
+        triggerRefresh(true);
       }
     };
     const handleVisibilityChange = () => {
       if (refreshOnVisibility && document.visibilityState === "visible") {
-        triggerRefresh();
+        triggerRefresh(true);
       }
     };
 

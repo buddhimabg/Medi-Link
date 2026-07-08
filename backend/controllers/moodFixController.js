@@ -39,6 +39,13 @@ const getMoodFixActivities = async (req, res) => {
   try {
     const query = { isActive: true }; // only return active activities
 
+    if (req.query && req.query.mood) {
+      const normalizedMood = normalizeMood(req.query.mood);
+      if (normalizedMood && normalizedMood !== "all") {
+        query.moods = normalizedMood;
+      }
+    }
+
     const activities = await MoodFixActivity.find(query)
       .select("activityId title duration difficulty focusTag benefit description moods steps")
       .sort({ title: 1 }); // sort alphabetically by title
@@ -222,7 +229,15 @@ const completeMoodFixActivity = async (req, res) => {
     }
 
     if (typeof moodAfter !== "number" || Number.isNaN(moodAfter)) {
-      return res.status(400).json(apiFail("moodAfter is required", null));
+      return res.status(400).json(apiFail("moodAfter is required and must be a number.", null));
+    }
+
+    if (!Number.isInteger(moodAfter)) {
+      return res.status(400).json(apiFail("moodAfter must be a whole number (integer).", null));
+    }
+
+    if (moodAfter < 1 || moodAfter > 10) {
+      return res.status(400).json(apiFail("moodAfter must be between 1 and 10.", null));
     }
 
     log.moodAfter = moodAfter;

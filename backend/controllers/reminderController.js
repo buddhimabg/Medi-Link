@@ -424,6 +424,14 @@ const checkMedicationDuplicate = (newReminder, existingReminders = [], allNewRem
   const durationDays = Number(reminderPayload.durationDays || req.body.durationDays || 0);
   const endDate = calculateEndDate(scheduleFields.date || formatDateToYMD(new Date()), durationDays);
 
+  // Validate explicitly-provided endDate (not computed from durationDays) is not before start date
+  if (req.body.endDate && !durationDays) {
+    const startDateStr = scheduleFields.date || formatDateToYMD(new Date());
+    if (req.body.endDate < startDateStr) {
+      return res.status(400).json(apiFail("End date cannot be before the start date."));
+    }
+  }
+
   const reminder = await Reminder.create({
     ...reminderPayload,
     ...scheduleFields,
@@ -603,6 +611,14 @@ const checkMedicationDuplicate = (newReminder, existingReminders = [], allNewRem
     const dur = Number(req.body.durationDays || 0);
     reminder.durationDays = dur;
     reminder.endDate = calculateEndDate(reminder.date || formatDateToYMD(new Date()), dur);
+  }
+
+  // Validate explicitly-provided endDate is not before start date
+  if (hasOwn(req.body, "endDate") && !hasOwn(req.body, "durationDays")) {
+    const startDateStr = reminder.date || formatDateToYMD(new Date());
+    if (req.body.endDate && req.body.endDate < startDateStr) {
+      return res.status(400).json(apiFail("End date cannot be before the start date."));
+    }
   }
 
   const updatedReminder = await reminder.save();

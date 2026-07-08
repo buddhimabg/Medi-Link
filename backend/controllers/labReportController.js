@@ -54,13 +54,14 @@ const uploadAndAnalyzeReport = async (req, res) => {
 const getReportHistory = async (req, res) => {
   try {
     const { userId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
 
     // Validate required parameter
     if (!userId) {
       return res.status(400).json(apiFail("userId is required."));
     }
 
-    const reports = await getLabReportHistory(userId);
+    const reports = await getLabReportHistory(userId, limit);
 
     return res.json(
       apiSuccess(

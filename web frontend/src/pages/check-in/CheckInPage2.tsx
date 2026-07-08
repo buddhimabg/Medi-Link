@@ -212,7 +212,8 @@ const CheckInPage2: React.FC = () => {
           <div className={`checkin2-alert ${alert.type}`}>{alert.message}</div>
         )}
 
-        <section className="checkin2-section">
+        <div className="w-full max-w-6xl mx-auto">
+          <section className="checkin2-section">
           <div className="checkin2-header">
             <h1>Daily Check-in</h1>
             <p>Help us understand your wellbeing (Part 1/2)</p>
@@ -273,6 +274,7 @@ const CheckInPage2: React.FC = () => {
             </div>
           </div>
         </section>
+        </div>
       </main>
     </div>
   );
