@@ -1,7 +1,13 @@
 // src/pages/Chatbot/ChatbotPatientProfile.tsx
+// Real data from MongoDB via chatApi.getPatientProfile(patientId)
+// No hardcoded patient records — every field is sourced from the
+// User + PatientHistory + Conversation collections.
+
 import { useState, useRef, useEffect } from 'react';
 import './Chatbot.css';
 import './ChatbotPatientProfile.css';
+import { chatApi } from '../../types/api';
+import type { PatientProfileData } from '../../types/api';
 
 interface Props {
   patientId: string;
@@ -18,126 +24,28 @@ const MENU_ITEMS = [
   { icon: '📊', label: 'Analytics',        key: 'analytics'   },
 ];
 
-const patientsData: Record<string, {
-  id: string; initials: string; color: string;
-  name: string; shortName: string; age: string; gender: string;
-  blood: string; height: string; weight: string;
-  condition: string; sessions: number; nextApt: string;
-  meds: { name: string; dosage: string; freq: string; schedule: string }[];
-  adherence: number;
-  weekDoses: { day: string; taken: boolean; asNeeded?: boolean }[];
-  diagnoses: string[];
-  clinicalNote: string;
-  journals: { date: string; title: string }[];
-}> = {
-  P1: {
-    id: 'P1', initials: 'P', color: '#2B52D4',
-    name: 'Priyanka Jayawardhana', shortName: 'Priyanka J.',
-    age: '28', gender: 'F', blood: 'O+', height: '165cm', weight: '62kg',
-    condition: 'GAD + MDD', sessions: 4, nextApt: 'Mar 6',
-    meds: [
-      { name: 'Sertraline', dosage: '75mg', freq: 'Once daily', schedule: 'with food' },
-      { name: 'Lorazepam', dosage: '0.5mg', freq: 'As needed', schedule: 'as needed' },
-    ],
-    adherence: 88,
-    weekDoses: [
-      { day: 'Sun', taken: true },
-      { day: 'Mon', taken: true },
-      { day: 'Tue', taken: true },
-      { day: 'Wed', taken: true, asNeeded: true },
-      { day: 'Thu', taken: true, asNeeded: true },
-      { day: 'Fri', taken: true, asNeeded: true },
-      { day: 'Sat', taken: false },
-    ],
-    diagnoses: ['Generalized Anxiety Disorder (GAD)', 'Major Depressive Disorder (MDD)', 'PCOS'],
-    clinicalNote: 'Last session: Yes, mild nausea, in the first weeks is normal. Try food insomnia. If especially in/et now and your dosage.',
-    journals: [
-      { date: '2 February 2023', title: 'Generalized Anxiety Disorder (GAD)' },
-      { date: '10 January 2023', title: 'Major Depressive Disorder (MDD)' },
-    ],
-  },
-  R1: {
-    id: 'R1', initials: 'R', color: '#6B7280',
-    name: 'Ravindra Perera', shortName: 'Ravindra P.',
-    age: '35', gender: 'M', blood: 'A+', height: '172cm', weight: '78kg',
-    condition: 'MDD', sessions: 2, nextApt: 'Mar 8',
-    meds: [
-      { name: 'Fluoxetine', dosage: '20mg', freq: 'Once daily', schedule: 'with food' },
-    ],
-    adherence: 74,
-    weekDoses: [
-      { day: 'Sun', taken: true },
-      { day: 'Mon', taken: true },
-      { day: 'Tue', taken: false },
-      { day: 'Wed', taken: true },
-      { day: 'Thu', taken: true },
-      { day: 'Fri', taken: false },
-      { day: 'Sat', taken: true },
-    ],
-    diagnoses: ['Major Depressive Disorder (MDD)'],
-    clinicalNote: 'Patient reports low mood and sleep disturbances. Fluoxetine started 3 weeks ago. Monitor for improvement.',
-    journals: [
-      { date: '15 February 2023', title: 'Major Depressive Disorder (MDD)' },
-    ],
-  },
-  K1: {
-    id: 'K1', initials: 'K', color: '#7C3AED',
-    name: 'Kavindi Gunawardana', shortName: 'Kavindi G.',
-    age: '22', gender: 'F', blood: 'B+', height: '158cm', weight: '54kg',
-    condition: 'Anxiety', sessions: 6, nextApt: 'Mar 10',
-    meds: [
-      { name: 'Escitalopram', dosage: '10mg', freq: 'Once daily', schedule: 'morning' },
-    ],
-    adherence: 95,
-    weekDoses: [
-      { day: 'Sun', taken: true },
-      { day: 'Mon', taken: true },
-      { day: 'Tue', taken: true },
-      { day: 'Wed', taken: true },
-      { day: 'Thu', taken: true },
-      { day: 'Fri', taken: true },
-      { day: 'Sat', taken: false },
-    ],
-    diagnoses: ['Generalized Anxiety Disorder (GAD)'],
-    clinicalNote: 'Patient showing great progress. Anxiety levels reduced significantly. Continue current medication and breathing exercises.',
-    journals: [
-      { date: '20 February 2023', title: 'Anxiety Management Progress' },
-      { date: '5 February 2023', title: 'Generalized Anxiety Disorder (GAD)' },
-    ],
-  },
-  S1: {
-    id: 'S1', initials: 'S', color: '#059669',
-    name: 'Sudarshana Jayakodi', shortName: 'Sudarshana J.',
-    age: '31', gender: 'M', blood: 'O-', height: '168cm', weight: '71kg',
-    condition: 'GAD', sessions: 3, nextApt: 'Mar 7',
-    meds: [
-      { name: 'Sertraline', dosage: '50mg', freq: 'Once daily', schedule: 'with food' },
-    ],
-    adherence: 81,
-    weekDoses: [
-      { day: 'Sun', taken: true },
-      { day: 'Mon', taken: false },
-      { day: 'Tue', taken: true },
-      { day: 'Wed', taken: true },
-      { day: 'Thu', taken: false },
-      { day: 'Fri', taken: true },
-      { day: 'Sat', taken: true },
-    ],
-    diagnoses: ['Generalized Anxiety Disorder (GAD)'],
-    clinicalNote: 'Patient started Sertraline 3 days ago. Reports increased anxiety — advised this is expected and temporary. Follow up in 2 weeks.',
-    journals: [
-      { date: '18 February 2023', title: 'Generalized Anxiety Disorder (GAD)' },
-    ],
-  },
+const COLORS = ['#2B52D4','#7C3AED','#059669','#DC2626','#0891B2','#D97706','#6B7280'];
+const getColor   = (name: string) => COLORS[(name?.charCodeAt(0) ?? 0) % COLORS.length];
+const getInitial = (name: string) => name?.[0]?.toUpperCase() ?? '?';
+
+const fmtDate = (d: string) => {
+  if (!d) return '—';
+  try {
+    return new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch { return '—'; }
 };
 
-type TabKey = 'summary' | 'history' | 'journals' | 'clinical';
+type TabKey = 'summary' | 'history' | 'clinical';
 
-export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat, onOpenBroadcast, onOpenAISettings, onOpenAnalytics }: Props) {
+export default function ChatbotPatientProfile({
+  patientId, onBack, onJumpToChat, onOpenBroadcast, onOpenAISettings, onOpenAnalytics,
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('summary');
   const [menuOpen, setMenuOpen]   = useState(false);
+  const [profile,  setProfile]    = useState<PatientProfileData | null>(null);
+  const [loading,  setLoading]    = useState(true);
+  const [error,    setError]      = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const patient = patientsData[patientId] ?? patientsData['P1'];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -146,6 +54,17 @@ export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat,
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Fetch real profile whenever the selected patient changes
+  useEffect(() => {
+    if (!patientId) { setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    chatApi.getPatientProfile(patientId)
+      .then(setProfile)
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load patient profile.'))
+      .finally(() => setLoading(false));
+  }, [patientId]);
 
   const handleMenuAction = (key: string) => {
     setMenuOpen(false);
@@ -156,10 +75,39 @@ export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat,
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'summary',  label: 'Profile Summary' },
-    { key: 'history',  label: 'Medical History' },
-    { key: 'journals', label: 'Journal Entries' },
-    { key: 'clinical', label: 'Clinical Documentation' },
+    { key: 'history',  label: 'Session History' },
+    { key: 'clinical', label: 'Clinical Notes' },
   ];
+
+  // ── Loading / error / empty states ─────────────────────────────
+  if (loading) {
+    return (
+      <div className="cbp-layout">
+        <div className="cbp-main-scroll">
+          <div className="cb-card" style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>
+            Loading patient profile…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="cbp-layout">
+        <div className="cbp-main-scroll">
+          <button className="cb-btn-back" onClick={onBack} style={{ marginBottom: 16 }}>Back</button>
+          <div className="cb-card" style={{ padding: 40, textAlign: 'center', color: '#DC2626' }}>
+            ⚠️ {error ?? 'Patient not found.'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { patient, sessionsCompleted, latestMood, latestMoodColor, latestNote, recentMeds, history, chat } = profile;
+  const color   = getColor(patient.name);
+  const initial = getInitial(patient.name);
 
   return (
     <div className="cbp-layout">
@@ -168,8 +116,8 @@ export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat,
         {/* Header banner */}
         <div className="cbp-header">
           <button className="cb-btn-back" onClick={onBack} style={{ marginRight: 4 }}>Back</button>
-          <div className="cb-avatar" style={{ width: 56, height: 56, fontSize: 22, background: patient.color }}>
-            {patient.initials}
+          <div className="cb-avatar" style={{ width: 56, height: 56, fontSize: 22, background: color }}>
+            {initial}
           </div>
           <div className="cbp-header-title" style={{ flex: 1 }}>{patient.name} — Patient Profile</div>
           <div className="cb-menu-wrap" ref={menuRef}>
@@ -202,114 +150,117 @@ export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat,
         {/* Profile Summary tab */}
         {activeTab === 'summary' && (
           <>
-            {/* Top 3 cards */}
             <div className="cbp-grid">
               {/* Profile Summary card */}
               <div className="cb-card">
                 <div className="cb-card-title">Profile Summary</div>
                 <div className="cbp-profile-row">
-                  <div className="cb-avatar" style={{ width: 56, height: 56, fontSize: 22, background: patient.color }}>
-                    {patient.initials}
+                  <div className="cb-avatar" style={{ width: 56, height: 56, fontSize: 22, background: color }}>
+                    {initial}
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{patient.name}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 13, color: '#374151', lineHeight: 2 }}>
-                  <div><strong>Age:</strong> {patient.age}{patient.gender}</div>
-                  <div><strong>Blood Type:</strong> {patient.blood}</div>
-                  <div><strong>Height:</strong> {patient.height}</div>
-                  <div><strong>Weight:</strong> {patient.weight}</div>
+                  <div><strong>Age:</strong> {patient.age ?? 'Not recorded'}</div>
+                  <div><strong>Blood Type:</strong> {patient.bloodType || 'Not recorded'}</div>
+                  <div><strong>Phone:</strong> {patient.phone || 'Not recorded'}</div>
+                  <div><strong>Email:</strong> {patient.email}</div>
+                  <div><strong>Registered:</strong> {fmtDate(patient.createdAt)}</div>
                 </div>
               </div>
 
-              {/* Primary Diagnoses */}
+              {/* Session overview (real, from PatientHistory) */}
               <div className="cb-card">
-                <div className="cb-card-title">Primary Diagnoses</div>
-                <div className="cbp-diagnosis-tags">
-                  {patient.diagnoses.map(d => (
-                    <div key={d} className="cbp-diagnosis-tag">{d}</div>
-                  ))}
+                <div className="cb-card-title">Session Overview</div>
+                <div className="cb-kv"><span className="cb-kk">Sessions Completed</span><span className="cb-kv-v">{sessionsCompleted}</span></div>
+                <div className="cb-kv"><span className="cb-kk">Latest Mood</span>
+                  <span className="cb-kv-v" style={{ color: latestMoodColor || '#374151' }}>{latestMood ?? 'No sessions yet'}</span>
                 </div>
+                <div className="cb-kv"><span className="cb-kk">Unread Messages</span><span className="cb-kv-v">{chat?.unreadCount ?? 0}</span></div>
+                <div className="cb-kv"><span className="cb-kk">Last Message</span><span className="cb-kv-v">{fmtDate(chat?.lastMessageAt || '')}</span></div>
               </div>
 
-              {/* Active Rx */}
+              {/* Active Rx — real, from PatientHistory.medications */}
               <div className="cb-card">
-                <div className="cb-card-title">Active Rx</div>
-                {patient.meds.map(med => (
-                  <div key={med.name} className="cbp-rx-card">
-                    <div className="cbp-rx-name">{med.name} {med.dosage}</div>
-                    <div className="cbp-rx-sub">{med.freq} with food</div>
+                <div className="cb-card-title">Active / Recent Rx</div>
+                {recentMeds.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>No medications recorded yet.</div>
+                )}
+                {recentMeds.map((med, i) => (
+                  <div key={i} className="cbp-rx-card">
+                    <div className="cbp-rx-name">{med.name} {med.dose || ''}</div>
+                    <div className="cbp-rx-sub">
+                      {med.frequency || 'As directed'}{med.withFood ? ` · ${med.withFood === 'Yes' ? 'with food' : 'without food'}` : ''}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Bottom 2 cards */}
+            {/* Bottom card — Clinical Notes */}
             <div className="cbp-grid-2">
-              {/* Medication Adherence */}
               <div className="cb-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div className="cb-card-title" style={{ marginBottom: 0 }}>Medication Adherence</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#2B52D4' }}>Current Adherence: {patient.adherence}%</div>
-                </div>
-                <div className="cbp-adherence-bar-wrap">
-                  <div className="cbp-adherence-bar">
-                    <div className="cbp-adherence-fill" style={{ width: `${patient.adherence}%` }} />
-                  </div>
-                </div>
-                <div style={{ fontSize: 12.5, color: '#374151', marginTop: 8, marginBottom: 10 }}>
-                  Current Adherence: {patient.adherence}%
-                </div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>Last week Dose Completed:</div>
-                <div className="cbp-week-row">
-                  {patient.weekDoses.map(d => (
-                    <div key={d.day} className="cbp-day-col">
-                      <div
-                        className="cbp-dose-dot"
-                        style={{ background: d.taken ? '#DCFCE7' : '#F3F4F6' }}
-                      >
-                        {d.taken ? (d.asNeeded ? '🔵' : '🟢') : '⬜'}
-                      </div>
-                      <div className="cbp-day-label">{d.day}</div>
-                    </div>
-                  ))}
-                </div>
+                <div className="cb-card-title">Latest Clinical Note</div>
+                <p className="cbp-note-text">{latestNote || 'No clinical notes recorded yet.'}</p>
               </div>
 
-              {/* Bottom right: Clinical Notes + Journal Activity */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="cb-card">
-                  <div className="cb-card-title">Clinical Notes</div>
-                  <p className="cbp-note-text">{patient.clinicalNote}</p>
-                  <span className="cbp-read-more" style={{ marginTop: 8, display: 'block' }}>Read more</span>
-                </div>
-
-                <div className="cb-card">
-                  <div className="cb-card-title">Journal Activity</div>
-                  {patient.journals.map(j => (
-                    <div key={j.title} className="cbp-journal-item">
-                      <div className="cbp-journal-dot" />
-                      <div>
-                        <div className="cbp-journal-date">{j.date}</div>
-                        <div className="cbp-journal-title">{j.title}</div>
-                      </div>
-                      <span className="cbp-journal-arrow">›</span>
+              <div className="cb-card">
+                <div className="cb-card-title">Recent Sessions</div>
+                {history.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>No past sessions recorded yet.</div>
+                )}
+                {history.map(h => (
+                  <div key={h._id} className="cbp-journal-item">
+                    <div className="cbp-journal-dot" style={{ background: h.moodColor }} />
+                    <div>
+                      <div className="cbp-journal-date">{fmtDate(h.date)}</div>
+                      <div className="cbp-journal-title">{h.moodLabel} — {h.notes.slice(0, 60) || 'No notes'}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </>
         )}
 
-        {/* Placeholder tabs */}
-        {activeTab !== 'summary' && (
-          <div className="cb-card" style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>
-              {tabs.find(t => t.key === activeTab)?.label} — Coming soon
-            </div>
+        {/* Session History tab — full list */}
+        {activeTab === 'history' && (
+          <div className="cb-card">
+            <div className="cb-card-title">Session History ({history.length})</div>
+            {history.length === 0 && (
+              <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                No sessions recorded for this patient yet.
+              </div>
+            )}
+            {history.map(h => (
+              <div key={h._id} style={{ borderBottom: '1px solid #F3F4F6', padding: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <strong style={{ fontSize: 13 }}>{fmtDate(h.date)}</strong>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: h.moodColor }}>{h.moodLabel}</span>
+                </div>
+                <p style={{ fontSize: 12.5, color: '#374151', margin: 0 }}>{h.notes || 'No notes recorded.'}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Clinical Notes tab */}
+        {activeTab === 'clinical' && (
+          <div className="cb-card">
+            <div className="cb-card-title">All Clinical Notes</div>
+            {history.length === 0 && (
+              <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                No clinical notes recorded for this patient yet.
+              </div>
+            )}
+            {history.map(h => (
+              <div key={h._id} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 3 }}>{fmtDate(h.date)}</div>
+                <p className="cbp-note-text">{h.notes || 'No notes recorded.'}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -319,30 +270,31 @@ export default function ChatbotPatientProfile({ patientId, onBack, onJumpToChat,
         <div className="cb-card" style={{ padding: 13 }}>
           <div className="cb-card-title" style={{ fontSize: 12, marginBottom: 9 }}>👤 Patient</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 11 }}>
-            <div className="cb-avatar" style={{ width: 38, height: 38, fontSize: 13, background: patient.color }}>{patient.initials}</div>
+            <div className="cb-avatar" style={{ width: 38, height: 38, fontSize: 13, background: color }}>{initial}</div>
             <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{patient.shortName}</div>
-              <div style={{ fontSize: 11, color: '#6B7280' }}>{patient.age}{patient.gender} · {patient.condition}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{patient.name}</div>
+              <div style={{ fontSize: 11, color: '#6B7280' }}>{patient.age ? `${patient.age} yrs` : 'Age N/A'} · {patient.bloodType || 'N/A'}</div>
             </div>
           </div>
-          <div className="cb-kv"><span className="cb-kk">Next Apt</span><span className="cb-kv-v" style={{ color: '#2B52D4' }}>{patient.nextApt}</span></div>
-          <div className="cb-kv"><span className="cb-kk">Sessions</span><span className="cb-kv-v">{patient.sessions} sessions complete</span></div>
-          <div className="cb-kv"><span className="cb-kk">Active Rx</span><span className="cb-kv-v">{patient.meds.length} meds</span></div>
+          <div className="cb-kv"><span className="cb-kk">Sessions</span><span className="cb-kv-v">{sessionsCompleted} complete</span></div>
+          <div className="cb-kv"><span className="cb-kk">Active Rx</span><span className="cb-kv-v">{recentMeds.length} meds</span></div>
         </div>
 
-        <div className="cb-card" style={{ padding: 13 }}>
-          <div className="cb-card-title" style={{ fontSize: 12, marginBottom: 9 }}>💊 Active Rx</div>
-          {patient.meds.map(med => (
-            <div key={med.name} style={{ background: '#EEF2FF', border: '1px solid #DBEAFE', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{med.name} {med.dosage}</div>
-              <div style={{ fontSize: 10.5, color: '#6B7280' }}>Once daily with food</div>
-            </div>
-          ))}
-        </div>
+        {recentMeds.length > 0 && (
+          <div className="cb-card" style={{ padding: 13 }}>
+            <div className="cb-card-title" style={{ fontSize: 12, marginBottom: 9 }}>💊 Active Rx</div>
+            {recentMeds.map((med, i) => (
+              <div key={i} style={{ background: '#EEF2FF', border: '1px solid #DBEAFE', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{med.name} {med.dose || ''}</div>
+                <div style={{ fontSize: 10.5, color: '#6B7280' }}>{med.frequency || 'As directed'}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div
           className="cbp-jump-btn"
-          onClick={() => onJumpToChat(patient.id)}
+          onClick={() => onJumpToChat(patient._id)}
         >
           💬 Jump back to Chat
         </div>

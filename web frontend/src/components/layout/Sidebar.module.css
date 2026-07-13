@@ -45,7 +45,7 @@
 }
 
 .logoText {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: #ffffff;
@@ -80,7 +80,7 @@
   
   cursor: pointer;
   transition: all 0.18s ease;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-size: 14px;
   font-weight: 500;
   border-left: 3px solid transparent;

@@ -79,33 +79,19 @@ export default function ChatbotDashboard({
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken') || '';
-
-        // Fetch conversations + analytics in parallel (existing chatApi calls)
-        const [convData, analyticsData] = await Promise.all([
+        const [convData, analyticsData, recentData] = await Promise.all([
           chatApi.getConversations(),
           chatApi.getAnalytics(),
+          chatApi.getRecentMessages(5),
         ]);
 
-        // Sort conversations newest first
         setConvs([...convData].sort((a, b) =>
           new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
         ));
         setAnalytics(analyticsData);
 
-        // ── ALSO fetch recent messages from the new endpoint ────────────────
-        // This gives richer per-message data (senderRole, isRead, etc.)
-        const res = await fetch('/api/chat/recent-messages?limit=5', {
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && Array.isArray(json.messages)) {
-            setRecentMessages(json.messages);
-          }
+        if (recentData.success && Array.isArray(recentData.messages)) {
+          setRecentMessages(recentData.messages);
         }
 
       } catch (err) {

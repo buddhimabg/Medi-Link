@@ -392,24 +392,32 @@ exports.getBroadcasts = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/chat/analytics
-// Dashboard stats — total messages, unread, AI replied, FAQ queries
+// Dashboard stats — total messages, unread, AI replied, FAQ queries,
+// doctor replies, conversation count, and a real 7-day message
+// volume trend — all computed from MongoDB, nothing hardcoded.
 // ─────────────────────────────────────────────────────────────
 exports.getAnalytics = async (req, res) => {
   try {
     const doctorId = req.user.id;
 
     // Doctor ගේ conversations
-    const convIds = (
-      await Conversation.find({ doctorId }, '_id')
-    ).map(c => c._id);
+    const conversations = await Conversation.find({ doctorId }, '_id');
+    const convIds = conversations.map(c => c._id);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
 
     const [
       totalMessages,
       unreadCount,
       aiReplied,
       faqReplied,
+      doctorReplied,
+      patientMessages,
       topFAQs,
       recentBroadcasts,
+      dailyVolumeRaw,
     ] = await Promise.all([
       Message.countDocuments({ conversationId: { $in: convIds } }),
       Conversation.aggregate([
@@ -418,9 +426,36 @@ exports.getAnalytics = async (req, res) => {
       ]),
       Message.countDocuments({ conversationId: { $in: convIds }, type: 'ai-auto' }),
       Message.countDocuments({ conversationId: { $in: convIds }, type: 'faq'     }),
+      Message.countDocuments({ conversationId: { $in: convIds }, senderRole: 'doctor'  }),
+      Message.countDocuments({ conversationId: { $in: convIds }, senderRole: 'patient' }),
       FAQ.find({ doctorId, isActive: true }).sort({ usageCount: -1 }).limit(5),
       Broadcast.find({ doctorId }).sort({ sentAt: -1 }).limit(5),
+      Message.aggregate([
+        { $match: { conversationId: { $in: convIds }, createdAt: { $gte: sevenDaysAgo } } },
+        {
+          $group: {
+            _id:   { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
+
+    // Fill in the last 7 days (including days with 0 messages)
+    const dailyMap = Object.fromEntries(dailyVolumeRaw.map(d => [d._id, d.count]));
+    const dailyVolume = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      dailyVolume.push({
+        date:  key,
+        label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        count: dailyMap[key] || 0,
+      });
+    }
+
+    const botReplied = aiReplied + faqReplied;
 
     return res.status(200).json({
       success: true,
@@ -429,6 +464,12 @@ exports.getAnalytics = async (req, res) => {
         unreadCount:    unreadCount[0]?.total || 0,
         aiReplied,
         faqReplied,
+        doctorReplied,
+        patientMessages,
+        botReplyPercent:    totalMessages > 0 ? Math.round((botReplied / totalMessages) * 100) : 0,
+        doctorReplyPercent: totalMessages > 0 ? Math.round((doctorReplied / totalMessages) * 100) : 0,
+        conversationCount:  convIds.length,
+        dailyVolume,
         topFAQs:        topFAQs.map(f => ({
           label:   f.question.slice(0, 50),
           count:   f.usageCount,

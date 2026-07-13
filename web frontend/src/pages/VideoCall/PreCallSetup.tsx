@@ -19,6 +19,8 @@ interface Props {
   onLogout?: () => void;
   userName?:  string;
   doctorQueue?: QueuePatient[];
+  onViewHistory?: () => void;
+  onViewTodaySessions?: () => void;
   stepTargets: {
     deviceCheck: Step;
     waitingRoom: Step;
@@ -54,6 +56,8 @@ const PreCallSetup: React.FC<Props> = ({
   loading, apiError, onRecheck, onStart, onNavigateStep,
   onLogout, userName,
   doctorQueue = [],
+  onViewHistory,
+  onViewTodaySessions,
   stepTargets,
 }) => {
   const navigate = useNavigate();
@@ -399,18 +403,9 @@ const PreCallSetup: React.FC<Props> = ({
               {firstPatient && (
                 <>
                   <div className={styles.patientBubble}>
-                    <div className={styles.avatar}>
-                      {firstPatient.patientInitial}
-                    </div>
                     <div>
                       <div className={styles.patientName}>
                         {firstPatient.patientName}
-                      </div>
-                      <div className={styles.patientSub}>
-                        {new Date(firstPatient.date).toLocaleTimeString('en-US', {
-                          hour: '2-digit', minute: '2-digit',
-                        })}
-                        {firstPatient.notes ? ` · ${firstPatient.notes.slice(0, 30)}` : ''}
                       </div>
                       <span
                         className={`${styles.badge} ${styles.badgeGreen}`}
@@ -426,9 +421,6 @@ const PreCallSetup: React.FC<Props> = ({
                       <div className={styles.queueLabel}>Next in Queue</div>
                       {nextQueue.map((p, idx) => (
                         <div key={idx} className={styles.queueItem}>
-                          <div className={`${styles.avatar} ${styles.avatarGray} ${styles.avatarSm}`}>
-                            {p.patientInitial}
-                          </div>
                           <span className={styles.queueName}>{p.patientName}</span>
                           <span className={styles.queueTime}>
                             {new Date(p.date).toLocaleTimeString('en-US', {
@@ -442,6 +434,24 @@ const PreCallSetup: React.FC<Props> = ({
                 </>
               )}
             </div>
+
+            {onViewTodaySessions && (
+              <button
+                onClick={onViewTodaySessions}
+                className={styles.card}
+                style={{
+                  width: '100%', textAlign: 'left', cursor: 'pointer',
+                  border: '1.5px solid #E5E7EB', display: 'flex',
+                  alignItems: 'center', gap: 10, background: '#fff',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>📅</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A2E' }}>Today's Completed Sessions</div>
+                  <div style={{ fontSize: 11, color: '#6B7280' }}>Review everything you've done today</div>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </main>

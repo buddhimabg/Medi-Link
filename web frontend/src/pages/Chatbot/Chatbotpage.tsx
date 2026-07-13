@@ -29,7 +29,7 @@ export type ChatView =
   | 'ai-settings'     // Page 16/17
   | 'analytics';      // Page 18
 
-export default function ChatbotPage() {
+export default function ChatbotPage({ doctorName, onLogout }: { doctorName?: string; onLogout?: () => void }) {
   const [view, setView]                 = useState<ChatView>('dashboard');
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedConvId, setSelectedConvId]       = useState<string>('');
@@ -45,7 +45,7 @@ export default function ChatbotPage() {
 
   return (
     <div className="cb-app">
-      <TopBar onMenuClick={() => setMenuOpen(true)} />
+      <TopBar onMenuClick={() => setMenuOpen(true)} doctorName={doctorName || 'Doctor'} onLogout={onLogout} />
 
       <div className="cb-shell">
         <Sidebar

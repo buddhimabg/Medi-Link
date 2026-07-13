@@ -6,8 +6,8 @@ import { io as socketIO } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import './Chatbot.css';
 import './Chatbotmessages.css';
-import { chatApi } from '../../types/api';
-import type { ConversationRecord, MessageRecord } from '../../types/api';
+import { chatApi, faqApi } from '../../types/api';
+import type { ConversationRecord, MessageRecord, FAQRecord } from '../../types/api';
 
 interface Props {
   initialPatientId: string | null;
@@ -71,13 +71,12 @@ const quickReplies = [
   'See FAQ on side effects',
 ];
 
-const faqItems = [
-  { cat: 'MEDICATION',    q: 'Sertraline side effects' },
-  { cat: 'MEDICATION',    q: 'Foods to avoid with antidepressants' },
-  { cat: 'APPOINTMENT',   q: 'How to reschedule an appointment' },
-  { cat: 'MENTAL HEALTH', q: 'Is anxiety worse in early treatment?' },
-  { cat: 'GENERAL',       q: 'How to use the MediLink app' },
-];
+const faqCatStyle: Record<string, string> = {
+  MEDICATION:     'MEDICATION',
+  APPOINTMENT:    'APPOINTMENT',
+  MENTAL_HEALTH:  'MENTAL HEALTH',
+  GENERAL:        'GENERAL',
+};
 
 const getDoctorName = () => {
   try {
@@ -104,6 +103,9 @@ export default function ChatbotMessages({
   const [msgLoading, setMsgLoading]     = useState(false);
   const [sending, setSending]           = useState(false);
   const [typing, setTyping]             = useState(false);
+  const [faqs, setFaqs]                 = useState<FAQRecord[]>([]);
+  const [faqsLoading, setFaqsLoading]   = useState(false);
+  const [faqSearch, setFaqSearch]       = useState('');
   const menuRef    = useRef<HTMLDivElement>(null);
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const socketRef  = useRef<Socket | null>(null);
@@ -183,6 +185,16 @@ export default function ChatbotMessages({
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load real FAQs when the FAQ tab is opened (lazy — only once)
+  useEffect(() => {
+    if (filter !== 'FAQ' || faqs.length > 0) return;
+    setFaqsLoading(true);
+    faqApi.getAll()
+      .then(data => setFaqs(data.filter(f => f.isActive)))
+      .catch(console.error)
+      .finally(() => setFaqsLoading(false));
+  }, [filter, faqs.length]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -365,7 +377,7 @@ export default function ChatbotMessages({
                 >
                   👤 Profile
                 </button>
-                <button className="cb-btn cb-btn-primary cb-btn-sm">
+                <button className="cb-btn cb-btn-primary cb-btn-sm" disabled title="Video call integration coming soon" style={{ opacity: 0.6, cursor: 'not-allowed' }}>
                   📹 Start Call
                 </button>
               </div>
@@ -475,14 +487,42 @@ export default function ChatbotMessages({
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>❓ FAQ Library</div>
           <div className="cb-search-wrap">
             <span className="cb-search-icon">🔍</span>
-            <input type="text" placeholder="Search FAQs..." />
+            <input
+              type="text"
+              placeholder="Search FAQs..."
+              value={faqSearch}
+              onChange={e => setFaqSearch(e.target.value)}
+            />
           </div>
-          {faqItems.map(f => (
-            <div key={f.q} className="cb-fq">
-              <div className="cb-fq-cat">{f.cat}</div>
-              <div className="cb-fq-q">{f.q}</div>
+
+          {faqsLoading && (
+            <div style={{ fontSize: 12, color: '#9CA3AF', padding: '12px 0' }}>Loading FAQs…</div>
+          )}
+
+          {!faqsLoading && faqs.length === 0 && (
+            <div style={{ fontSize: 12, color: '#9CA3AF', padding: '12px 0' }}>
+              No FAQs yet. Add some in the FAQ Library.
             </div>
-          ))}
+          )}
+
+          {!faqsLoading && faqs
+            .filter(f =>
+              f.question.toLowerCase().includes(faqSearch.toLowerCase()) ||
+              f.keywords.some(k => k.includes(faqSearch.toLowerCase()))
+            )
+            .map(f => (
+              <div
+                key={f._id}
+                className="cb-fq"
+                style={{ cursor: 'pointer' }}
+                title="Click to insert this answer into the message box"
+                onClick={() => setInput(f.answer)}
+              >
+                <div className="cb-fq-cat">{faqCatStyle[f.category] ?? f.category}</div>
+                <div className="cb-fq-q">{f.question}</div>
+              </div>
+            ))}
+
           <button className="cb-btn cb-btn-outline cb-btn-sm cb-btn-full" onClick={() => onOpenFAQLibrary?.()}>
             View All FAQ
           </button>

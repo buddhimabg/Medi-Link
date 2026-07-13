@@ -179,7 +179,7 @@
   font-size: 12px; font-weight: 700;
   color: #374151;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
 }
 .cbfaq-tool-btn:hover { background: #E5E7EB; }
 
@@ -189,7 +189,7 @@
   border: 1.5px solid #E5E7EB;
   border-top: none;
   border-radius: 0 0 8px 8px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-size: 12.5px;
   color: #1A1A2E;
   outline: none;

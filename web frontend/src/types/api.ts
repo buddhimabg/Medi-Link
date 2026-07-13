@@ -104,15 +104,19 @@ export interface SessionStatus {
 }
 
 export interface SessionSummary {
-  sessionId:     string
-  status:        string
-  notes:         string
-  duration:      number
-  startedAt:     string | null
-  endedAt:       string | null
-  patientId:     string | null
-  patientName:   string | null
-  doctorId:      string
+  sessionId:           string
+  status:              string
+  sessionNotes:        string
+  notesForPatient:     string
+  duration:            number
+  startedAt:           string | null
+  endedAt:             string | null
+  patientId:           string | null
+  patientName:         string | null
+  doctorId:            string
+  medications:         Medication[]
+  prescriptionsIssued: number
+  rxSavedToDb:         boolean
   prescriptions: Array<{
     id:            string
     medications: Medication[]
@@ -130,8 +134,8 @@ export interface Medication {
 }
 
 export const videoApi = {
-  createRoom: (sessionId: string) =>
-    request<CallData>('POST', '/video/create-room', { sessionId }),
+  createRoom: (sessionId: string, patientId?: string) =>
+    request<CallData>('POST', '/video/create-room', { sessionId, patientId }),
 
   joinRoom: (sessionId: string) =>
     request<CallData>('POST', '/video/join-room', { sessionId }),
@@ -183,6 +187,7 @@ export interface PatientHistoryRecord {
   date:        string
   duration:    number
   notes:       string
+  notesForPatient?: string
   medications: Medication[]
   moodLabel:   string
   moodColor:   string
@@ -239,12 +244,35 @@ export interface QueuePatient {
   date:           string
 }
 
+export interface TodaysSessionRecord {
+  id:              string
+  patientId:       string
+  patientName:     string
+  date:            string
+  duration:        number
+  notes:           string
+  notesForPatient: string
+  medications:     Medication[]
+  moodLabel:       string
+}
+
+export interface TodaysSummary {
+  date:               string
+  totalSessions:      number
+  totalDuration:      number
+  totalPrescriptions: number
+  sessions:           TodaysSessionRecord[]
+}
+
 export const appointmentApi = {
   getDoctorQueue: () =>
     request<AppointmentRecord[]>('GET', '/appointments/doctor'),
 
   getDoctorQueueEnriched: () =>
     request<QueuePatient[]>('GET', '/appointments/doctor/queue'),
+
+  getTodaysSummary: () =>
+    request<TodaysSummary>('GET', '/appointments/today-summary'),
 }
 
 // ── FAQ API ────────────────────────────────────────────────────────────────
@@ -283,6 +311,13 @@ export const faqApi = {
 }
 
 // ── Chat / Conversation API ────────────────────────────────────────────────
+export interface PatientRecord {
+  _id:   string
+  name:  string
+  email: string
+  phone?: string
+}
+
 export interface ConversationRecord {
   _id:            string
   patientId:      string
@@ -318,11 +353,57 @@ export interface MessageRecord {
 
 export type ConversationMessage = MessageRecord
 
+export interface PatientProfileData {
+  patient: {
+    _id:       string
+    name:      string
+    email:     string
+    phone?:    string
+    age?:      number | null
+    bloodType?: string
+    createdAt: string
+  }
+  sessionsCompleted: number
+  latestMood:       string | null
+  latestMoodColor:  string | null
+  latestNote:       string
+  recentMeds: {
+    name:     string
+    dose?:    string
+    frequency?: string
+    duration?: string
+    withFood?: string
+  }[]
+  history: {
+    _id:       string
+    date:      string
+    notes:     string
+    moodLabel: string
+    moodColor: string
+    medications: unknown[]
+  }[]
+  chat: {
+    unreadCount:   number
+    lastMessage:   string
+    lastMessageAt: string
+  } | null
+}
+
 export interface AnalyticsData {
   totalMessages:    number
   unreadCount:      number
   aiReplied:        number
   faqReplied:       number
+  doctorReplied:    number
+  patientMessages:  number
+  botReplyPercent:    number
+  doctorReplyPercent: number
+  conversationCount:  number
+  dailyVolume: {
+    date:  string
+    label: string
+    count: number
+  }[]
   topFAQs: {
     label:    string
     count:    number
@@ -334,9 +415,42 @@ export interface AnalyticsData {
   doctorReplies?:  number
 }
 
+export interface BroadcastRecord {
+  _id:            string
+  doctorId:       string
+  message:        string
+  recipients:     string[]
+  deliveredCount: number
+  readCount:      number
+  sentAt:         string
+  createdAt:      string
+}
+
+export interface BotSettingsData {
+  _id?:                    string
+  doctorId:                string
+  isActive:                boolean
+  autoReplyMode:           'always' | 'off_hours' | 'never'
+  systemPrompt:            string
+  model:                   string
+  faqConfidenceThreshold:  number
+  offHoursStart:           string
+  offHoursEnd:             string
+}
+
 export const chatApi = {
   getConversations: () =>
     request<ConversationRecord[]>('GET', '/chat/conversations'),
+
+  // All registered patients — used by "New Message" to start a
+  // brand-new conversation even if none exists yet.
+  getPatients: () =>
+    request<PatientRecord[]>('GET', '/chat/patients'),
+
+  // Real patient snapshot (User + PatientHistory + Conversation) for
+  // the "👤 Profile" screen — no hardcoded/fake data.
+  getPatientProfile: (patientId: string) =>
+    request<PatientProfileData>('GET', `/chat/patients/${patientId}/profile`),
 
   getOrCreateConversation: (patientId: string) =>
     request<ConversationRecord>('GET', `/chat/conversations/with/${patientId}`),
@@ -354,4 +468,45 @@ export const chatApi = {
 
   getAnalytics: () =>
     request<AnalyticsData>('GET', '/chat/analytics'),
+
+  getBroadcasts: () =>
+    request<BroadcastRecord[]>('GET', '/chat/broadcast'),
+
+  sendBroadcast: (message: string, patientIds: string[]) =>
+    request<BroadcastRecord>('POST', '/chat/broadcast', { message, patientIds }),
+
+  getBotSettings: () =>
+    request<BotSettingsData>('GET', '/chat/bot-settings'),
+
+  updateBotSettings: (data: Partial<BotSettingsData>) =>
+    request<BotSettingsData>('PUT', '/chat/bot-settings', data),
+
+  getRecentMessages: async (limit = 5) => {
+    const res = await fetch(`${BASE}/chat/recent-messages?limit=${limit}`, {
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+      },
+    })
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = '/login'
+      throw new Error('Unauthorized: Session expired or invalid token.')
+    }
+    return res.json() as Promise<{ success: boolean; messages: RecentMessageRecord[] }>
+  },
+}
+
+export interface RecentMessageRecord {
+  conversationId:  string
+  patientId:       string
+  patientName:     string
+  patientEmail:    string
+  patientAvatar:   string | null
+  lastMessage:     string
+  lastSenderRole:  'doctor' | 'patient' | 'bot'
+  lastMessageType: 'normal' | 'ai-auto' | 'faq'
+  isRead:          boolean
+  unreadCount:     number
+  lastMessageAt:   string
 }

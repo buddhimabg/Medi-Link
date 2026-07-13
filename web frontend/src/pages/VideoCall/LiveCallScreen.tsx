@@ -1,8 +1,68 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import type { CallData, ChatMessage, Medication, NewMedication } from '../../types/videoCall'
 import type { Medication as ApiMedication, PatientHistoryRecord } from '../../types/api'
 import styles from './LiveCallScreen.module.css'
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt'
+
+// Curated common-medicine list for the autocomplete. Not exhaustive —
+// this just speeds up the common cases and helps avoid typos; only exact
+// matches from this list can be added to a prescription.
+const MEDICINE_LIST = [
+  'Sertraline', 'Escitalopram', 'Fluoxetine', 'Paroxetine', 'Citalopram',
+  'Venlafaxine', 'Duloxetine', 'Bupropion', 'Mirtazapine', 'Trazodone',
+  'Alprazolam', 'Diazepam', 'Lorazepam', 'Clonazepam', 'Buspirone',
+  'Quetiapine', 'Risperidone', 'Olanzapine', 'Aripiprazole', 'Lithium',
+  'Lamotrigine', 'Valproate', 'Carbamazepine', 'Propranolol', 'Hydroxyzine',
+  'Zolpidem', 'Melatonin', 'Methylphenidate', 'Atomoxetine', 'Amitriptyline',
+  'Paracetamol', 'Ibuprofen', 'Aspirin', 'Amoxicillin', 'Azithromycin',
+  'Omeprazole', 'Metformin', 'Amlodipine', 'Atorvastatin', 'Losartan',
+  'Cetirizine', 'Loratadine', 'Salbutamol', 'Prednisolone', 'Vitamin D3',
+]
+
+const isKnownMedicine = (name: string) =>
+  MEDICINE_LIST.some(m => m.toLowerCase() === name.trim().toLowerCase())
+
+// Dosage — number + recognised unit, within a sane clinical range so
+// obvious typos (like "5000mg") are rejected before being prescribed.
+const DOSE_PATTERN = /^(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml)$/i
+const DOSE_RANGE: Record<string, [number, number]> = {
+  mg: [0.01, 2000], mcg: [1, 2000], g: [0.01, 10], ml: [0.1, 500],
+}
+function validateDose(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Dosage is required'
+  const match = trimmed.match(DOSE_PATTERN)
+  if (!match) return 'Use a number + unit, e.g. 0.25mg, 500mg, 5ml'
+  const value = parseFloat(match[1])
+  const unit  = match[2].toLowerCase()
+  const [min, max] = DOSE_RANGE[unit]
+  if (value < min || value > max) return `${unit} dose should be between ${min} and ${max}${unit}`
+  return null
+}
+
+// Frequency — fixed list only, no free text.
+const FREQUENCY_OPTIONS = [
+  'Once daily', 'Twice daily', 'Three times daily', 'Four times daily',
+  'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours',
+  'Once weekly', 'As needed (PRN)', 'At bedtime', 'Before meals', 'After meals',
+]
+
+// Duration — number + days/weeks/months, within a sane range.
+const DURATION_PATTERN = /^(\d+(?:\.\d+)?)\s*(day|days|week|weeks|month|months)$/i
+const DURATION_RANGE: Record<string, [number, number]> = {
+  day: [1, 90], days: [1, 90], week: [1, 26], weeks: [1, 26], month: [1, 12], months: [1, 12],
+}
+function validateDuration(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Duration is required'
+  const match = trimmed.match(DURATION_PATTERN)
+  if (!match) return 'Use a number + unit, e.g. 7 days, 2 weeks, 1 month'
+  const value = parseFloat(match[1])
+  const unit  = match[2].toLowerCase()
+  const [min, max] = DURATION_RANGE[unit]
+  if (value < min || value > max) return `Should be between ${min} and ${max} ${unit}`
+  return null
+}
 
 interface Props {
   callData:        CallData | null
@@ -43,6 +103,7 @@ interface Props {
   sessionId?:       string
   onSaveNote?:      () => Promise<void>
   existingRx?:      ApiMedication[]
+  existingRxNotes?: string
   patientHistory?:  PatientHistoryRecord[]
   chatConnected?:   boolean
 }
@@ -77,6 +138,7 @@ const LiveCallScreen: React.FC<Props> = ({
   sessionId      = '',
   onSaveNote,
   existingRx     = [],
+  existingRxNotes = '',
   patientHistory = [],
   chatConnected  = false,
 }) => {
@@ -95,6 +157,51 @@ const LiveCallScreen: React.FC<Props> = ({
   const [toast,            setToast]            = useState<string | null>(null)
   const [showBackConfirm,  setShowBackConfirm]  = useState(false)
   const [noteSaving,       setNoteSaving]       = useState(false)
+
+  // ── Prescription form validation state ──────────────────────
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [nameTouched,     setNameTouched]     = useState(false)
+  const [doseTouched,     setDoseTouched]     = useState(false)
+  const [durationTouched, setDurationTouched] = useState(false)
+  const nameWrapRef = useRef<HTMLDivElement>(null)
+
+  const medSuggestions = useMemo(() => {
+    const q = (newMed?.name || '').trim().toLowerCase()
+    if (!q) return []
+    return MEDICINE_LIST.filter(m => m.toLowerCase().startsWith(q)).slice(0, 8)
+  }, [newMed?.name])
+
+  const nameError = nameTouched && (newMed?.name || '').trim() && !isKnownMedicine(newMed?.name || '')
+    ? 'Please select a medicine from the suggestions list'
+    : nameTouched && !(newMed?.name || '').trim()
+      ? 'Medicine name is required'
+      : null
+  const doseError     = doseTouched ? validateDose(newMed?.dose || '') : null
+  const durationError = durationTouched ? validateDuration(newMed?.duration || '') : null
+
+  const canAddMed = isKnownMedicine(newMed?.name || '')
+    && !validateDose(newMed?.dose || '')
+    && !validateDuration(newMed?.duration || '')
+    && (newMed?.frequency || '').trim() !== ''
+
+  const handleAddMedClick = () => {
+    setNameTouched(true)
+    setDoseTouched(true)
+    setDurationTouched(true)
+    if (!canAddMed) return
+    onAddMed?.()
+    setNameTouched(false)
+    setDoseTouched(false)
+    setDurationTouched(false)
+  }
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (nameWrapRef.current && !nameWrapRef.current.contains(e.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -483,14 +590,45 @@ const LiveCallScreen: React.FC<Props> = ({
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', letterSpacing: '0.05em', marginBottom: '10px' }}>
                     NEW MEDICATION
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
+                  <div style={{ marginBottom: '8px', position: 'relative' }} ref={nameWrapRef}>
                     <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Medicine Name</label>
                     <input
                       placeholder="e.g. Alprazolam"
                       value={newMed?.name || ''}
-                      onChange={e => setNewMed?.({ ...newMed!, name: e.target.value })}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                      onChange={e => { setNewMed?.({ ...newMed!, name: e.target.value }); setShowSuggestions(true); setNameTouched(false) }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setNameTouched(true)}
+                      autoComplete="off"
+                      style={{ width: '100%', padding: '8px 10px', border: `1px solid ${nameError ? '#DC2626' : '#e5e7eb'}`, borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
+                    {showSuggestions && medSuggestions.length > 0 && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 60,
+                        background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 8,
+                        marginTop: 4, boxShadow: '0 4px 14px rgba(0,0,0,0.08)', maxHeight: 200, overflowY: 'auto',
+                      }}>
+                        {medSuggestions.map(name => (
+                          <div
+                            key={name}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { setNewMed?.({ ...newMed!, name }); setShowSuggestions(false); setNameTouched(false) }}
+                            style={{ padding: '8px 12px', fontSize: '12.5px', cursor: 'pointer' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F3F4F6')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >💊 {name}</div>
+                        ))}
+                      </div>
+                    )}
+                    {showSuggestions && (newMed?.name || '').trim() && medSuggestions.length === 0 && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 60,
+                        background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 8,
+                        marginTop: 4, padding: '8px 12px', fontSize: '12px', color: '#9CA3AF',
+                      }}>No match — pick from the list, we don't accept free-text medicine names.</div>
+                    )}
+                    {nameError && (
+                      <div style={{ fontSize: '10.5px', color: '#DC2626', marginTop: '3px' }}>{nameError}</div>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                     <div>
@@ -499,17 +637,23 @@ const LiveCallScreen: React.FC<Props> = ({
                         placeholder="e.g. 0.25mg"
                         value={newMed?.dose || ''}
                         onChange={e => setNewMed?.({ ...newMed!, dose: e.target.value })}
-                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                        onBlur={() => setDoseTouched(true)}
+                        style={{ width: '100%', padding: '8px 10px', border: `1px solid ${doseError ? '#DC2626' : '#e5e7eb'}`, borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
                       />
+                      {doseError && (
+                        <div style={{ fontSize: '10.5px', color: '#DC2626', marginTop: '3px' }}>{doseError}</div>
+                      )}
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Frequency</label>
-                      <input
-                        placeholder="e.g. Twice daily"
+                      <select
                         value={newMed?.frequency || ''}
                         onChange={e => setNewMed?.({ ...newMed!, frequency: e.target.value })}
                         style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
+                      >
+                        <option value="">Select…</option>
+                        {FREQUENCY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>Duration</label>
@@ -517,8 +661,12 @@ const LiveCallScreen: React.FC<Props> = ({
                         placeholder="e.g. 14 days"
                         value={newMed?.duration || ''}
                         onChange={e => setNewMed?.({ ...newMed!, duration: e.target.value })}
-                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
+                        onBlur={() => setDurationTouched(true)}
+                        style={{ width: '100%', padding: '8px 10px', border: `1px solid ${durationError ? '#DC2626' : '#e5e7eb'}`, borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}
                       />
+                      {durationError && (
+                        <div style={{ fontSize: '10.5px', color: '#DC2626', marginTop: '3px' }}>{durationError}</div>
+                      )}
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '4px' }}>With Food?</label>
@@ -533,11 +681,13 @@ const LiveCallScreen: React.FC<Props> = ({
                     </div>
                   </div>
                   <button
-                    onClick={onAddMed}
+                    onClick={handleAddMedClick}
+                    disabled={!canAddMed}
                     style={{
-                      width: '100%', padding: '9px', background: '#2B52D4',
+                      width: '100%', padding: '9px', background: canAddMed ? '#2B52D4' : '#9CA3AF',
                       color: '#fff', border: 'none', borderRadius: '6px',
-                      fontSize: '13px', cursor: 'pointer', fontWeight: 600,
+                      fontSize: '13px', cursor: canAddMed ? 'pointer' : 'not-allowed', fontWeight: 600,
+                      opacity: canAddMed ? 1 : 0.6,
                     }}
                   >+ Add</button>
                 </div>
@@ -656,6 +806,14 @@ const LiveCallScreen: React.FC<Props> = ({
                     <div className={styles.rxDose}>{rx.dose} · {rx.frequency}</div>
                   </div>
                 ))
+              )}
+              {existingRxNotes && (
+                <div style={{
+                  marginTop: 8, padding: '8px 10px', background: '#EFF6FF',
+                  border: '1px solid #DBEAFE', borderRadius: 8, fontSize: 11.5, color: '#1E3A8A',
+                }}>
+                  💬 Last visit's notes: {existingRxNotes}
+                </div>
               )}
               <button className={styles.prescribeBtn} onClick={onPrescribe}>💊 Write Prescription</button>
             </div>

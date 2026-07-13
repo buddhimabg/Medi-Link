@@ -11,6 +11,33 @@ const faqCtrl  = require('../controllers/faqController');
 
 // ── Conversation Routes ────────────────────────────────────────────────────
 
+// GET  /api/chat/patients
+// System එකේ සියලු registered patients — "New Message" search සඳහා
+router.get(
+  '/patients',
+  protect,
+  requireRole('doctor'),
+  convCtrl.getAllPatients
+);
+
+// GET  /api/chat/patients/:patientId/profile
+// Real patient snapshot for the "👤 Profile" chatbot screen
+router.get(
+  '/patients/:patientId/profile',
+  protect,
+  requireRole('doctor'),
+  convCtrl.getPatientProfile
+);
+
+// GET  /api/chat/recent-messages?limit=5
+// Dashboard "Recent Patient Messages" card සඳහා
+router.get(
+  '/recent-messages',
+  protect,
+  requireRole('doctor'),
+  convCtrl.getRecentMessages
+);
+
 // GET  /api/chat/conversations
 // Doctor ගේ සියලු conversations (unread count + last message)
 router.get(

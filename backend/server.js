@@ -1,4 +1,9 @@
 // server.js
+const dns = require('dns');
+// ✅ Fix for "querySrv ECONNREFUSED" — force Node to use public DNS
+// (your local router DNS can't resolve MongoDB's SRV records)
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 const http      = require('http');
 const express   = require('express');
 const mongoose  = require('mongoose');
@@ -86,9 +91,17 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // ✅ fixed: removed 'src'
 
 // ── Database ───────────────────────────────────────────────────────────────
+if (!process.env.MONGO_URI) {
+  console.error('❌ MONGO_URI is missing in your .env file. Check the variable name/spelling.');
+  process.exit(1);
+}
+
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected!'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
+  .catch(err => {
+    console.error('❌ MongoDB Error:', err.message);
+    process.exit(1); // don't let the server run "successfully" with no DB
+  });
 
 // ── Routes ─────────────────────────────────────────────────────────────────
 
