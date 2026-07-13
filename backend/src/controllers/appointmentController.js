@@ -60,6 +60,57 @@ exports.getDoctorQueueEnriched = async (req, res) => {
   }
 };
 
+// GET /api/appointments/today-summary
+// "Today's Completed Sessions" — pulls real PatientHistory records
+// created today for this doctor (each completed video-call round
+// writes one of these via endCall).
+exports.getTodaysCompletedSessions = async (req, res) => {
+  try {
+    const doctorId = req.user?.id?.toString();
+    const PatientHistory = require('../models/PatientHistory');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const sessions = await PatientHistory.find({
+      doctorId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+    }).sort({ date: -1 });
+
+    const patientIds = [...new Set(sessions.map(s => s.patientId))];
+    const patients    = await User.find({ _id: { $in: patientIds } }, 'name');
+    const nameMap      = Object.fromEntries(patients.map(p => [p._id.toString(), p.name]));
+
+    const enriched = sessions.map(s => ({
+      id:              s._id,
+      patientId:       s.patientId,
+      patientName:     nameMap[s.patientId] || 'Unknown Patient',
+      date:            s.date,
+      duration:        s.duration,
+      notes:           s.notes,
+      notesForPatient: s.notesForPatient || '',
+      medications:     s.medications || [],
+      moodLabel:       s.moodLabel,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        date:              startOfDay,
+        totalSessions:     enriched.length,
+        totalDuration:     enriched.reduce((sum, s) => sum + (s.duration || 0), 0),
+        totalPrescriptions: enriched.reduce((sum, s) => sum + (s.medications?.length || 0), 0),
+        sessions:          enriched,
+      },
+    });
+  } catch (error) {
+    console.error('getTodaysCompletedSessions error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 // GET /api/appointments/debug-doctor-id
 // ⚠️ TEMPORARY — visit once after login to find your real doctorId, then remove this
 exports.debugDoctorId = async (req, res) => {

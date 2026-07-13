@@ -15,4 +15,7 @@ router.get('/doctor/queue', protect, requireRole('doctor'), ctrl.getDoctorQueueE
 // GET /api/appointments/doctor  — raw appointments list
 router.get('/doctor', protect, requireRole('doctor'), ctrl.getDoctorQueue);
 
+// GET /api/appointments/today-summary  — today's completed video-call sessions
+router.get('/today-summary', protect, requireRole('doctor'), ctrl.getTodaysCompletedSessions);
+
 module.exports = router;

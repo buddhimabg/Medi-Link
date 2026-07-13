@@ -27,6 +27,7 @@ export const Step = {
   PRESCRIPTION: 6,
   END_SESSION: 7,
   SUMMARY: 8,
+  TODAY_SESSIONS: 9,
 } as const
 
 export type Step = typeof Step[keyof typeof Step]
@@ -49,7 +50,11 @@ export function useVideoCall(sessionId: string) {
 
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryNotes, setSummaryNotes] = useState('')
+  const [summaryNotesForPatient, setSummaryNotesForPatient] = useState('')
   const [summaryRxList, setSummaryRxList] = useState<NewMedication[]>([])
+  const [summaryPatientName, setSummaryPatientName] = useState('')
+  const [summaryPrescriptionsIssued, setSummaryPrescriptionsIssued] = useState(0)
+  const [summaryRxSaved, setSummaryRxSaved] = useState(false)
   const [queueLoaded, setQueueLoaded] = useState(false)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -84,6 +89,7 @@ export function useVideoCall(sessionId: string) {
   const [patientId, setPatientId] = useState<string | null>(null)
   const [patientHistory, setPatientHistory] = useState<PatientHistoryRecord[]>([])
   const [existingRx, setExistingRx] = useState<ApiMedication[]>([])
+  const [existingRxNotes, setExistingRxNotes] = useState('')
   const [doctorName, setDoctorName] = useState<string>('')
   const [doctorQueue, setDoctorQueue] = useState<QueuePatient[]>([])
   const [queueCount, setQueueCount] = useState(0)
@@ -213,6 +219,7 @@ const cancelSession = useCallback(async () => {
       if (history.length > 0) {
         if (history[0].patientName && !patientName) setPatientName(history[0].patientName)
         setExistingRx(history[0].medications || [])
+        setExistingRxNotes(history[0].notesForPatient || '')
       }
     } catch {}
   }, [patientName])
@@ -272,8 +279,12 @@ useEffect(() => {
 
   const handleStartSession = useCallback(async () => {
     setLoading(true)
+    // Attach whichever patient is currently first in queue — this lets
+    // endCall save PatientHistory/Prescription correctly even when the
+    // doctor is testing solo (no separate patient login joining the room).
+    const firstInQueue = doctorQueue[0]?.patientId
     try {
-      const data = await videoApi.createRoom(sessionId)
+      const data = await videoApi.createRoom(sessionId, firstInQueue)
       setCallData(data)
       connectSocket()
       setStep(Step.WAITING_ROOM)
@@ -284,7 +295,7 @@ useEffect(() => {
       startPolling()
     }
     setLoading(false)
-  }, [sessionId, connectSocket, startPolling, startPolling])
+  }, [sessionId, connectSocket, startPolling, doctorQueue])
 
   // MODIFICATION: store the auto-transition timeout in joinTimeoutRef so it
   // can be cancelled (see goToWaitingRoom) if the doctor backs out during CONNECTING
@@ -304,8 +315,37 @@ useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current)
     if (conversationId) leaveChatRoom(conversationId)
     try { await videoApi.endCall(sessionId, duration, sessionNotes) } catch {}
+    // Session ended → the completed patient's appointment is now 'completed'
+    // on the backend, so re-fetch the queue to drop them for the next round.
+    await fetchQueue()
+
+    // Fetch the REAL summary for the round that just ended — this is what
+    // powers the (read-only) Summary screen: duration, prescriptions
+    // actually issued, session notes, and notes for patient, all sourced
+    // fresh from MongoDB rather than local component state.
+    setSummaryLoading(true)
+    try {
+      const summary = await videoApi.getSessionSummary(sessionId)
+      setSummaryNotes(summary.sessionNotes || '')
+      setSummaryNotesForPatient(summary.notesForPatient || '')
+      setSummaryRxList(summary.medications || [])
+      setSummaryPatientName(summary.patientName || patientName || 'Patient')
+      setSummaryPrescriptionsIssued(summary.prescriptionsIssued || 0)
+      setSummaryRxSaved(summary.rxSavedToDb || false)
+    } catch {
+      // Fall back to whatever we tracked locally during the call
+      setSummaryNotes(sessionNotes)
+      setSummaryNotesForPatient(rxNotes)
+      setSummaryRxList(medications)
+      setSummaryPatientName(patientName || 'Patient')
+      setSummaryPrescriptionsIssued(medications.length)
+      setSummaryRxSaved(medications.length > 0)
+    } finally {
+      setSummaryLoading(false)
+    }
+
     setStep(Step.SUMMARY)
-  }, [sessionId, duration, sessionNotes, conversationId, leaveChatRoom])
+  }, [sessionId, duration, sessionNotes, conversationId, leaveChatRoom, fetchQueue, patientName, rxNotes, medications])
 
   const formatDuration = useCallback((secs: number): string => {
     const m = Math.floor(secs / 60); const s = secs % 60
@@ -342,7 +382,7 @@ useEffect(() => {
     runDeviceCheck,
     camOk, micOk, checking,
     callData, loading, apiError,
-    patientJoined, waitingStatus, patientName, patientId, patientHistory, existingRx,
+    patientJoined, waitingStatus, patientName, patientId, patientHistory, existingRx, existingRxNotes,
     doctorName, doctorQueue,
     duration, formatDuration,
     micMuted, setMicMuted, camOff, setCamOff,
@@ -351,7 +391,8 @@ useEffect(() => {
     rxNotes, setRxNotes, rxSaved, issuePrescription,
     sessionNotes, setSessionNotes: (v: string) => { setSessionNotes(v); setNotesSaved(false) }, notesSaved, saveSessionNotes,
     queueCount, nextPatient,
-    summaryLoading, summaryNotes, summaryRxList,
+    summaryLoading, summaryNotes, summaryNotesForPatient, summaryRxList,
+    summaryPatientName, summaryPrescriptionsIssued, summaryRxSaved,
     queueLoaded
   }
 }

@@ -17,6 +17,13 @@ const seed = async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('✅ Connected!\n');
 
+  // ── 0) Which doctor account should own this test data? ─────
+  // Default: a brand-new "doctor@test.com" test account.
+  // Override: run `SEED_DOCTOR_EMAIL=doctor2@test.com node seed.js`
+  // to attach all the test data to an EXISTING real doctor account
+  // instead (its password is left completely untouched).
+  const DOCTOR_EMAIL = process.env.SEED_DOCTOR_EMAIL || 'doctor@test.com';
+
   // ── 1) Clear old test data ─────────────────────────────────
   console.log('🗑  Clearing old test data...');
   const testEmails = [
@@ -26,29 +33,35 @@ const seed = async () => {
     'patient3@test.com',
     'patient4@test.com',
   ];
-  await User.deleteMany({ email: { $in: testEmails } });
+  // Never delete the account we're actually attaching data to,
+  // even if it happens to be one of the default test emails above.
+  await User.deleteMany({ email: { $in: testEmails.filter(e => e !== DOCTOR_EMAIL) } });
 
-  const existingDoctors  = await User.find({ email: { $in: testEmails } });
-  const existingPatients = await User.find({ email: { $in: testEmails } });
-  const allIds = [...existingDoctors, ...existingPatients].map(u => u._id.toString());
-  if (allIds.length > 0) {
-    await Appointment.deleteMany({ $or: [{ doctorId: { $in: allIds } }, { patientId: { $in: allIds } }] });
-    await VideoSession.deleteMany({ doctorId: { $in: allIds } });
-    await PatientHistory.deleteMany({ doctorId: { $in: allIds } });
+  const existingTestUsers = await User.find({ email: { $in: testEmails.filter(e => e !== DOCTOR_EMAIL) } });
+  const staleIds = existingTestUsers.map(u => u._id.toString());
+  if (staleIds.length > 0) {
+    await Appointment.deleteMany({ $or: [{ doctorId: { $in: staleIds } }, { patientId: { $in: staleIds } }] });
+    await VideoSession.deleteMany({ doctorId: { $in: staleIds } });
+    await PatientHistory.deleteMany({ doctorId: { $in: staleIds } });
   }
 
   const hashedPw = await bcrypt.hash('test1234', 10);
 
-  // ── 2) Create test doctor ──────────────────────────────────
-  console.log('👨‍⚕️  Creating doctor...');
-  const doctor = await User.create({
-    name:     'Dr. Dilshari Perera',
-    email:    'doctor@test.com',
-    password: hashedPw,
-    role:     'doctor',
-    phone:    '0771234567',
-  });
-  console.log(`   ✅ Doctor: ${doctor.name} (${doctor._id})`);
+  // ── 2) Resolve the doctor account ──────────────────────────
+  console.log(`👨‍⚕️  Resolving doctor account (${DOCTOR_EMAIL})...`);
+  let doctor = await User.findOne({ email: DOCTOR_EMAIL, role: 'doctor' });
+  if (doctor) {
+    console.log(`   ℹ️  Using EXISTING doctor: ${doctor.name} (${doctor._id}) — password left untouched`);
+  } else {
+    doctor = await User.create({
+      name:     'Dr. Dilshari Perera',
+      email:    DOCTOR_EMAIL,
+      password: hashedPw,
+      role:     'doctor',
+      phone:    '0771234567',
+    });
+    console.log(`   ✅ Created NEW doctor: ${doctor.name} (${doctor._id}) — password: test1234`);
+  }
 
   // ── 3) Create test patients ────────────────────────────────
   console.log('\n👤 Creating patients...');
@@ -82,6 +95,10 @@ const seed = async () => {
   // ── 4) Create appointments (ongoing queue) ─────────────────
   console.log('\n📅 Creating appointments...');
   const now = new Date();
+
+  // Idempotent: clear this doctor's own prior appointments with these
+  // 4 test patients before recreating (safe to re-run the script).
+  await Appointment.deleteMany({ doctorId, patientId: { $in: [p1._id.toString(), p2._id.toString(), p3._id.toString(), p4._id.toString()] } });
 
   const appts = await Appointment.insertMany([
     {
@@ -367,7 +384,7 @@ const seed = async () => {
   console.log('\n' + '═'.repeat(50));
   console.log('🎉 Seed complete!\n');
   console.log('📧 Login credentials:');
-  console.log('   👨‍⚕️  Doctor    → doctor@test.com    / test1234');
+  console.log(`   👨‍⚕️  Doctor    → ${doctor.email}  (existing password kept, or "test1234" if newly created)`);
   console.log('   👤 Patient 1 → patient1@test.com / test1234  (Priyanka  - 3 sessions)');
   console.log('   👤 Patient 2 → patient2@test.com / test1234  (Ravindra  - 2 sessions)');
   console.log('   👤 Patient 3 → patient3@test.com / test1234  (Kavindi   - 2 sessions)');

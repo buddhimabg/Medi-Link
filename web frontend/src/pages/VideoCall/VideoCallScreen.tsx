@@ -2,16 +2,20 @@
 import React, { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useVideoCall } from '../../hooks/useVideoCall'
+import type { Step } from '../../hooks/useVideoCall'
 import styles from './VideoCallScreen.module.css'
 
 import PreCallSetup       from './PreCallSetup'
 import WaitingRoom        from './WaitingRoom'
 import PatientHistoryPage from './PatientHistoryPage'
+import TodaysSessionsPage from './TodaysSessionsPage'
 import ConnectingScreen   from './ConnectingScreen'
 import LiveCallScreen     from './LiveCallScreen'
 import ScreenShare        from './ScreenShare'
 import EndSessionDialog   from './EndSessionDialog'
 import SummaryScreen      from './SummaryScreen'
+import PrescriptionMode from './PrescriptionMode'
+
 
 interface Props {
   onLogout?: () => void
@@ -23,6 +27,11 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
   const navigate = useNavigate()
   const vc = useVideoCall(sessionId)
   const S  = vc.Step
+
+  // Remembers which screen "View History" was opened from, so the
+  // Back button in Patient History returns to the right place —
+  // either Pre-Call Setup (before starting) or the Waiting Room.
+  const [historyOrigin, setHistoryOrigin] = useState<Step>(S.PRE_CALL_SETUP)
 
   // FIX: LiveCallScreen eke internal modal confirm wenama call wena callback.
   // "End Session" button click wenakota step change WENAWA NA —
@@ -51,6 +60,11 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             onLogout={onLogout}
             userName={userName}
             doctorQueue={vc.doctorQueue}
+            onViewHistory={() => {
+              setHistoryOrigin(S.PRE_CALL_SETUP)
+              vc.setStep(S.PATIENT_HISTORY)
+            }}
+            onViewTodaySessions={() => vc.setStep(S.TODAY_SESSIONS)}
             stepTargets={{
               deviceCheck:     S.PRE_CALL_SETUP,
               waitingRoom:     S.WAITING_ROOM,
@@ -71,7 +85,10 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             sessionId={sessionId}
             onJoin={vc.handleJoinCall}
             onCancel={() => vc.setStep(S.PRE_CALL_SETUP)}
-            onViewHistory={() => vc.setStep(S.PATIENT_HISTORY)}
+            onViewHistory={() => {
+              setHistoryOrigin(S.WAITING_ROOM)
+              vc.setStep(S.PATIENT_HISTORY)
+            }}
             onSendInvitation={vc.handleSendInvitation}
             patientJoined={vc.patientJoined}
             waitingStatus={vc.waitingStatus}
@@ -86,10 +103,16 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             sessionId={sessionId}
             patientId={vc.patientId ?? queueFirstPatient?.patientId ?? null}
             patientName={vc.patientName || queueFirstPatient?.patientName}
-            onBack={() => vc.setStep(S.WAITING_ROOM)}
+            onBack={() => vc.setStep(historyOrigin)}
             onJoin={() => {
-              vc.setStep(S.WAITING_ROOM)
-              vc.handleJoinCall()
+              if (historyOrigin === S.PRE_CALL_SETUP) {
+                // Room hasn't been created yet — go through the normal
+                // "Start Session" flow (creates the room, then Waiting Room).
+                vc.handleStartSession()
+              } else {
+                vc.setStep(S.WAITING_ROOM)
+                vc.handleJoinCall()
+              }
             }}
           />
         )
@@ -145,6 +168,7 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             sessionId={sessionId}
             onSaveNote={vc.saveSessionNotes}
             existingRx={vc.existingRx}
+            existingRxNotes={vc.existingRxNotes}
             patientHistory={vc.patientHistory}
             chatConnected={vc.chatConnected}
           />
@@ -187,11 +211,17 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             formatDuration={vc.formatDuration}
             summaryLoading={vc.summaryLoading}
             summaryNotes={vc.summaryNotes}
+            summaryNotesForPatient={vc.summaryNotesForPatient}
             summaryRxList={vc.summaryRxList}
-            patientName={vc.patientName || queueFirstPatient?.patientName}
+            prescriptionsIssued={vc.summaryPrescriptionsIssued}
+            rxSavedToDb={vc.summaryRxSaved}
+            patientName={vc.summaryPatientName || vc.patientName || queueFirstPatient?.patientName}
             onDashboard={() => navigate('/dashboard')}
           />
         )
+
+      case S.TODAY_SESSIONS:
+        return <TodaysSessionsPage onBack={() => vc.setStep(S.PRE_CALL_SETUP)} />
 
       default:
         return null

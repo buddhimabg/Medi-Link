@@ -17,6 +17,15 @@ const videoSessionSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // The Zego `sessionId`/roomId is PERMANENT per doctor (reused for every
+    // patient round). currentRoundId is a fresh, unique key generated each
+    // time a new patient is attached to the room — used to key that
+    // specific round's PatientHistory/Prescription records so rounds never
+    // overwrite each other.
+    currentRoundId: {
+      type:    String,
+      default: null,
+    },
     roomId: {
       type:     String,
       required: true,

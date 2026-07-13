@@ -29,6 +29,13 @@ const patientHistorySchema = new mongoose.Schema(
       type:    String,
       default: '',
     },
+    // The "Notes for Patient" text written on the e-Prescription during
+    // this round — separate from `notes` above, which is the doctor's
+    // private session/clinical notes.
+    notesForPatient: {
+      type:    String,
+      default: '',
+    },
     medications: {
       type:    Array,
       default: [],

@@ -158,7 +158,7 @@ function App() {
         {/* ── Chatbot ── */}
         <Route
           path="/chatbot"
-          element={isLoggedIn ? <ChatbotPage /> : <Navigate to="/login" />}
+          element={isLoggedIn ? <ChatbotPage doctorName={userName} onLogout={handleLogout} /> : <Navigate to="/login" />}
         />
 
         {/* ── Patient Home ── */}

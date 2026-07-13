@@ -36,6 +36,16 @@ const buildCallData = (session, token, userId, userName) => ({
   sessionId: session.sessionId,
 });
 
+// The Zego sessionId/roomId is a PERMANENT per-doctor room, reused for
+// every patient round. To keep each round's PatientHistory/Prescription
+// records separate, every round gets its own unique key.
+const makeRoundId = (sessionId, patientId) =>
+  `${sessionId}_r${Date.now().toString(36)}${patientId ? '_' + patientId.slice(-6) : ''}`;
+
+// Resolves the correct DB key for "this round"'s records — falls back to
+// the raw sessionId for legacy/seeded sessions that predate this fix.
+const resolveRoundKey = (session) => session.currentRoundId || session.sessionId;
+
 // --- අලුතින් එකතු කරන ලද ශ්‍රිතය ---
 // POST /api/video/invite/:sessionId
 exports.sendInvitation = async (req, res) => {
@@ -62,7 +72,7 @@ exports.sendInvitation = async (req, res) => {
 // POST /api/video/create-room
 exports.createRoom = async (req, res) => {
   try {
-    const { sessionId } = req.body;
+    const { sessionId, patientId } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId is required.' });
 
     const appId        = parseInt(process.env.ZEGO_APP_ID);
@@ -76,23 +86,42 @@ exports.createRoom = async (req, res) => {
       session = await VideoSession.create({
         sessionId,
         doctorId,
+        patientId:      patientId || null,
+        currentRoundId: patientId ? makeRoundId(sessionId, patientId) : null,
         roomId:       sessionId,
         status:       'waiting',
-        callMetadata: { appId, doctorUserId: userId },
+        callMetadata: {
+          appId,
+          doctorUserId:  userId,
+          patientUserId: patientId ? `patient_${patientId}` : '',
+        },
       });
     } else if (session.status === 'ended' || session.status === 'cancelled') {
-      session.status    = 'waiting';
-      session.endedAt   = null;
-      session.startedAt = null;
-      session.duration  = 0;
-      session.patientId = null;
-      session.callMetadata.patientUserId = '';
+      // Re-using a room for a fresh round — attach whichever patient is
+      // now first in queue (passed in from the frontend) and mint a new
+      // round key so this round's records don't collide with the last one.
+      session.status         = 'waiting';
+      session.endedAt        = null;
+      session.startedAt      = null;
+      session.duration       = 0;
+      session.patientId      = patientId || null;
+      session.currentRoundId = patientId ? makeRoundId(sessionId, patientId) : null;
+      session.callMetadata.patientUserId = patientId ? `patient_${patientId}` : '';
+      await session.save();
+    } else if (patientId && session.patientId !== patientId) {
+      // Session already exists (waiting/active) but no patient attached yet,
+      // OR the queue's first patient changed since the room was created
+      // (e.g. the doctor is testing solo without a separate patient login) —
+      // attach/refresh the round key so endCall saves under the right patient.
+      session.patientId      = patientId;
+      session.currentRoundId = makeRoundId(sessionId, patientId);
+      session.callMetadata.patientUserId = `patient_${patientId}`;
       await session.save();
     }
 
     const token    = generateToken04(appId, userId, serverSecret, 3600);
     const callData = buildCallData(session, token, userId, doctorName);
-    console.log(`Room created — session: ${sessionId}, doctor: ${doctorId}`);
+    console.log(`Room created — session: ${sessionId}, doctor: ${doctorId}, patient: ${session.patientId || '(none yet)'}`);
     return res.status(200).json({ success: true, data: callData });
   } catch (error) {
     console.error('createRoom error:', error);
@@ -118,9 +147,15 @@ exports.joinRoom = async (req, res) => {
     const patientName  = req.user?.name || 'Patient';
     const userId       = `patient_${patientId}`;
 
+    const isNewPatientForThisRound = session.patientId !== patientId;
     session.patientId                    = patientId;
     session.status                       = 'active';
     session.startedAt                    = session.startedAt || new Date();
+    // If the doctor hasn't already attached a round key for this patient
+    // (e.g. solo testing flow already set it via createRoom), mint one now.
+    if (!session.currentRoundId || isNewPatientForThisRound) {
+      session.currentRoundId = makeRoundId(sessionId, patientId);
+    }
     session.callMetadata.patientUserId = userId;
     await session.save();
 
@@ -185,38 +220,50 @@ exports.endCall = async (req, res) => {
     if (typeof sessionNotes === 'string') session.sessionNotes = sessionNotes;
     await session.save();
 
+    console.log(`[endCall] session=${sessionId} patientId=${session.patientId || '(none — history/queue will NOT update!)'} roundKey=${session.currentRoundId || '(none, using raw sessionId)'}`);
+
     if (session.patientId) {
+      const roundKey = resolveRoundKey(session);
       try {
-        const prescriptions = await Prescription.find({ sessionId }).sort({ issuedAt: -1 });
+        const prescriptions = await Prescription.find({ sessionId: roundKey }).sort({ issuedAt: -1 });
         const medications   = prescriptions.flatMap(p => p.medications || []);
 
         await PatientHistory.findOneAndUpdate(
-          { sessionId },
+          { sessionId: roundKey },
           {
-            patientId:   session.patientId,
-            sessionId,
-            doctorId:    session.doctorId,
-            date:        session.startedAt || new Date(),
-            duration:    session.duration,
-            notes:       sessionNotes || session.sessionNotes || '',
+            patientId:      session.patientId,
+            sessionId:      roundKey,
+            doctorId:       session.doctorId,
+            date:           session.startedAt || new Date(),
+            duration:       session.duration,
+            notes:          sessionNotes || session.sessionNotes || '',
+            notesForPatient: prescriptions[0]?.notes || '',
             medications,
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
+        console.log(`[endCall] ✅ PatientHistory saved for patient=${session.patientId} (${medications.length} meds)`);
       } catch (histErr) {
-        console.error('PatientHistory auto-save failed:', histErr.message);
+        console.error('[endCall] ❌ PatientHistory auto-save failed:', histErr.message);
       }
 
       try {
         const Appointment = require('../models/appointment');
-        await Appointment.findOneAndUpdate(
+        const updatedAppt = await Appointment.findOneAndUpdate(
           { patientId: session.patientId, doctorId: session.doctorId, status: 'ongoing' },
           { status: 'completed' },
           { sort: { date: 1 } }
         );
+        if (updatedAppt) {
+          console.log(`[endCall] ✅ Appointment ${updatedAppt._id} marked completed (was ongoing) — patient will drop off the queue.`);
+        } else {
+          console.warn(`[endCall] ⚠️  No 'ongoing' appointment found for patientId=${session.patientId} doctorId=${session.doctorId} — queue will NOT update! Check that these IDs match an Appointment doc in MongoDB.`);
+        }
       } catch (apptErr) {
-        console.error('Appointment status update failed:', apptErr.message);
+        console.error('[endCall] ❌ Appointment status update failed:', apptErr.message);
       }
+    } else {
+      console.warn('[endCall] ⚠️  session.patientId is empty — no patient was ever attached to this room this round. History/queue will not update. (Was createRoom called with a patientId, or did a real patient join via joinRoom?)');
     }
 
     return res.status(200).json({
@@ -247,7 +294,8 @@ exports.saveNotes = async (req, res) => {
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
 
     if (session.patientId) {
-      await PatientHistory.findOneAndUpdate({ sessionId }, { notes }).catch(() => {});
+      const roundKey = resolveRoundKey(session);
+      await PatientHistory.findOneAndUpdate({ sessionId: roundKey }, { notes }).catch(() => {});
     }
 
     return res.status(200).json({ success: true, data: { sessionId, notes: session.sessionNotes } });
@@ -301,11 +349,14 @@ exports.getCallInfo = async (req, res) => {
 exports.getSessionSummary = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const [session, prescriptions] = await Promise.all([
-      VideoSession.findOne({ sessionId }),
-      Prescription.find({ sessionId }).sort({ issuedAt: -1 }),
-    ]);
+    const session = await VideoSession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    const roundKey     = resolveRoundKey(session);
+    const prescriptions = await Prescription.find({ sessionId: roundKey }).sort({ issuedAt: -1 });
+    const medications    = prescriptions.flatMap(p => p.medications || []);
+    // Latest prescription's "Notes for Patient" text (what the patient sees)
+    const notesForPatient = prescriptions[0]?.notes || '';
 
     let patientName = null;
     if (session.patientId) {
@@ -319,14 +370,18 @@ exports.getSessionSummary = async (req, res) => {
       success: true,
       data: {
         sessionId,
-        status:      session.status,
-        notes:       session.sessionNotes || '',
-        duration:    session.duration,
-        startedAt:   session.startedAt,
-        endedAt:     session.endedAt,
-        patientId:   session.patientId,
+        status:              session.status,
+        sessionNotes:        session.sessionNotes || '',   // doctor's private observations
+        notesForPatient,                                   // shown to the patient with the Rx
+        duration:            session.duration,
+        startedAt:           session.startedAt,
+        endedAt:             session.endedAt,
+        patientId:           session.patientId,
         patientName,
-        doctorId:    session.doctorId,
+        doctorId:            session.doctorId,
+        medications,                                       // flattened, ready to render
+        prescriptionsIssued: prescriptions.length,
+        rxSavedToDb:         prescriptions.length > 0,
         prescriptions: prescriptions.map(p => ({
           id:          p._id,
           medications: p.medications,
@@ -353,9 +408,10 @@ exports.issuePrescription = async (req, res) => {
     const doctorId  = req.user?.id || 'doctor';
     const session   = await VideoSession.findOne({ sessionId });
     const patientId = session?.patientId || null;
+    const roundKey  = session ? resolveRoundKey(session) : sessionId;
 
     const prescription = await Prescription.create({
-      sessionId,
+      sessionId: roundKey,
       doctorId,
       patientId,
       medications,
@@ -365,11 +421,11 @@ exports.issuePrescription = async (req, res) => {
 
     if (patientId) {
       try {
-        const allRx   = await Prescription.find({ sessionId });
+        const allRx   = await Prescription.find({ sessionId: roundKey });
         const allMeds = allRx.flatMap(p => p.medications || []);
         allMeds.push(...medications);
         await PatientHistory.findOneAndUpdate(
-          { sessionId },
+          { sessionId: roundKey },
           { medications: allMeds },
           { new: true }
         );
@@ -387,7 +443,9 @@ exports.issuePrescription = async (req, res) => {
 exports.getPrescriptions = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const prescriptions = await Prescription.find({ sessionId }).sort({ issuedAt: -1 });
+    const session   = await VideoSession.findOne({ sessionId });
+    const roundKey  = session ? resolveRoundKey(session) : sessionId;
+    const prescriptions = await Prescription.find({ sessionId: roundKey }).sort({ issuedAt: -1 });
     return res.status(200).json({ success: true, data: prescriptions });
   } catch (error) {
     console.error('getPrescriptions error:', error);
