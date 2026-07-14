@@ -1,8 +1,9 @@
 // src/pages/Chatbot/Chatbotpage.tsx
 // Master controller — manages all 18 screen navigation
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { io as socketIO } from 'socket.io-client';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import ChatbotDashboard    from './Chatbotdashboard';
@@ -15,6 +16,14 @@ import ChatbotBroadcast    from './ChatbotBroadcast';
 import ChatbotAISettings   from './ChatbotAISettings';
 import ChatbotAnalytics    from './ChatbotAnalytics';
 import './Chatbot.css';
+
+const SOCKET_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://localhost:5000';
+
+interface EscalationAlert {
+  conversationId: string;
+  matchedKeyword: string;
+  patientMessage: string;
+}
 
 // ── All possible views ────────────────────────────────────────
 export type ChatView =
@@ -34,7 +43,9 @@ export default function ChatbotPage({ doctorName, onLogout }: { doctorName?: str
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedConvId, setSelectedConvId]       = useState<string>('');
   const [menuOpen, setMenuOpen]         = useState(false);
+  const [escalationAlert, setEscalationAlert] = useState<EscalationAlert | null>(null);
   const location = useLocation();
+  const socketRef = useRef<ReturnType<typeof socketIO> | null>(null);
 
   // ── Navigation helpers ────────────────────────────────────────
   const goTo = (v: ChatView, patientId?: string, convId?: string) => {
@@ -43,9 +54,55 @@ export default function ChatbotPage({ doctorName, onLogout }: { doctorName?: str
     setView(v);
   };
 
+  // ── App-wide 🚨 escalation alerts ──────────────────────────────
+  // Doctor joins their own personal room once, on mount, so they get
+  // notified in real time no matter which chatbot screen they're on.
+  useEffect(() => {
+    let doctorId = '';
+    try {
+      const info = localStorage.getItem('medilink_user_info');
+      if (info) doctorId = JSON.parse(info).id ?? '';
+    } catch { /* ignore */ }
+    if (!doctorId) return;
+
+    const socket = socketIO(SOCKET_BASE, { transports: ['websocket'] });
+    socketRef.current = socket;
+    socket.emit('join-doctor-room', { doctorId });
+
+    socket.on('escalation-alert', (alert: EscalationAlert) => {
+      setEscalationAlert(alert);
+    });
+
+    return () => { socket.disconnect(); };
+  }, []);
+
   return (
     <div className="cb-app">
       <TopBar onMenuClick={() => setMenuOpen(true)} doctorName={doctorName || 'Doctor'} onLogout={onLogout} />
+
+      {escalationAlert && (
+        <div
+          style={{
+            background: '#DC2626', color: '#fff', padding: '10px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontSize: 14, cursor: 'pointer',
+          }}
+          onClick={() => {
+            goTo('chat', undefined, escalationAlert.conversationId);
+            setEscalationAlert(null);
+          }}
+        >
+          <span>
+            🚨 <strong>Urgent patient message</strong> — matched "{escalationAlert.matchedKeyword}". Click to open chat.
+          </span>
+          <button
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer' }}
+            onClick={e => { e.stopPropagation(); setEscalationAlert(null); }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="cb-shell">
         <Sidebar

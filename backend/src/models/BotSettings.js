@@ -53,6 +53,17 @@ Respond in the same language the patient uses.`,
       type:    String,
       default: '08:00',
     },
+    // ── Escalation Rules ──────────────────────────────────────
+    // Bot eken pass karanna epa keywords — mese one match unoth
+    // auto-reply eka නවත්තලා doctor ට alert එකක් යවනවා
+    escalationEnabled: {
+      type:    Boolean,
+      default: true,
+    },
+    escalationKeywords: {
+      type:    [String],
+      default: ['emergency', 'suicidal', 'chest pain', 'overdose'],
+    },
   },
   { timestamps: true }
 );

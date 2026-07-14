@@ -407,12 +407,28 @@ export default function ChatbotMessages({
                     const isBot     = msg.senderRole === 'bot';
                     const isPatient = msg.senderRole === 'patient';
 
+                    const isEscalationMsg = msg.type === 'escalation';
+
                     return (
                       <div key={msg._id}>
-                        <div className={`cb-m ${isPatient ? 'sent' : isBot ? 'bot' : 'recv'}`}>
+                        {msg.isEscalated && (
+                          <div className="cb-m-name" style={{ color: '#DC2626', fontWeight: 700 }}>
+                            🚨 Flagged as urgent
+                          </div>
+                        )}
+                        <div
+                          className={`cb-m ${isPatient ? 'sent' : isBot ? 'bot' : 'recv'}`}
+                          style={
+                            msg.isEscalated || isEscalationMsg
+                              ? { border: '1.5px solid #DC2626', background: '#FEF2F2' }
+                              : undefined
+                          }
+                        >
                           {isBot && (
                             <div className="cb-m-name">
-                              🤖 MediLink AI {msg.type === 'faq' ? '(FAQ Reply)' : '(Auto)'}
+                              {isEscalationMsg
+                                ? '🚨 MediLink AI (Safety Notice)'
+                                : `🤖 MediLink AI ${msg.type === 'faq' ? '(FAQ Reply)' : '(Auto)'}`}
                             </div>
                           )}
                           {isDoctor && (

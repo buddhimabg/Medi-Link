@@ -37,6 +37,16 @@ const conversationSchema = new mongoose.Schema(
       type:    Boolean,
       default: false,
     },
+    // Patient eken escalation keyword ekක් trigger unoth true —
+    // doctor ට chat list eke 🚨 red flag ekක් pennanna
+    needsEscalation: {
+      type:    Boolean,
+      default: false,
+    },
+    lastEscalationAt: {
+      type:    Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

@@ -183,7 +183,10 @@ export default function ChatbotAllChats({
                     {unread > 0 && <div className="cbac-online-dot" />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{name}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                      {conv.needsEscalation && <span title="Flagged as urgent" style={{ marginRight: 4 }}>🚨</span>}
+                      {name}
+                    </div>
                     <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {conv.lastSenderRole === 'doctor' ? '🩺 You: ' : conv.lastSenderRole === 'bot' ? '🤖 AI: ' : ''}
                       {conv.lastMessage || 'No messages yet'}

@@ -5,6 +5,7 @@ const JournalSchema = new mongoose.Schema({
   title:      { type: String, required: true },
   category:   { type: String, required: true },
   summary:    { type: String, default: '' },
+  content:    { type: String, default: '' },
   tags:       [{ type: String }],
   visibility: { type: String, default: 'All My Patients' },
   status:     { type: String, enum: ['Published', 'Draft'], default: 'Draft' },

@@ -327,6 +327,8 @@ export interface ConversationRecord {
   lastSenderRole: 'doctor' | 'patient' | 'bot'
   unreadCount:    number
   isArchived:     boolean
+  needsEscalation?: boolean
+  lastEscalationAt?: string | null
   patient: {
     _id:   string
     name:  string
@@ -341,9 +343,10 @@ export interface MessageRecord {
   senderId:       string
   senderRole:     'doctor' | 'patient' | 'bot'
   text:           string
-  type:           'normal' | 'ai-auto' | 'faq'
+  type:           'normal' | 'ai-auto' | 'faq' | 'escalation'
   aiConfidence?:  number
   isRead:         boolean
+  isEscalated?:   boolean
   createdAt:      string
   faqId?: {
     question: string
@@ -436,6 +439,8 @@ export interface BotSettingsData {
   faqConfidenceThreshold:  number
   offHoursStart:           string
   offHoursEnd:             string
+  escalationEnabled:       boolean
+  escalationKeywords:      string[]
 }
 
 export const chatApi = {
@@ -509,4 +514,88 @@ export interface RecentMessageRecord {
   isRead:          boolean
   unreadCount:     number
   lastMessageAt:   string
+}
+// ── Journal API ──────────────────────────────────────────────────────────
+export interface JournalRecord {
+  _id:        string
+  doctorId:   string
+  title:      string
+  category:   string
+  summary?:   string
+  content?:   string
+  tags?:      string[]
+  status:     'Published' | 'Draft'
+  fileName?:  string
+  fileUrl?:   string
+  fileSize?:  string
+  views?:     number
+  createdAt:  string
+  updatedAt:  string
+}
+
+export interface JournalListResponse {
+  data: JournalRecord[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export interface JournalListParams {
+  page?: number
+  limit?: number
+  search?: string
+  category?: string
+  status?: string
+}
+
+export const journalApi = {
+  // Pagination + search + filter — returns full response including pagination metadata
+  getAll: async (params: JournalListParams = {}): Promise<JournalListResponse> => {
+    const q = new URLSearchParams()
+    if (params.page) q.set('page', String(params.page))
+    if (params.limit) q.set('limit', String(params.limit))
+    if (params.search) q.set('search', params.search)
+    if (params.category) q.set('category', params.category)
+    if (params.status) q.set('status', params.status)
+
+    const res = await fetch(`${BASE}/journals?${q.toString()}`, {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    })
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = '/login'
+      throw new Error('Unauthorized: Session expired or invalid token.')
+    }
+    const json = await res.json()
+    if (!json.success) throw new Error(json.message ?? 'Request failed')
+    return { data: json.data, pagination: json.pagination }
+  },
+
+  getById: (id: string) => request<JournalRecord>('GET', `/journals/${id}`),
+
+  // multipart/form-data upload — can't use the JSON request() helper
+  create: async (formData: FormData): Promise<JournalRecord> => {
+    const res = await fetch(`${BASE}/journals`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    })
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = '/login'
+      throw new Error('Unauthorized: Session expired or invalid token.')
+    }
+    const json = await res.json()
+    if (!json.success) throw new Error(json.message ?? 'Request failed')
+    return json.data
+  },
+
+  update: (id: string, data: Partial<JournalRecord>) =>
+    request<JournalRecord>('PUT', `/journals/${id}`, data),
+
+  delete: (id: string) => request<{ message: string }>('DELETE', `/journals/${id}`),
+
+  aiGenerate: (data: { prompt: string; title?: string; category?: string }) =>
+    request<{ content: string }>('POST', '/journals/ai/generate', data),
+
+  aiTopics: (data: { category?: string }) =>
+    request<{ topics: string[] }>('POST', '/journals/ai/topics', data),
 }

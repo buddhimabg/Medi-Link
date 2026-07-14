@@ -45,8 +45,9 @@ export default function ChatbotAISettings({ onBack }: Props) {
   const [systemPrompt, setSystemPrompt]   = useState('');
   const [model, setModel]                 = useState(MODEL_OPTIONS[0]);
 
-  // UI-only extras (not backed by the BotSettings schema yet)
-  const [keywords, setKeywords] = useState(ESCALATION_KEYWORDS);
+  // Escalation keywords — real data, loaded from / saved to BotSettings
+  const [escalationEnabled, setEscalationEnabled] = useState(true);
+  const [keywords, setKeywords] = useState<string[]>(ESCALATION_KEYWORDS);
   const [newKw, setNewKw]       = useState('');
 
   // ── Load current settings on mount ─────────────────────────────
@@ -60,6 +61,8 @@ export default function ChatbotAISettings({ onBack }: Props) {
         setConfidence(s.faqConfidenceThreshold ?? 60);
         setSystemPrompt(s.systemPrompt || '');
         setModel(s.model || MODEL_OPTIONS[0]);
+        setEscalationEnabled(s.escalationEnabled ?? true);
+        setKeywords(s.escalationKeywords?.length ? s.escalationKeywords : ESCALATION_KEYWORDS);
       })
       .catch(err => setLoadError(err instanceof Error ? err.message : 'Failed to load bot settings.'))
       .finally(() => setLoading(false));
@@ -88,6 +91,8 @@ export default function ChatbotAISettings({ onBack }: Props) {
         faqConfidenceThreshold: confidence,
         offHoursStart: from,
         offHoursEnd:   to,
+        escalationEnabled,
+        escalationKeywords: keywords,
       });
 
       // Re-sync from server response (source of truth)
@@ -96,6 +101,8 @@ export default function ChatbotAISettings({ onBack }: Props) {
       setConfidence(updated.faqConfidenceThreshold);
       setSystemPrompt(updated.systemPrompt);
       setModel(updated.model);
+      setEscalationEnabled(updated.escalationEnabled ?? true);
+      setKeywords(updated.escalationKeywords?.length ? updated.escalationKeywords : keywords);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -247,10 +254,21 @@ export default function ChatbotAISettings({ onBack }: Props) {
 
           {activeTab === 'Escalation Rules' && (
             <div>
-              <div className="cbas-section-title">Escalation Trigger Keywords</div>
+              <div className="cbas-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>🚨 Escalation Detection</span>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 400, fontSize: 13 }}>
+                  <input
+                    type="checkbox"
+                    checked={escalationEnabled}
+                    onChange={e => setEscalationEnabled(e.target.checked)}
+                  />
+                  {escalationEnabled ? 'On' : 'Off'}
+                </label>
+              </div>
               <div className="cbas-section-sub" style={{ marginBottom: 12 }}>
-                (Preview feature) When these keywords appear in a patient message, you'll want to
-                review and respond personally instead of relying on the AI auto-reply.
+                When one of these keywords appears in a patient message, the AI auto-reply is
+                skipped, the patient gets an immediate safety notice, and you're alerted in
+                real time — even if you're not currently viewing that chat.
               </div>
               <div className="cbas-keywords-wrap">
                 {keywords.map(kw => (

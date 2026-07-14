@@ -2,9 +2,10 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
+import TagInput from './TagInput';
+import { journalApi } from '../../types/api';
+import { JOURNAL_CATEGORIES } from './journalCategories';
 import styles from './UploadArticlePage.module.css';
-
-const CATEGORIES = ['Anxiety & Stress Management', 'Sleep Health', 'Mindfulness', 'Depression', 'Relationships', 'Self-care'];
 
 const UploadArticlePage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,8 +13,9 @@ const UploadArticlePage: React.FC = () => {
   
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(JOURNAL_CATEGORIES[0]);
   const [summary, setSummary] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,33 +29,19 @@ const UploadArticlePage: React.FC = () => {
     setError('');
 
     try {
-      // Using a fallback ID if localstorage is empty to prevent MongoDB errors[cite: 5]
-      const doctorId = localStorage.getItem('userId') || "65f1a2b3c4d5e6f7a8b9c0d1"; 
-      
       const formData = new FormData();
-      formData.append('doctorId', doctorId); 
       formData.append('title', title);
       formData.append('category', category);
       formData.append('summary', summary);
       formData.append('status', status);
+      formData.append('tags', JSON.stringify(tags));
       
       if (file) {
-        formData.append('file', file); // Matches upload.single('file')[cite: 4]
+        formData.append('file', file); // Matches upload.single('file')
       }
 
-      const response = await fetch('http://localhost:5000/api/journals', {
-        method: 'POST',
-        body: formData, // No 'Content-Type' header! Browser sets it for FormData
-      });
-      
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        navigate('/journals'); 
-      } else {
-        // Log the specific backend error message[cite: 4]
-        throw new Error(result.message || 'Server rejected the upload');
-      }
+      await journalApi.create(formData);
+      navigate('/journals');
     } catch (err: any) {
       console.error("Upload Error Details:", err);
       setError(`Upload failed: ${err.message}`);
@@ -118,8 +106,28 @@ const UploadArticlePage: React.FC = () => {
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {JOURNAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Summary</label>
+                <textarea
+                  className={styles.formInput}
+                  style={{ minHeight: 80, resize: 'vertical' }}
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="Short summary of the article (optional)"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>🏷️ Tags</label>
+                <TagInput
+                  tags={tags}
+                  onChange={setTags}
+                  className={styles.formInput}
+                />
               </div>
 
               <div className={styles.formActions}>

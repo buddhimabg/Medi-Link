@@ -9,6 +9,8 @@ const {
   updateJournal, 
   deleteJournal 
 } = require('../controllers/journalController');
+const { generateContent, suggestTopics } = require('../controllers/journalAiController');
+const { protect, requireRole } = require('../middleware/auth');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads/')),
@@ -17,10 +19,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-router.get('/', getJournals);
-router.get('/:id', getJournalById);
-router.post('/', upload.single('file'), createJournal);
-router.put('/:id', updateJournal);
-router.delete('/:id', deleteJournal);
+// සියල්ලටම login වෙලා ඉන්න one (doctor/patient දෙන්නටම), write actions doctor ට විතරයි
+router.get('/', protect, getJournals);
+
+// AI Writer routes (doctor විතරයි use කරන්නේ) — must come before '/:id'
+router.post('/ai/generate', protect, requireRole('doctor'), generateContent);
+router.post('/ai/topics', protect, requireRole('doctor'), suggestTopics);
+
+router.get('/:id', protect, getJournalById);
+router.post('/', protect, requireRole('doctor'), upload.single('file'), createJournal);
+router.put('/:id', protect, requireRole('doctor'), updateJournal);
+router.delete('/:id', protect, requireRole('doctor'), deleteJournal);
 
 module.exports = router;

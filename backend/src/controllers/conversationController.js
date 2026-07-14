@@ -3,7 +3,8 @@ const Conversation    = require('../models/Conversation');
 const Message         = require('../models/Message');
 const User             = require('../models/User');
 const PatientHistory   = require('../models/PatientHistory');
-const { triggerAutoReply } = require('./botController');
+const Broadcast        = require('../models/Broadcast');
+const { triggerAutoReply, checkEscalation } = require('./botController');
 
 // ─────────────────────────────────────────────────────────────
 // Helper — enrich conversation list with patient user info
@@ -273,6 +274,36 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Conversation not found.' });
     }
 
+    // Patient eken message ekක් ewoth — e kalinma doctor/bot ekaー unread
+    // messages tibba (e athare broadcast messages) "read" widihata mark
+    // karanawa. Patient reply karanawa kiyanne e messages dæka thiyenawa
+    // kiyana real signal ekක් — ithin Broadcast.readCount eka real widihata
+    // update wenawa (patient-side chat UI ekක් one nætuwa).
+    if (senderRole === 'patient') {
+      const unreadFromDoctor = await Message.find({
+        conversationId: id,
+        senderRole:     { $in: ['doctor', 'bot'] },
+        isRead:         false,
+      }, '_id broadcastId');
+
+      if (unreadFromDoctor.length) {
+        await Message.updateMany(
+          { _id: { $in: unreadFromDoctor.map(m => m._id) } },
+          { isRead: true }
+        );
+
+        const broadcastIds = [...new Set(
+          unreadFromDoctor.filter(m => m.broadcastId).map(m => m.broadcastId.toString())
+        )];
+        if (broadcastIds.length) {
+          await Broadcast.updateMany(
+            { _id: { $in: broadcastIds } },
+            { $inc: { readCount: 1 } }
+          );
+        }
+      }
+    }
+
     // Message save කරනවා
     const message = await Message.create({
       conversationId: id,
@@ -300,14 +331,28 @@ exports.sendMessage = async (req, res) => {
       io.to(`chat:${id}`).emit('new-message', { conversationId: id, message });
     }
 
-    // Patient ගේ message ලේ → bot auto-reply check (non-blocking)
+    // Patient ගේ message ලේ → 1) escalation safety-gate check, 2) bot auto-reply
     if (senderRole === 'patient') {
-      triggerAutoReply({
+      checkEscalation({
         conversationId: id,
         doctorId:       conversation.doctorId,
         patientMessage: text.trim(),
         io,
-      }).catch(err => console.error('⚠️ autoReply error:', err));
+      })
+        .then(escalated => {
+          // Emergency keyword hamba unoth — AI/FAQ auto-reply eka SKIP
+          // karanawa (deterministic safety message eka checkEscalation
+          // eken already yawala thiyenne)
+          if (!escalated) {
+            return triggerAutoReply({
+              conversationId: id,
+              doctorId:       conversation.doctorId,
+              patientMessage: text.trim(),
+              io,
+            });
+          }
+        })
+        .catch(err => console.error('⚠️ escalation/autoReply error:', err));
     }
 
     return res.status(201).json({ success: true, data: message });
@@ -329,7 +374,7 @@ exports.markAsRead = async (req, res) => {
     await Promise.all([
       Conversation.findOneAndUpdate(
         { _id: id, doctorId },
-        { unreadCount: 0 }
+        { unreadCount: 0, needsEscalation: false }
       ),
       Message.updateMany(
         { conversationId: id, senderRole: 'patient', isRead: false },

@@ -5,6 +5,9 @@ import 'react-quill-new/dist/quill.snow.css';
 import * as mammoth from 'mammoth'; // Browser එකේ වැඩ කිරීමට මෙය වැදගත් වේ
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
+import TagInput from './TagInput';
+import { journalApi } from '../../types/api';
+import { JOURNAL_CATEGORIES } from './journalCategories';
 import styles from './EditArticlePage.module.css';
 
 const EditArticlePage: React.FC = () => {
@@ -13,31 +16,32 @@ const EditArticlePage: React.FC = () => {
   
   const [title, setTitle] = useState<string>('');
   const [content, setContent] = useState<string>('');
-  const [category, setCategory] = useState<string>('');
+  const [category, setCategory] = useState<string>(JOURNAL_CATEGORIES[0]);
+  const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/journals/${id}`);
-        const result = await response.json();
+        const data = await journalApi.getById(id!);
+        setTitle(data.title);
+        setCategory(data.category);
+        setTags(data.tags || []);
 
-        if (result.success) {
-          setTitle(result.data.title);
-          setCategory(result.data.category);
-
-          if (result.data.fileUrl) {
-            // docx file එකක් ඇත්නම් එය HTML බවට පත් කරයි
-            const fileRes = await fetch(`http://localhost:5000${result.data.fileUrl}`);
-            const arrayBuffer = await fileRes.arrayBuffer();
-            const { value } = await mammoth.convertToHtml({ arrayBuffer });
-            setContent(value);
-          } else {
-            setContent(result.data.content || "");
-          }
+        if (data.fileUrl) {
+          // docx file එකක් ඇත්නම් එය HTML බවට පත් කරයි
+          const fileRes = await fetch(`http://localhost:5000${data.fileUrl}`);
+          const arrayBuffer = await fileRes.arrayBuffer();
+          const { value } = await mammoth.convertToHtml({ arrayBuffer });
+          setContent(value);
+        } else {
+          setContent(data.content || "");
         }
       } catch (error) {
-        console.error("SRS Error Trace:", error);
+        console.error("Failed to load article:", error);
+        setError('Failed to load article');
       } finally {
         setLoading(false);
       }
@@ -46,19 +50,19 @@ const EditArticlePage: React.FC = () => {
   }, [id]);
 
   const handleUpdate = async () => {
-    const response = await fetch(`http://localhost:5000/api/journals/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, category }),
-    });
-
-    if (response.ok) {
-      alert("Article updated successfully according to SRS standards.");
+    setSaving(true);
+    setError('');
+    try {
+      await journalApi.update(id!, { title, content, category, tags });
       navigate('/journals');
+    } catch (err: any) {
+      setError(err.message || 'Update failed');
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (loading) return <div className={styles.main}>Loading System...</div>;
+  if (loading) return <div className={styles.main}>Loading article...</div>;
 
   return (
     <div className={styles.page}>
@@ -69,8 +73,13 @@ const EditArticlePage: React.FC = () => {
         </div>
         <main className={styles.main}>
           <div className={styles.header}>
-            <h2>SRS: Edit Article Details</h2>
-            <button className={styles.saveBtn} onClick={handleUpdate}>Save Changes</button>
+            <h2>Edit Article</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {error && <span style={{ color: '#e53e3e', fontSize: 13 }}>⚠️ {error}</span>}
+              <button className={styles.saveBtn} onClick={handleUpdate} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
 
           <div className={styles.editorContainer}>
@@ -80,6 +89,28 @@ const EditArticlePage: React.FC = () => {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Article Title"
             />
+
+            <div style={{ display: 'flex', gap: 16, margin: '12px 0', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 200px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db' }}
+                >
+                  {JOURNAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: '2 1 300px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>🏷️ Tags</label>
+                <TagInput
+                  tags={tags}
+                  onChange={setTags}
+                  className={styles.titleInput}
+                />
+              </div>
+            </div>
+
             <ReactQuill 
               theme="snow" 
               value={content || ""} 

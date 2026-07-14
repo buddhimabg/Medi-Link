@@ -104,6 +104,74 @@ const callClaudeAPI = (systemPrompt, conversationHistory, patientMessage, model)
 };
 
 // ─────────────────────────────────────────────────────────────
+// ESCALATION CHECK — bot auto-reply eke ekk layer ekක් නෙවෙයි,
+// safety gate ekක්. Patient message eke doctor set kළ escalation
+// keyword ekක් (emergency, suicidal, chest pain, etc.) hamba unoth:
+//   1) AI/FAQ auto-reply eka SKIP karanawa (bot ekක් emergency ekකට
+//      AI-generated reply ekක් diyaganna hodha නෑ)
+//   2) Message + Conversation flag karanawa
+//   3) Doctor ට socket.io eken real-time alert ekක් yanawa —
+//      doctor ehe konith chat ekක් open kරලා ndathoth
+//   4) Patient ට deterministic (non-AI) safety message ekක් යනවා
+// ─────────────────────────────────────────────────────────────
+exports.checkEscalation = async ({ conversationId, doctorId, patientMessage, io }) => {
+  let settings = await BotSettings.findOne({ doctorId });
+  if (!settings) settings = await BotSettings.create({ doctorId });
+
+  if (settings.escalationEnabled === false) return false;
+
+  const keywords = (settings.escalationKeywords || []).filter(Boolean);
+  if (!keywords.length) return false;
+
+  const msgLower = patientMessage.toLowerCase();
+  const matched   = keywords.find(kw => msgLower.includes(kw.toLowerCase()));
+  if (!matched) return false;
+
+  // 1) Flag the conversation
+  await Conversation.findByIdAndUpdate(conversationId, {
+    needsEscalation:  true,
+    lastEscalationAt: new Date(),
+  });
+
+  // 2) Deterministic safety reply (NOT AI-generated — no hallucination risk)
+  const safetyText =
+    `⚠️ Your message has been flagged as urgent (matched: "${matched}") and your doctor has been notified directly. ` +
+    `If this is a medical emergency, please contact emergency services immediately.`;
+
+  const safetyMessage = await Message.create({
+    conversationId,
+    senderId:   `bot_${doctorId}`,
+    senderRole: 'bot',
+    text:       safetyText,
+    type:       'escalation',
+  });
+
+  await Conversation.findByIdAndUpdate(conversationId, {
+    lastMessage:    safetyText.slice(0, 100),
+    lastMessageAt:  new Date(),
+    lastSenderRole: 'bot',
+  });
+
+  // 3) Real-time alerts — inside the chat room (if open) + doctor's
+  // global room (so the alert reaches them even on another screen)
+  if (io) {
+    io.to(`chat:${conversationId}`).emit('new-message', {
+      conversationId,
+      message: safetyMessage,
+    });
+    io.to(`doctor:${doctorId}`).emit('escalation-alert', {
+      conversationId,
+      matchedKeyword: matched,
+      patientMessage,
+      at: new Date(),
+    });
+  }
+
+  console.log(`🚨 Escalation triggered (keyword: "${matched}") → conv: ${conversationId}`);
+  return true;
+};
+
+// ─────────────────────────────────────────────────────────────
 // Off-hours check helper
 // ─────────────────────────────────────────────────────────────
 const isOffHours = (start, end) => {
@@ -292,10 +360,22 @@ exports.updateBotSettings = async (req, res) => {
     const allowed   = [
       'isActive', 'autoReplyMode', 'systemPrompt', 'model',
       'faqConfidenceThreshold', 'offHoursStart', 'offHoursEnd',
+      'escalationEnabled', 'escalationKeywords',
     ];
     const updates   = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    // Escalation keywords — trim + lowercase + de-dupe, drop empties
+    if (Array.isArray(updates.escalationKeywords)) {
+      updates.escalationKeywords = [
+        ...new Set(
+          updates.escalationKeywords
+            .map(k => String(k).trim().toLowerCase())
+            .filter(Boolean)
+        ),
+      ];
     }
 
     const settings = await BotSettings.findOneAndUpdate(
@@ -349,6 +429,7 @@ exports.sendBroadcast = async (req, res) => {
           senderRole:     'doctor',
           text:           message.trim(),
           type:           'normal',
+          broadcastId:    broadcast._id,
         });
 
         await Conversation.findByIdAndUpdate(conv._id, {

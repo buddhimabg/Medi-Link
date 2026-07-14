@@ -49,6 +49,16 @@ io.on('connection', (socket) => {
     io.to(`session:${sessionId}`).emit('patient-joined', { sessionId, patientName });
   });
 
+  // Doctor joins their own personal room once, on app load — so
+  // 🚨 escalation-alert events reach them no matter which screen
+  // they're on (not just inside the specific chat conversation)
+  socket.on('join-doctor-room', ({ doctorId }) => {
+    if (doctorId) {
+      socket.join(`doctor:${doctorId}`);
+      console.log(`🚨 Socket joined doctor room: doctor:${doctorId}`);
+    }
+  });
+
   // ── Chat rooms ───────────────────────────────────────────────────────────
 
   // Doctor or patient joins a conversation room for real-time messages

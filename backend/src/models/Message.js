@@ -29,7 +29,7 @@ const messageSchema = new mongoose.Schema(
     // faq     = FAQ library keyword match replied
     type: {
       type:    String,
-      enum:    ['normal', 'ai-auto', 'faq'],
+      enum:    ['normal', 'ai-auto', 'faq', 'escalation'],
       default: 'normal',
     },
     // Bot reply ලේ AI confidence percentage (0-100)
@@ -53,6 +53,18 @@ const messageSchema = new mongoose.Schema(
     isRead: {
       type:    Boolean,
       default: false,
+    },
+    // Patient message eke escalation keyword ekක් match unoth true
+    isEscalated: {
+      type:    Boolean,
+      default: false,
+    },
+    // Broadcast eken create unu message ekක් nam, e Broadcast eke id eka —
+    // patient eka reply karoth Broadcast.readCount eka increment karanna
+    broadcastId: {
+      type:    mongoose.Schema.Types.ObjectId,
+      ref:     'Broadcast',
+      default: null,
     },
   },
   { timestamps: true }

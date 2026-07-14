@@ -1,35 +1,112 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../../components/layout/Sidebar'
 import TopBar from '../../components/layout/TopBar'
+import TagInput from './TagInput'
+import { journalApi } from '../../types/api'
+import { JOURNAL_CATEGORIES } from './journalCategories'
 import styles from './AIWriterPage.module.css'
 
-const TOPIC_IDEAS = [
+const FALLBACK_TOPICS = [
   'How cortisol affects mental health',
   '5 breathing techniques for panic attacks',
   'Link between sleep & depression',
   'Grounding exercises for anxiety',
 ]
 
-const STRUCTURE_ITEMS = [
-  { label: 'Introduction',  state: 'done'    },
-  { label: 'What is CBT?', state: 'done'    },
-  { label: 'Key Techniques',state: 'active'  },
-  { label: 'Case Study',   state: 'pending' },
-  { label: 'Conclusion',   state: 'pending' },
-]
-
 const AIWriterPage: React.FC = () => {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const [title, setTitle] = useState('New Article')
+  const [category, setCategory] = useState<string>(JOURNAL_CATEGORIES[0])
+  const [tags, setTags] = useState<string[]>([])
   const [prompt, setPrompt] = useState('')
-  const [aiBlockAccepted, setAiBlockAccepted] = useState(false)
-  const [aiBlockVisible, setAiBlockVisible] = useState(true)
+  const [topics] = useState<string[]>(FALLBACK_TOPICS)
+
+  const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+
+  const [pendingAiText, setPendingAiText] = useState<string | null>(null)
+
+  const editorRef = useRef<HTMLDivElement>(null)
 
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // Note: topic ideas use a static list to conserve the limited free-tier
+  // AI quota for the main "Generate Content" action, which matters more.
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) {
+      showToast('⚠️ Type what you want AI to write first')
+      return
+    }
+    setGenerating(true)
+    setError('')
+    try {
+      const result = await journalApi.aiGenerate({ prompt, title, category })
+      setPendingAiText(result.content)
+      showToast('✨ Draft generated — review below')
+    } catch (err: any) {
+      setError(err.message || 'AI generation failed')
+      showToast('❌ AI generation failed')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const acceptAiBlock = () => {
+    if (!pendingAiText || !editorRef.current) return
+    const html = pendingAiText
+      .split('\n\n')
+      .filter(Boolean)
+      .map(p => `<p>${p}</p>`)
+      .join('')
+    editorRef.current.innerHTML += html
+    setPendingAiText(null)
+    showToast('✓ Added to article')
+  }
+
+  const discardAiBlock = () => {
+    setPendingAiText(null)
+  }
+
+  const getContentHtml = () => editorRef.current?.innerHTML || ''
+
+  const saveArticle = async (status: 'Draft' | 'Published') => {
+    if (!title.trim()) {
+      setError('Article title is required')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('title', title)
+      formData.append('category', category)
+      formData.append('summary', '')
+      formData.append('content', getContentHtml())
+      formData.append('status', status)
+      formData.append('tags', JSON.stringify(tags))
+
+      const saved = await journalApi.create(formData)
+      if (status === 'Published') {
+        navigate('/journals/success', { state: { articleId: saved._id } })
+      } else {
+        showToast('📝 Saved as draft!')
+        navigate('/journals')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Save failed')
+      showToast('❌ Save failed')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -42,7 +119,6 @@ const AIWriterPage: React.FC = () => {
         <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
         <main className={styles.main}>
           <div className={styles.aiWriterLayout}>
-            {/* AI Sidebar */}
             <div className={styles.aiSidebar}>
               <div className={styles.aiSidebarHeader}>
                 <div className={styles.aiSidebarTitle}>🔥 AI Writer</div>
@@ -63,15 +139,16 @@ const AIWriterPage: React.FC = () => {
                 <button
                   type="button"
                   className={styles.aiGenerateBtn}
-                  onClick={() => showToast('✨ Generating content...')}
+                  onClick={handleGenerate}
+                  disabled={generating}
                 >
-                  ✨ Generate Content
+                  {generating ? '✨ Generating...' : '✨ Generate Content'}
                 </button>
               </div>
 
               <div className={styles.aiSection}>
                 <div className={styles.aiSectionTitle}>💡 Topic Ideas</div>
-                {TOPIC_IDEAS.map(topic => (
+                {topics.map(topic => (
                   <div
                     key={topic}
                     className={styles.topicChip}
@@ -83,41 +160,55 @@ const AIWriterPage: React.FC = () => {
               </div>
 
               <div className={styles.aiSection}>
-                <div className={styles.aiSectionTitle}>📝 Article Structure</div>
-                {STRUCTURE_ITEMS.map(item => (
-                  <div
-                    key={item.label}
-                    className={`${styles.structureItem} ${
-                      item.state === 'done' ? styles.structureDone :
-                      item.state === 'active' ? styles.structureActive : styles.structurePending
-                    }`}
-                  >
-                    {item.state === 'done' ? '✓' : item.state === 'active' ? '→' : '○'} {item.label}
-                  </div>
-                ))}
+                <div className={styles.aiSectionTitle}>📁 Category</div>
+                <select
+                  className={styles.aiTextarea}
+                  style={{ height: 'auto', padding: '8px' }}
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                >
+                  {JOURNAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div className={styles.aiSection}>
+                <div className={styles.aiSectionTitle}>🏷️ Tags</div>
+                <TagInput
+                  tags={tags}
+                  onChange={setTags}
+                  className={styles.aiTextarea}
+                  tagClassName={styles.topicChip}
+                />
               </div>
             </div>
 
-            {/* Editor */}
             <div className={styles.aiEditor}>
               <div className={styles.editorToolbar}>
-                <select className={styles.toolbarSelect}>
-                  <option>Normal</option>
-                  <option>Heading 1</option>
-                  <option>Heading 2</option>
-                </select>
-                <button type="button" className={styles.toolbarBtn} style={{ fontWeight: 900 }}>B</button>
-                <button type="button" className={styles.toolbarBtn} style={{ fontStyle: 'italic' }}>I</button>
-                <button type="button" className={styles.toolbarBtn} style={{ textDecoration: 'underline' }}>U</button>
-                <div className={styles.toolbarSep} />
-                <button type="button" className={styles.toolbarBtn}>≡</button>
-                <button type="button" className={styles.toolbarBtn}>⋮</button>
-                <button type="button" className={styles.toolbarBtn}>🔗</button>
-                <button type="button" className={styles.toolbarBtn}>🖼</button>
+                <button
+                  type="button"
+                  className={`${styles.editorBtn} ${styles.btnGhost} ${styles.btnSm}`}
+                  onClick={() => navigate('/journals')}
+                >
+                  ← Back to Journals
+                </button>
                 <div className={styles.toolbarRight}>
-                  <button type="button" className={`${styles.editorBtn} ${styles.btnSecondary} ${styles.btnSm}`}>Preview</button>
-                  <button type="button" className={`${styles.editorBtn} ${styles.btnGhost} ${styles.btnSm}`} onClick={() => showToast('📝 Saved as draft!')}>Save Draft</button>
-                  <button type="button" className={`${styles.editorBtn} ${styles.btnPrimary} ${styles.btnSm}`} onClick={() => navigate('/journals/success')}>Publish</button>
+                  {error && <span style={{ color: '#e53e3e', fontSize: 13, marginRight: 12 }}>⚠️ {error}</span>}
+                  <button
+                    type="button"
+                    className={`${styles.editorBtn} ${styles.btnGhost} ${styles.btnSm}`}
+                    onClick={() => saveArticle('Draft')}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.editorBtn} ${styles.btnPrimary} ${styles.btnSm}`}
+                    onClick={() => saveArticle('Published')}
+                    disabled={saving}
+                  >
+                    {saving ? 'Publishing...' : 'Publish'}
+                  </button>
                 </div>
               </div>
 
@@ -126,46 +217,31 @@ const AIWriterPage: React.FC = () => {
                   className={styles.editorH1}
                   contentEditable
                   suppressContentEditableWarning
+                  onBlur={e => setTitle(e.currentTarget.textContent || 'New Article')}
                 >
-                  Managing Anxiety with CBT Techniques
+                  {title}
                 </div>
 
-                <p
+                <div
+                  ref={editorRef}
                   className={styles.editorP}
                   contentEditable
                   suppressContentEditableWarning
+                  style={{ minHeight: 200 }}
                 >
-                  Cognitive Behavioral Therapy (CBT) is one of the most widely researched and effective forms of psychotherapy for treating anxiety disorders. This article explores practical, evidence-based strategies that can be implemented during counseling sessions and practiced at home.
-                </p>
+                  <p>Start writing here, or use the AI Assistant on the left to generate a draft.</p>
+                </div>
 
-                {/* AI Generated Block */}
-                {aiBlockVisible && !aiBlockAccepted && (
+                {pendingAiText && (
                   <div className={styles.aiGeneratedBlock}>
                     <div className={styles.aiGeneratedLabel}>✨ AI GENERATED — REVIEW BEFORE PUBLISHING</div>
-                    <div className={styles.aiBlockTitle}>Key CBT Techniques for Anxiety:</div>
-                    <div className={styles.aiPoint}>
-                      <strong>1. Cognitive Restructuring</strong> — Identifying and challenging negative thought patterns. Patients learn to recognise automatic negative thoughts and replace them with balanced alternatives.
-                    </div>
-                    <div className={styles.aiPoint}>
-                      <strong>2. Graded Exposure</strong> — Gradually exposing patients to feared situations in a controlled, step-by-step manner to reduce avoidance and build confidence.
-                    </div>
+                    <div className={styles.aiPoint} style={{ whiteSpace: 'pre-wrap' }}>{pendingAiText}</div>
                     <div className={styles.aiBlockActions}>
-                      <button type="button" className={styles.acceptBtn} onClick={() => setAiBlockAccepted(true)}>✓ Accept</button>
-                      <button type="button" className={styles.editBtn}>✏️ Edit</button>
-                      <button type="button" className={styles.discardBtn} onClick={() => setAiBlockVisible(false)}>✗ Discard</button>
+                      <button type="button" className={styles.acceptBtn} onClick={acceptAiBlock}>✓ Accept</button>
+                      <button type="button" className={styles.discardBtn} onClick={discardAiBlock}>✗ Discard</button>
                     </div>
                   </div>
                 )}
-
-                {aiBlockAccepted && (
-                  <div className={styles.editorPoint}>
-                    <strong>Key CBT Techniques</strong> — Cognitive Restructuring, Graded Exposure, and Mindfulness Integration help patients manage anxiety through structured, evidence-based approaches.
-                  </div>
-                )}
-
-                <div className={styles.editorPoint} contentEditable suppressContentEditableWarning>
-                  <strong>3. Mindfulness Integration</strong> — Mindfulness-based techniques such as the 5-4-3-2-1 grounding exercise help patients anchor themselves in the present during anxiety episodes. Patients are encouraged to practice these strategies daily between sessions.
-                </div>
               </div>
             </div>
           </div>
