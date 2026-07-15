@@ -16,6 +16,33 @@ interface WellnessCategory {
   linkPath: string;
 }
 
+const allTips = [
+  // Set A
+  { text: "Take a few deep breaths. It helps calm your mind instantly.", icon: "💨", color: "#eef8f8" },
+  { text: "It's okay to take breaks. You are not meant to do everything.", icon: "☕", color: "#f3eef8" },
+  { text: "Be kind to yourself. You're doing the best you can.", icon: "♡", color: "#fcf0ed" },
+  { text: "Step outside, get some light, and reconnect with nature.", icon: "☀️", color: "#fff9eb" },
+  { text: "Write down your thoughts. It can help you feel lighter.", icon: "📋", color: "#eef5fc" },
+  // Set B
+  { text: "Stay hydrated. Drinking water supports cognitive function and mood.", icon: "💧", color: "#eef8f8" },
+  { text: "Take a 10-minute walk. Physical movement boosts endorphins.", icon: "🚶", color: "#f3eef8" },
+  { text: "Unplug from screens. Give your eyes and mind a rest from social media.", icon: "📵", color: "#fcf0ed" },
+  { text: "Listen to your favorite track. Music is a quick way to shift your energy.", icon: "🎶", color: "#fff9eb" },
+  { text: "Nourish your body. Enjoy a healthy snack that fuels your day.", icon: "🍎", color: "#eef5fc" },
+  // Set C
+  { text: "Prioritize your rest. Quality sleep is essential for mental resilience.", icon: "🛌", color: "#eef8f8" },
+  { text: "Reach out to a friend. A short chat can make you feel supported.", icon: "🤝", color: "#f3eef8" },
+  { text: "Practice mindfulness. Observe your thoughts without any judgment.", icon: "🧘", color: "#fcf0ed" },
+  { text: "Do something creative. Draw, write, or cook just for the joy of it.", icon: "🎨", color: "#fff9eb" },
+  { text: "Acknowledge one small win from today. Every step forward counts.", icon: "✨", color: "#eef5fc" },
+  // Set D
+  { text: "Focus on what you can control. Let go of the things you cannot.", icon: "🌸", color: "#eef8f8" },
+  { text: "De-clutter your space. A tidy desk or room brings peace of mind.", icon: "🧹", color: "#f3eef8" },
+  { text: "Do a quick stretch. Release physical tension held in your shoulders.", icon: "🤸", color: "#fcf0ed" },
+  { text: "Practice gratitude. Write down three things you are thankful for.", icon: "🙏", color: "#fff9eb" },
+  { text: "Permit yourself to say no. Protecting your boundaries is self-care.", icon: "🧸", color: "#eef5fc" }
+];
+
 const WellnessHub: React.FC = () => {
   // 2. Setup State for the categories
   const [categories, setCategories] = useState<WellnessCategory[]>([]);
@@ -41,6 +68,15 @@ const WellnessHub: React.FC = () => {
 
     fetchCategories();
   }, []);
+
+  const getDailyTips = () => {
+    const today = new Date();
+    const daysSinceEpoch = Math.floor(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) / (1000 * 60 * 60 * 24));
+    const setIndex = daysSinceEpoch % 4;
+    return allTips.slice(setIndex * 5, (setIndex + 1) * 5);
+  };
+
+  const dailyTips = getDailyTips();
 
   return (
     <div className="wellness-hub-page">
@@ -187,33 +223,7 @@ const WellnessHub: React.FC = () => {
           <p>Small steps can make a big difference.</p>
         </div>
         <div className="tips-grid">
-          {[
-            {
-              text: "Take a few deep breaths. It helps calm your mind instantly.",
-              icon: "💨",
-              color: "#eef8f8",
-            },
-            {
-              text: "It's okay to take breaks. You are not meant to do everything.",
-              icon: "☕",
-              color: "#f3eef8",
-            },
-            {
-              text: "Be kind to yourself. You're doing the best you can.",
-              icon: "♡",
-              color: "#fcf0ed",
-            },
-            {
-              text: "Step outside, get some light, and reconnect with nature.",
-              icon: "☀️",
-              color: "#fff9eb",
-            },
-            {
-              text: "Write down your thoughts. It can help you feel lighter.",
-              icon: "📋",
-              color: "#eef5fc",
-            },
-          ].map((tip, index) => (
+          {dailyTips.map((tip, index) => (
             <div className="tip-card" key={index}>
               <div className="tip-icon" style={{ backgroundColor: tip.color }}>
                 {tip.icon}

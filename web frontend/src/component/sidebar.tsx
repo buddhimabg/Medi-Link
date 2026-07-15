@@ -5,6 +5,7 @@ import {
   Home,
   Calendar,
   BookOpen,
+  ClipboardList,
   BarChart2,
   User,
   Clock,
@@ -30,6 +31,11 @@ const Sidebar: React.FC = () => {
       name: "Appointment History",
       path: "/history",
       icon: <BookOpen size={20} />,
+    },
+    {
+      name: "Assessments",
+      path: "/assessments",
+      icon: <ClipboardList size={20} />,
     },
     {
       name: "Report Analysis",
@@ -102,7 +108,14 @@ const Sidebar: React.FC = () => {
             </Link>
           </li>
           <li className="nav-item">
-            <button className="nav-link logout-btn">
+            <button
+              onClick={() => {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.replace("/");
+              }}
+              className="nav-link logout-btn"
+            >
               <div className="nav-link-content">
                 <span className="icon">
                   <LogOut size={20} />

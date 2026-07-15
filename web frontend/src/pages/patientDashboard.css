@@ -330,7 +330,7 @@
   position: absolute;
   top: 48px;
   right: 0;
-  width: 260px;
+  width: 320px;
   background-color: #ffffff;
   border: 1px solid #edf2f7;
   border-radius: 12px;
@@ -651,4 +651,127 @@
 @keyframes scaleUp {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+/* --- NOTIFICATIONS DROPDOWN CARD --- */
+.notifications-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.notifications-dropdown-card {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  max-height: 400px;
+  background-color: #ffffff;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  z-index: 1000;
+  animation: profileSlideDown 0.15s ease-out forwards;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 8px;
+}
+
+.notifications-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.notification-item:hover {
+  background-color: #f7fafc;
+}
+
+.notification-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notification-icon-wrapper.alert {
+  background-color: #fff5f5;
+  color: #e53e3e;
+}
+
+.notification-icon-wrapper.system {
+  background-color: #ebf8ff;
+  color: #3182ce;
+}
+
+.notification-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notification-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+}
+
+.notification-message {
+  font-size: 0.75rem;
+  color: #718096;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.notification-time {
+  font-size: 0.65rem;
+  color: #a0aec0;
+  margin-top: 4px;
+}
+
+.notifications-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: #718096;
+}
+
+.notifications-empty-state svg {
+  margin-bottom: 12px;
+  color: #cbd5e0;
+}
+
+.notifications-empty-state p {
+  margin: 0;
+  font-size: 0.85rem;
 }

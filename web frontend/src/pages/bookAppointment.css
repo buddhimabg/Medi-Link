@@ -9,14 +9,14 @@
   --slate-100: #f1f5f9;
   --slate-50:  #f8fafc;
   
-  --brand-primary: #0284c7;
-  --brand-hover:   #0369a1;
+  --brand-primary: #0D47A1;
+  --brand-hover:   #0D47A1;
   --brand-surface: #f0f9ff;
   --brand-tint:    #e0f2fe;
 }
 
 .booking-page-container {
-  padding: 32px 48px;
+  padding: 32px 10px;
   max-width: 1440px;
   margin: 0 auto;
   color: var(--slate-900);
@@ -69,13 +69,16 @@
 /* Grid & Cards */
 .doctors-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
+}
+.doc-card-avatar{
+  size: 5px;
 }
 
 .doc-grid-card {
   background: var(--surface-white);
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d7d7f1;
   border-radius: 20px;
   padding: 24px;
   display: flex;
@@ -111,18 +114,17 @@
 .btn-open-book { flex: 1; background: var(--brand-surface); color: var(--brand-primary); border: none; padding: 10px; border-radius: 10px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.15s; }
 .btn-open-book:hover { background: var(--brand-primary); color: white; }
 
-/* Modals */
- 
-
-  /* --- FIXED MODAL OVERLAYS --- */
+/* ========================================================= */
+/* --- 1. FIXED MODAL OVERLAYS & BASE --- */
+/* ========================================================= */
 .modal-backdrop {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  background-color: rgba(15, 23, 42, 0.6) !important;
-  backdrop-filter: blur(8px) !important;
+  background-color: rgba(15, 23, 42, 0.4) !important; /* Lighter, more modern overlay */
+  backdrop-filter: blur(4px) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -130,31 +132,790 @@
 }
 
 .profile-detail-modal {
-  background: white !important;
+  background: var(--surface-white) !important;
   width: 90% !important;
-  max-width: 600px !important;
+  max-width: 650px !important;
   max-height: 85vh !important;
   border-radius: 24px !important;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  position: relative !important;
 }
 
+/* ========================================================= */
+/* --- 2. MODAL HEADER --- */
+/* ========================================================= */
+.modal-header {
+  padding: 28px 32px 20px !important;
+  border-bottom: 1px solid var(--slate-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background-color: var(--surface-white);
+}
+
+.modal-header h3 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  margin: 6px 0 2px 0;
+}
+
+.modal-header .spec-title {
+  color: var(--slate-500);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.close-modal-btn {
+  background: var(--slate-50) !important;
+  color: var(--slate-400) !important;
+  border: 1px solid var(--slate-100) !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.close-modal-btn:hover {
+  background: var(--slate-100) !important;
+  color: var(--slate-900) !important;
+}
+
+/* ========================================================= */
+/* --- 3. MODAL BODY & METRICS GRID --- */
+/* ========================================================= */
 .profile-modal-body {
   padding: 24px 32px !important;
   overflow-y: auto !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 20px !important;
+  gap: 28px !important; /* Bigger gap between sections */
 }
 
-/* Ensure the Close Button is visible */
-.close-modal-btn {
-  background: #f1f5f9 !important;
-  border: none !important;
-  padding: 8px !important;
-  border-radius: 50% !important;
-  cursor: pointer !important;
+/* Turns the stacked text into 3 clean, horizontal cards */
+.glance-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.glance-metrics > div {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  padding: 16px;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.glance-metrics span {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.glance-metrics h4 {
+  font-size: 1.1rem;
+  color: var(--slate-900);
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ========================================================= */
+/* --- 4. MODAL CONTENT SECTIONS --- */
+/* ========================================================= */
+.detail-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  color: var(--slate-900);
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+
+/* Fixes the icons next to the headers */
+.detail-section h4 svg {
+  color: var(--brand-primary);
+}
+
+.bio-text {
+  color: var(--slate-600);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.qualifications-list {
+  padding-left: 20px;
+  color: var(--slate-600);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.qualifications-list li {
+  margin-bottom: 6px;
+}
+
+/* ========================================================= */
+/* --- 5. THE MISSING PILLS (Fixes squished text) --- */
+/* ========================================================= */
+.hospitals-pills-list, .languages-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px; /* This creates the space between items! */
+}
+
+.hospital-pill {
+  background: var(--brand-tint);
+  color: var(--brand-hover);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(2, 132, 199, 0.1);
+}
+
+.lang-tag {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--slate-200);
+}
+
+/* ========================================================= */
+/* --- 6. MODAL FOOTER BUTTONS --- */
+/* ========================================================= */
+.profile-footer-action {
+  padding: 24px 32px !important;
+  background: var(--slate-50) !important;
+  border-top: 1px solid var(--slate-100);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-modal-cancel {
+  padding: 12px 24px;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  color: var(--slate-600);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-modal-cancel:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+
+.btn-proceed-checkout {
+  padding: 12px 28px;
+  background: var(--brand-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
+}
+
+.btn-proceed-checkout:hover {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+
+/* --- PATIENT PROFILE DROPDOWN CARD --- */
+.profile-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-dropdown-card {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  background-color: #ffffff;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  z-index: 1000;
+  animation: profileSlideDown 0.15s ease-out forwards;
+  text-align: left;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.dropdown-user-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dropdown-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #ebf8ff;
+  color: #3182ce;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dropdown-user-details h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.dropdown-user-details p {
+  margin: 2px 0 0 0;
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+.patient-id-tag {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  background-color: #edf2f7;
+  color: #4a5568;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.dropdown-divider {
+  border: 0;
+  height: 1px;
+  background-color: #edf2f7;
+  margin: 14px 0;
+}
+
+.dropdown-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dropdown-menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  color: #4a5568;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dropdown-menu-item:hover {
+  background-color: #f7fafc;
+  color: #1a202c;
+  transform: translateX(2px);
+}
+
+.dropdown-menu-item.logout-btn {
+  color: #e53e3e;
+  font-weight: 500;
+}
+
+.dropdown-menu-item.logout-btn:hover {
+  background-color: #fff5f5;
+  color: #c53030;
+}
+
+@keyframes profileSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-contact-glance {
+  background-color: #f7fafc;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.glance-item {
+  display: flex;
+  justify-content: space-between;
+  color: #4a5568;
+}
+
+.glance-item span {
+  color: #718096;
+}
+
+.text-warn {
+  color: #dd6b20;
+}
+
+/* --- NOTIFICATIONS DROPDOWN CARD --- */
+.notifications-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.notifications-dropdown-card {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  max-height: 400px;
+  background-color: #ffffff;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  z-index: 1000;
+  animation: profileSlideDown 0.15s ease-out forwards;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 8px;
+}
+
+.notifications-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.notification-item:hover {
+  background-color: #f7fafc;
+}
+
+.notification-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notification-icon-wrapper.alert {
+  background-color: #fff5f5;
+  color: #e53e3e;
+}
+
+.notification-icon-wrapper.system {
+  background-color: #ebf8ff;
+  color: #3182ce;
+}
+
+.notification-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notification-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+}
+
+.notification-message {
+  font-size: 0.75rem;
+  color: #718096;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.notification-time {
+  font-size: 0.65rem;
+  color: #a0aec0;
+  margin-top: 4px;
+}
+
+.notifications-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: #718096;
+}
+
+.notifications-empty-state svg {
+  margin-bottom: 12px;
+  color: #cbd5e0;
+}
+
+.notifications-empty-state p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+/* --- WIZARD PAYMENT UI --- */
+.modal-step-2-payment {
+  padding: 24px 32px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+}
+
+.payment-wizard-summary {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.pws-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.pws-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.pws-details strong {
+  color: #0f172a;
+}
+
+.payment-card-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.payment-card-inputs h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.payment-error-alert {
+  background-color: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.payment-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payment-input-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.payment-input-group input {
+  padding: 11px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  outline: none;
+  background-color: #ffffff;
+  transition: all 0.2s;
+}
+
+.payment-input-group input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-surface);
+}
+
+.payment-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* --- STEP 3 SUCCESS SCREEN --- */
+.modal-step-3-success {
+  padding: 48px 32px !important;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.success-bounce-icon {
+  color: #22c55e;
+  margin-bottom: 20px;
+  animation: successBounce 0.4s ease-out;
+}
+
+.modal-step-3-success h3 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 10px 0;
+}
+
+.modal-step-3-success .redirect-notice {
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.6;
+  max-width: 420px;
+  margin: 0 0 24px 0;
+}
+
+@keyframes successBounce {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- PROFILE DETAIL MODAL FONT ALIGNMENT --- */
+.profile-detail-modal {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+.profile-detail-modal h3,
+.profile-detail-modal h4,
+.profile-detail-modal h5,
+.profile-detail-modal p,
+.profile-detail-modal span,
+.profile-detail-modal div,
+.profile-detail-modal li {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+/* --- BOOKING MODAL & WIZARD STYLES --- */
+.booking-modal-box {
+  background: var(--surface-white) !important;
+  width: 90% !important;
+  max-width: 550px !important;
+  max-height: 90vh !important;
+  border-radius: 24px !important;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+.modal-step-1 {
+  padding: 24px 32px !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+}
+
+.wizard-section h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0 0 12px 0;
+}
+
+.mode-selection-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.mode-select-card {
+  border: 1.5px solid var(--slate-200);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--surface-white);
+}
+
+.mode-select-card:hover {
+  border-color: var(--brand-primary);
+  background-color: var(--brand-surface);
+}
+
+.mode-select-card.selected {
+  border-color: var(--brand-primary);
+  background-color: var(--brand-surface);
+  box-shadow: 0 0 0 1px var(--brand-primary);
+}
+
+.mode-select-card svg {
+  color: var(--slate-500);
+  flex-shrink: 0;
+}
+
+.mode-select-card.selected svg {
+  color: var(--brand-primary);
+}
+
+.mode-select-card h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--slate-900);
+}
+
+.mode-select-card span {
+  font-size: 0.85rem;
+  color: var(--slate-500);
+  font-weight: 500;
+}
+
+.mode-select-card.selected span {
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.slots-pill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.slot-pill {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--slate-200);
+  background-color: var(--surface-white);
+  color: var(--slate-600);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+.slot-pill:hover {
+  background-color: var(--slate-50);
+  border-color: var(--slate-400);
+}
+
+.slot-pill.selected {
+  background-color: var(--brand-primary);
+  color: white;
+  border-color: var(--brand-primary);
+  box-shadow: 0 4px 12px rgba(13, 71, 161, 0.2);
+}
+
+.booking-summary-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--slate-50);
+  border-top: 1px solid var(--slate-100);
+  padding: 20px 32px !important;
+  margin: 24px -32px -24px -32px;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.summary-price {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  margin: 2px 0 0 0;
+}
+
+.modal-footer {
+  padding: 20px 32px !important;
+  background: var(--slate-50) !important;
+  border-top: 1px solid var(--slate-100);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.modal-step-2-payment .modal-footer {
+  margin: 16px -32px -24px -32px;
+}
+
+.modal-step-3-success .modal-footer {
+  margin: 24px -32px -48px -32px;
+  width: 100%;
+}
+
+.flex-gap {
+  gap: 12px !important;
 }

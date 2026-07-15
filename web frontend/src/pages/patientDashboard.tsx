@@ -5,7 +5,6 @@ import {
   FileText,
   CreditCard,
   Bell,
-  Search,
   User,
   Loader,
   X,
@@ -31,6 +30,10 @@ interface CachedUser {
   _id?: string;
   phone?: string;
   emergencyContact?: string;
+  gender?: string;
+  city?: string;
+  dob?: string | Date;
+  mobile?: string;
 }
 
 const PatientDashboard: React.FC = () => {
@@ -41,6 +44,8 @@ const PatientDashboard: React.FC = () => {
   const [userName, setUserName] = useState("Guest");
   const [fullUserData, setFullUserData] = useState<CachedUser | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -52,24 +57,27 @@ const PatientDashboard: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState("");
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const notificationsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const userData: CachedUser = JSON.parse(storedUser);
-        setFullUserData(userData);
-        setFormData({
-          name: userData.name || "",
-          phone: userData.phone || "",
-          emergencyContact: userData.emergencyContact || "",
-        });
-        if (userData && userData.name) {
-          setUserName(userData.name.split(" ")[0]);
-        }
-      } catch (err) {
-        console.error("Error parsing user data", err);
+    if (!storedUser) {
+      window.location.replace("/login");
+      return;
+    }
+    try {
+      const userData: CachedUser = JSON.parse(storedUser);
+      setFullUserData(userData);
+      setFormData({
+        name: userData.name || "",
+        phone: userData.phone || "",
+        emergencyContact: userData.emergencyContact || "",
+      });
+      if (userData && userData.name) {
+        setUserName(userData.name.split(" ")[0]);
       }
+    } catch (err) {
+      console.error("Error parsing user data", err);
     }
   }, []);
 
@@ -81,6 +89,12 @@ const PatientDashboard: React.FC = () => {
       ) {
         setIsProfileOpen(false);
       }
+      if (
+        notificationsMenuRef.current &&
+        !notificationsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsNotificationsOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -88,12 +102,33 @@ const PatientDashboard: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        try {
+          const userData = JSON.parse(stored);
+          if (userData?._id) {
+            const res = await fetch(`http://localhost:5000/api/notifications?userId=${userData._id}`);
+            if (res.ok) {
+              const data = await res.json();
+              setNotifications(data);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching notifications:", err);
+        }
+      }
+    };
+    fetchNotifications();
+  }, []);
+
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     localStorage.clear();
     sessionStorage.clear();
-    window.location.replace("/login");
+    window.location.replace("/");
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -142,13 +177,22 @@ const PatientDashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchAppointments = async () => {
+      const stored = localStorage.getItem("user");
+      if (!stored) {
+        setIsLoading(false);
+        return;
+      }
       try {
-        const response = await fetch("http://localhost:5000/api/appointments");
+        const userData = JSON.parse(stored);
+        if (!userData?._id) {
+          setIsLoading(false);
+          return;
+        }
+        const response = await fetch(`http://localhost:5000/api/appointments?userId=${userData._id}`);
         if (!response.ok) throw new Error("Failed");
         const data = await response.json();
         setAppointments(data);
       } catch {
-        // FIX #3: Removed 'err' binding entirely
         setError("Could not load appointments. Please try again later.");
       } finally {
         setIsLoading(false);
@@ -167,17 +211,56 @@ const PatientDashboard: React.FC = () => {
             <h2 className="mobile-logo">MediLink</h2>
           </div>
           <div className="nav-right">
-            <button className="icon-btn">
-              <Search size={20} />
-            </button>
-            <button className="icon-btn">
-              <Bell size={20} />
-            </button>
+            <div className="notifications-dropdown-container" ref={notificationsMenuRef}>
+              <button
+                className="icon-btn"
+                onClick={() => {
+                  setIsNotificationsOpen(!isNotificationsOpen);
+                  setIsProfileOpen(false);
+                }}
+              >
+                <Bell size={20} />
+              </button>
+
+              {isNotificationsOpen && (
+                <div className="notifications-dropdown-card">
+                  <div className="notifications-header">
+                    <h4>Notifications</h4>
+                  </div>
+                  {notifications.length > 0 ? (
+                    <div className="notifications-list">
+                      {notifications.map((n) => (
+                        <div key={n._id} className="notification-item">
+                          <div className={`notification-icon-wrapper ${n.type || "system"}`}>
+                            <Bell size={16} />
+                          </div>
+                          <div className="notification-details">
+                            <h5 className="notification-title">{n.title}</h5>
+                            <p className="notification-message">{n.message}</p>
+                            <span className="notification-time">
+                              {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ""}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="notifications-empty-state">
+                      <Bell size={32} />
+                      <p>No notifications yet</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="profile-menu-container" ref={profileMenuRef}>
               <button
                 className="icon-btn profile-btn"
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                onClick={() => {
+                  setIsProfileOpen(!isProfileOpen);
+                  setIsNotificationsOpen(false);
+                }}
               >
                 <User size={20} />
               </button>
@@ -200,7 +283,7 @@ const PatientDashboard: React.FC = () => {
                   <div className="dropdown-contact-glance">
                     <div className="glance-item">
                       <span>Phone:</span>
-                      <strong>{fullUserData?.phone || "Not set"}</strong>
+                      <strong>{fullUserData?.phone || fullUserData?.mobile || "Not set"}</strong>
                     </div>
                     <div className="glance-item">
                       <span>Emergency:</span>
@@ -210,6 +293,22 @@ const PatientDashboard: React.FC = () => {
                         }
                       >
                         {fullUserData?.emergencyContact || "⚠️ Required"}
+                      </strong>
+                    </div>
+                    <div className="glance-item">
+                      <span>Gender:</span>
+                      <strong>{fullUserData?.gender || "Not set"}</strong>
+                    </div>
+                    <div className="glance-item">
+                      <span>City:</span>
+                      <strong>{fullUserData?.city || "Not set"}</strong>
+                    </div>
+                    <div className="glance-item">
+                      <span>DOB:</span>
+                      <strong>
+                        {fullUserData?.dob
+                          ? new Date(fullUserData.dob).toLocaleDateString()
+                          : "Not set"}
                       </strong>
                     </div>
                   </div>

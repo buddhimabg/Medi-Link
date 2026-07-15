@@ -19,4 +19,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/doctors/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id);
+    if (!doctor) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+    res.status(200).json({ success: true, data: doctor });
+  } catch (error) {
+    console.error("Error in doctorRoutes GET /:id :", error);
+    res.status(500).json({ success: false, message: "Failed to fetch doctor details" });
+  }
+});
+
 module.exports = router;

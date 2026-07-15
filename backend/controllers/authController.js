@@ -60,6 +60,10 @@ const loginUser = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      mobile: user.mobile,
+      gender: user.gender,
+      city: user.city,
+      dob: user.dob,
       role: user.role,
       message: "Login successful!"
     });
@@ -94,6 +98,11 @@ const googleLogin = async (req, res) => {
         _id: user.id,
         name: user.name,
         email: user.email,
+        mobile: user.mobile,
+        gender: user.gender,
+        city: user.city,
+        dob: user.dob,
+        role: user.role,
         message: "Logged in with Google successfully"
       });
     } else {
@@ -118,6 +127,11 @@ const googleLogin = async (req, res) => {
         _id: user.id,
         name: user.name,
         email: user.email,
+        mobile: user.mobile,
+        gender: user.gender,
+        city: user.city,
+        dob: user.dob,
+        role: user.role,
         message: "Google account registered successfully"
       });
     }
