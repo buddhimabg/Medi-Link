@@ -1,13 +1,20 @@
 /* Sidebar Container */
 .sidebar {
-  width: 280px;
+  width: 260px;
   height: 100vh;
-  background-color: #174eb6; /* Main MediLink Blue */
-  color: white;
+  background-color: #ffffff;
+  /* White background */
+  color: #334155;
+  /* Dark Slate text */
   display: flex;
   flex-direction: column;
   font-family: 'Inter', -apple-system, sans-serif;
   box-sizing: border-box;
+  border-right: 1px solid #e2e8f0;
+  /* Light gray border separator */
+  flex-shrink: 0;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 10px;
 }
 
 /* Header Section */
@@ -16,7 +23,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .sidebar-header h2 {
@@ -24,29 +31,33 @@
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: 0.5px;
+  color: #0D47A1;
+  /* Slate 900 */
 }
 
 .collapse-btn {
   background: transparent;
   border: none;
-  color: white;
+  color: #64748b;
+  /* Slate 500 */
   cursor: pointer;
   padding: 4px;
   opacity: 0.8;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, color 0.2s;
 }
 
 .collapse-btn:hover {
+  color: #0f172a;
   opacity: 1;
 }
 
 /* Navigation Lists */
 .sidebar-nav {
-  flex: 1;  
+  flex: 1;
   padding: 20px 16px;
-  overflow-y: auto;  
+  overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+  scrollbar-color: #cbd5e1 #f8fafc;
 }
 
 .sidebar-nav::-webkit-scrollbar {
@@ -54,23 +65,22 @@
 }
 
 .sidebar-nav::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: #f8fafc;
   border-radius: 4px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: #94a3b8;
 }
-
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid #e2e8f0;
 }
 
 .nav-list {
@@ -79,7 +89,8 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px; /* Space between links */
+  gap: 8px;
+  /* Space between links */
 }
 
 /* Individual Links */
@@ -90,7 +101,8 @@
   padding: 12px 16px;
   border-radius: 12px;
   text-decoration: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: #475569;
+  /* Slate 600 */
   transition: all 0.2s ease;
   width: 100%;
   box-sizing: border-box;
@@ -106,6 +118,7 @@
   display: flex;
   align-items: center;
   opacity: 0.8;
+  color: #475569;
 }
 
 .nav-link .text {
@@ -115,23 +128,37 @@
 
 /* Hover and Active States */
 .nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: white;
+  background-color: #f1f5f9;
+  /* Light Slate hover background */
+  color: #0f172a;
+}
+
+.nav-link:hover .icon {
+  color: #0f172a;
+  opacity: 1;
 }
 
 .nav-link.active {
-  background-color: #2b70fa;  
-  color: white;
+  background-color: #1e56a0;
+  /* Dark Blue active background */
+  color: #ffffff;
+  /* White text for active page */
 }
 
 .nav-link.active .icon {
+  color: #ffffff;
   opacity: 1;
+}
+
+.nav-link.active:hover {
+  background-color: #1e56a0;
+  color: #ffffff;
 }
 
 /* Badges */
 .badge {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
+  background-color: #f1f5f9;
+  color: #475569;
   font-size: 0.75rem;
   font-weight: 600;
   padding: 2px 8px;
@@ -146,11 +173,45 @@
   text-align: left;
   font-family: inherit;
 }
- 
-.sidebar {   
-  padding-left: 10px;
-  width: 260px;  
-  min-height: 100vh;  
-  background-color: #1e56a0;  
-  flex-shrink: 0; 
+
+/* Collapsed Sidebar overrides */
+.sidebar.collapsed {
+  width: 80px;
+  padding-left: 0;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  padding: 20px 8px;
+}
+
+.sidebar.collapsed .nav-link-content {
+  gap: 0;
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebar.collapsed .nav-link .text {
+  display: none;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 12px 8px;
+}
+
+.sidebar.collapsed .badge {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 16px 8px;
+}
+
+.sidebar.collapsed .sidebar-footer .nav-link {
+  justify-content: center;
 }

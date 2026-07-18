@@ -1,9 +1,9 @@
 /* Container & Layout */
-.dashboard-container {
+.dashboard-layout, .dashboard-container {
   min-height: 100vh;
   background-color: #f8fafd; /* Very light blue/gray background */
   color: #333;
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
 }
 
 /* Top Navigation Area */
@@ -243,6 +243,14 @@
 
 .btn-reschedule:hover {
   background: #0f3680;
+}
+
+.btn-cancel:disabled, .btn-reschedule:disabled {
+  background: #edf2f7 !important;
+  border-color: #e2e8f0 !important;
+  color: #a0aec0 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
 }
 
  
@@ -773,5 +781,164 @@
 
 .notifications-empty-state p {
   margin: 0;
+  font-size: 0.85rem;
+}
+
+/* --- RESCHEDULING MODAL & WIZARD STYLING --- */
+.reschedule-modal-box {
+  background-color: #ffffff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 520px;
+  padding: 28px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: modalScaleUp 0.2s ease-out forwards;
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.reschedule-confirm-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.reschedule-warning-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #4a5568;
+}
+
+.current-slot-box {
+  background-color: #ebf8ff;
+  border: 1px dashed #bee3f8;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.current-slot-box .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #2b6cb0;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.current-slot-box .value {
+  font-size: 1.05rem;
+  color: #2c5282;
+  font-weight: 700;
+}
+
+.reschedule-error-msg {
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #c53030;
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.reschedule-select-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.select-instruction {
+  font-size: 0.88rem;
+  color: #718096;
+  margin: 0;
+}
+
+.doctor-slots-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar for slot list container */
+.doctor-slots-container::-webkit-scrollbar {
+  width: 6px;
+}
+.doctor-slots-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.doctor-slots-container::-webkit-scrollbar-thumb {
+  background-color: #cbd5e0;
+  border-radius: 3px;
+}
+
+.schedule-date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schedule-date-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0;
+  border-left: 3px solid #3182ce;
+  padding-left: 8px;
+}
+
+.schedule-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.slot-picker-btn {
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slot-picker-btn:hover {
+  background-color: #edf2f7;
+  border-color: #cbd5e0;
+  color: #2d3748;
+}
+
+.slot-picker-btn.selected {
+  background-color: #3182ce;
+  border-color: #3182ce;
+  color: #ffffff;
+  box-shadow: 0 4px 6px rgba(49, 130, 206, 0.2);
+}
+
+.no-slots-notice {
+  text-align: center;
+  padding: 30px 10px;
+  color: #a0aec0;
   font-size: 0.85rem;
 }

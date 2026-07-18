@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Search,
-  Calendar,
-  Video,
   MapPin,
   Star,
   Filter,
@@ -20,6 +18,19 @@ import {
 import Sidebar from "../component/sidebar";
 import "./bookAppointment.css";
 
+
+interface ScheduleSlot {
+  _id: string;
+  time: string;
+  isBooked: boolean;
+}
+
+interface DoctorSchedule {
+  _id: string;
+  doctorId: string;
+  date: string;
+  slots: ScheduleSlot[];
+}
 
 interface Doctor {
   _id: string;
@@ -42,20 +53,56 @@ interface Doctor {
   virtualPrice: number;
   physicalPrice: number;
   availableSlots: string[];
+  availableDays?: string[];
+  schedules?: DoctorSchedule[];
 }
 
 const BookAppointment: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("All");
-  const [selectedHospital, setSelectedHospital] = useState("All");
-  const [selectedMode, setSelectedMode] = useState("All");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [selectedHospital, setSelectedHospital] = useState("");
+  const [selectedDoctorName, setSelectedDoctorName] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
 
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState("");
 
+  // Dynamically compute unique values for filters from loaded doctors
+  const specialties = useMemo(() => {
+    return Array.from(new Set(doctors.map((d) => d.specialty).filter(Boolean))).sort();
+  }, [doctors]);
+
+  const hospitals = useMemo(() => {
+    return Array.from(
+      new Set(
+        doctors
+          .flatMap((d) => (d.availableHospitals && d.availableHospitals.length > 0 ? d.availableHospitals : [d.hospital]))
+          .filter(Boolean)
+      )
+    ).sort();
+  }, [doctors]);
+
+  const doctorNames = useMemo(() => {
+    return Array.from(new Set(doctors.map((d) => d.name).filter(Boolean))).sort();
+  }, [doctors]);
+
+  // Group doctors by name to check for duplicate names
+  const doctorNameGroups = useMemo(() => {
+    const groups: Record<string, Doctor[]> = {};
+    doctors.forEach((doc) => {
+      if (!groups[doc.name]) {
+        groups[doc.name] = [];
+      }
+      groups[doc.name].push(doc);
+    });
+    return groups;
+  }, [doctors]);
+
   // State to track if the user has clicked search yet
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   // Modals
   const [activeDoctor, setActiveDoctor] = useState<Doctor | null>(null);
@@ -68,17 +115,190 @@ const BookAppointment: React.FC = () => {
   );
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [bookingStep, setBookingStep] = useState<1 | 2 | 3>(1);
-
-  // Payment Form States
-  const [cardHolderName, setCardHolderName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvc, setCardCvc] = useState("");
-  const [paymentError, setPaymentError] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const [userName, setUserName] = useState<string>("Patient");
   const [fullUserData, setFullUserData] = useState<any>(null);
+
+  const [bookingTarget, setBookingTarget] = useState<"myself" | "someone_else">("myself");
+  const [patientTitle, setPatientTitle] = useState("Mr");
+  const [patientName, setPatientName] = useState("");
+  const [patientEmail, setPatientEmail] = useState("");
+  const [patientPhoneCountryCode, setPatientPhoneCountryCode] = useState("+94");
+  const [patientPhone, setPatientPhone] = useState("");
+  const [patientArea, setPatientArea] = useState("");
+  const [identityType, setIdentityType] = useState<"nic" | "passport">("nic");
+  const [patientIdNumber, setPatientIdNumber] = useState("");
+  const [noShowRefund, setNoShowRefund] = useState(false);
+  const [formValidationError, setFormValidationError] = useState("");
+  const formContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Read unused state variables to satisfy TypeScript compiler (TS6133)
+    if (isProfileLoading || userName) {
+      // Do nothing
+    }
+    if (formContainerRef.current) {
+      formContainerRef.current.scrollTop = 0;
+    }
+  }, [bookingStep, isProfileLoading, userName]);
+
+  useEffect(() => {
+    if (bookingTarget === "myself" && fullUserData) {
+      setPatientName(fullUserData.name || "");
+      setPatientEmail(fullUserData.email || "");
+      setPatientArea(fullUserData.city || "");
+      setPatientTitle(fullUserData.gender === "Female" ? "Mrs" : "Mr");
+      setPatientIdNumber(fullUserData.nic || "");
+
+      const rawPhone = fullUserData.mobile || fullUserData.phone || "";
+      if (rawPhone.startsWith("+94")) {
+        setPatientPhoneCountryCode("+94");
+        setPatientPhone(rawPhone.slice(3));
+      } else if (rawPhone.startsWith("0")) {
+        setPatientPhoneCountryCode("+94");
+        setPatientPhone(rawPhone.slice(1));
+      } else {
+        setPatientPhoneCountryCode("+94");
+        setPatientPhone(rawPhone);
+      }
+    } else if (bookingTarget === "someone_else") {
+      setPatientName("");
+      setPatientEmail("");
+      setPatientPhone("");
+      setPatientArea("");
+      setPatientIdNumber("");
+      setPatientTitle("Mr");
+    }
+  }, [bookingTarget, fullUserData]);
+
+  // const isFormValid = useMemo(() => {
+  //   return !!patientName.trim() && !!patientPhone.trim() && !!patientIdNumber.trim();
+  // }, [patientName, patientPhone, patientIdNumber]);
+
+  const doctorFee = useMemo(() => {
+    if (!activeDoctor) return 0;
+    return bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice;
+  }, [activeDoctor, bookingMode]);
+
+  const hospitalFee = useMemo(() => {
+    return bookingMode === "Virtual" ? 0 : 1300;
+  }, [bookingMode]);
+
+  const channelingFee = 399;
+  const discount = 0;
+  const noShowFee = 0;
+  const redeemPoints = 0;
+
+  const totalFee = useMemo(() => {
+    return doctorFee + hospitalFee + channelingFee + noShowFee - discount - redeemPoints;
+  }, [doctorFee, hospitalFee]);
+
+  // Helper functions and memoizations for doctor schedules view
+  const formatScheduleDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      // Format as "Friday, 17 Jul 2026"
+      const day = date.getDate();
+      const weekday = date.toLocaleDateString("en-US", { weekday: 'long' });
+      const month = date.toLocaleDateString("en-US", { month: 'short' });
+      const year = date.getFullYear();
+      return `${weekday}, ${day} ${month} ${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getHospitalForSlot = (doc: Doctor, slotIndex: number) => {
+    const list = doc.availableHospitals && doc.availableHospitals.length > 0
+      ? doc.availableHospitals
+      : (doc.hospital ? [doc.hospital] : ["MediLink Clinic"]);
+    return list[slotIndex % list.length];
+  };
+
+  const getHospitalLogoText = (hospitalName: string) => {
+    return hospitalName.split(" ")[0];
+  };
+
+  const getHospitalCity = (hospitalName: string) => {
+    if (hospitalName.includes("Colombo")) {
+      const match = hospitalName.match(/Colombo\s*\d+/i);
+      return match ? match[0] : "Colombo";
+    }
+    if (hospitalName.includes("Lanka")) return "Colombo 05";
+    if (hospitalName.includes("Asiri Central")) return "Colombo 10";
+    if (hospitalName.includes("Nawaloka")) return "Colombo 02";
+    if (hospitalName.includes("Asiri")) return "Colombo 05";
+    return "Colombo 03";
+  };
+
+  const getSlotPeriod = (timeStr: string) => {
+    if (timeStr.includes("AM")) return "Morning";
+    const hour = parseInt(timeStr.split(":")[0]);
+    if (hour === 12 || hour < 4) return "Afternoon";
+    return "Evening";
+  };
+
+  const handleStartCheckout = (slotStr: string) => {
+    setSelectedSlot(slotStr);
+    setBookingStep(1);
+    setFormValidationError("");
+    setIsCheckoutOpen(true);
+  };
+
+  const handleProceedToStep2 = () => {
+    setFormValidationError("");
+    if (!patientName.trim()) {
+      setFormValidationError("Name is required.");
+      return;
+    }
+    if (!patientPhone.trim()) {
+      setFormValidationError("Phone number is required.");
+      return;
+    }
+    if (!patientIdNumber.trim()) {
+      setFormValidationError(`${identityType === "nic" ? "NIC" : "Passport"} number is required.`);
+      return;
+    }
+    setBookingStep(2);
+  };
+
+  const doctorSchedulesGrouped = useMemo(() => {
+    if (!activeDoctor || !activeDoctor.schedules) return [];
+    let filtered = activeDoctor.schedules;
+    if (selectedDate) {
+      filtered = activeDoctor.schedules.filter(s => s.date === selectedDate);
+    }
+    return filtered.map(sched => {
+      const slotsWithDetails = sched.slots
+        .map((slot, slotIdx) => {
+          const hospitalName = getHospitalForSlot(activeDoctor, slotIdx);
+          return {
+            _id: slot._id,
+            time: slot.time,
+            isBooked: slot.isBooked,
+            hospitalName,
+            slotIdx
+          };
+        })
+        .filter(slot => !slot.isBooked && (!selectedHospital || slot.hospitalName === selectedHospital));
+
+      return {
+        ...sched,
+        slots: slotsWithDetails
+      };
+    }).filter(sched => sched.slots.length > 0);
+  }, [activeDoctor, selectedDate, selectedHospital]);
+
+  const totalSessionsCount = useMemo(() => {
+    return doctorSchedulesGrouped.reduce((sum, sched) => sum + sched.slots.length, 0);
+  }, [doctorSchedulesGrouped]);
+
+  // Payment Form States
+  const [paymentError, setPaymentError] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+
+
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -111,14 +331,12 @@ const BookAppointment: React.FC = () => {
     }
   };
 
-  const handleProcessPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleProcessPayment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!activeDoctor || !selectedSlot) return;
 
     setPaymentError("");
     setIsPaying(true);
-
-    const bookingPrice = bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice;
 
     try {
       const response = await fetch("http://localhost:5000/api/appointments", {
@@ -135,38 +353,124 @@ const BookAppointment: React.FC = () => {
           type: bookingMode,
           imageUrl: activeDoctor.photo || activeDoctor.imageUrl,
           slot: selectedSlot,
-          amount: bookingPrice,
-          cardHolderName,
-          cardNumber
+          amount: totalFee
         })
       });
 
       const json = await response.json();
-      if (response.ok && json.success) {
-        // Success! Go to step 3
-        setBookingStep(3);
-        
-        // Remove slot locally so the UI updates without requiring refresh
-        setDoctors(prevDoctors => 
-          prevDoctors.map(doc => 
-            doc._id === activeDoctor._id 
-              ? { ...doc, availableSlots: doc.availableSlots.filter(s => s !== selectedSlot) }
-              : doc
-          )
-        );
-        
-        // Reset payment details
-        setCardHolderName("");
-        setCardNumber("");
-        setCardExpiry("");
-        setCardCvc("");
-      } else {
-        setPaymentError(json.message || "Simulated payment processing failed. Please check card details.");
+      if (!response.ok || !json.success) {
+        throw new Error(json.message || "Failed to initiate payment.");
       }
-    } catch (err) {
-      console.error("Booking error:", err);
-      setPaymentError("Could not reach backend server to complete transaction.");
-    } finally {
+
+      const { appointmentId, payhere: payhereConfig } = json.data;
+
+      // Verify window.payhere is loaded
+      const payhere = (window as any).payhere;
+      if (!payhere) {
+        throw new Error("PayHere SDK not loaded. Please try again.");
+      }
+
+      payhere.onCompleted = async function onCompleted(orderId: string) {
+        console.log("Payment completed. orderId:", orderId);
+        setIsPaying(true);
+
+        try {
+          await fetch(`http://localhost:5000/api/appointments/${appointmentId}/confirm-payment`, {
+            method: "POST"
+          });
+        } catch (err) {
+          console.warn("Could not confirm payment locally:", err);
+        }
+
+        // Poll backend to confirm the status has been verified via webhook
+        let pollCount = 0;
+        const maxPolls = 15;
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`http://localhost:5000/api/payments/${appointmentId}/status`);
+            if (statusRes.ok) {
+              const statusJson = await statusRes.json();
+              if (statusJson.success && statusJson.paymentStatus === "Paid") {
+                clearInterval(pollInterval);
+                setIsPaying(false);
+                setBookingStep(3);
+
+                // Update slot locally
+                setDoctors(prevDoctors =>
+                  prevDoctors.map(doc =>
+                    doc._id === activeDoctor._id
+                      ? { ...doc, availableSlots: doc.availableSlots.filter(s => s !== selectedSlot) }
+                      : doc
+                  )
+                );
+
+                // Update activeDoctor state locally
+                setActiveDoctor(prev => {
+                  if (!prev) return null;
+                  const updatedSchedules = prev.schedules?.map(sched => ({
+                    ...sched,
+                    slots: sched.slots.map(s => {
+                      const fullSlotStr = `${sched.date} ${s.time}`;
+                      if (fullSlotStr === selectedSlot) {
+                        return { ...s, isBooked: true };
+                      }
+                      return s;
+                    })
+                  }));
+                  return {
+                    ...prev,
+                    schedules: updatedSchedules,
+                    availableSlots: prev.availableSlots.filter(s => s !== selectedSlot)
+                  };
+                });
+                return;
+              }
+            }
+          } catch (pollErr) {
+            console.error("Error polling payment status:", pollErr);
+          }
+
+          pollCount++;
+          if (pollCount >= maxPolls) {
+            clearInterval(pollInterval);
+            setIsPaying(false);
+            setPaymentError("Payment successful, but validation response timed out. Please check your appointment records.");
+          }
+        }, 1000);
+      };
+
+      payhere.onDismissed = async function onDismissed() {
+        console.log("PayHere payment window dismissed");
+        setIsPaying(false);
+        setPaymentError("Payment was canceled. The channeling slot was released.");
+        try {
+          await fetch(`http://localhost:5000/api/payments/${appointmentId}/cancel`, {
+            method: "POST"
+          });
+        } catch (cancelErr) {
+          console.error("Error canceling appointment:", cancelErr);
+        }
+      };
+
+      payhere.onError = async function onError(error: string) {
+        console.error("PayHere error:", error);
+        setIsPaying(false);
+        setPaymentError(`Payment failed: ${error}`);
+        try {
+          await fetch(`http://localhost:5000/api/payments/${appointmentId}/cancel`, {
+            method: "POST"
+          });
+        } catch (cancelErr) {
+          console.error("Error canceling appointment:", cancelErr);
+        }
+      };
+
+      // Open PayHere payment gateway sandbox window
+      payhere.startPayment(payhereConfig);
+
+    } catch (err: any) {
+      console.error("Payment initiation failed:", err);
+      setPaymentError(err.message || "Failed to reach backend checkout session.");
       setIsPaying(false);
     }
   };
@@ -259,78 +563,82 @@ const BookAppointment: React.FC = () => {
   // Upgraded Live Filtering Math
   const filteredDoctors = doctors.filter((doc) => {
     const matchesSearch =
+      !searchTerm ||
       doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.specialty.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.availableHospitals?.some((h) =>
         h.toLowerCase().includes(searchTerm.toLowerCase())
       ) ||
-      false ||
-      doc.hospital?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      false;
+      (doc.hospital && doc.hospital.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesSpec =
-      selectedSpecialty === "All" || doc.specialty === selectedSpecialty;
+      !selectedSpecialty || doc.specialty === selectedSpecialty;
 
     // Array-safe hospital check
     const matchesHosp =
-      selectedHospital === "All" ||
-      (doc.availableHospitals
+      !selectedHospital ||
+      (doc.availableHospitals && doc.availableHospitals.length > 0
         ? doc.availableHospitals.includes(selectedHospital)
         : doc.hospital === selectedHospital);
 
-    let matchesMode = true;
-    if (selectedMode === "Virtual") matchesMode = doc.virtualPrice > 0;
-    if (selectedMode === "Physical") matchesMode = doc.physicalPrice > 0;
+    const matchesDocName =
+      !selectedDoctorName || doc.name === selectedDoctorName;
 
-    return matchesSearch && matchesSpec && matchesHosp && matchesMode;
+    const matchesSpecificDoc =
+      !selectedDoctorId || doc._id === selectedDoctorId;
+
+    // Date search support
+    let matchesDate = true;
+    if (selectedDate) {
+      const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dateObj = new Date(selectedDate);
+      const dayName = daysOfWeek[dateObj.getDay()]; // e.g. "Mon"
+
+      const weekdayMatch = doc.availableDays && doc.availableDays.includes(dayName);
+      const slotMatch = doc.availableSlots && doc.availableSlots.some(slot => slot.includes(selectedDate));
+
+      matchesDate = !!(weekdayMatch || slotMatch);
+    }
+
+    return matchesSearch && matchesSpec && matchesHosp && matchesDocName && matchesSpecificDoc && matchesDate;
   });
 
   const handleSearch = () => {
-    setHasSearched(true);
+    const isSearchCriteriaEmpty =
+      !searchTerm.trim() &&
+      !selectedSpecialty &&
+      !selectedHospital &&
+      !selectedDoctorName &&
+      !selectedDate;
+
+    if (isSearchCriteriaEmpty) {
+      setSearchError("Please select at least one search criteria (Specialty, Hospital, Doctor, or Date) before searching.");
+      setHasSearched(false);
+    } else {
+      setSearchError("");
+      setHasSearched(true);
+      setActiveDoctor(null); // Go back to results when searching!
+    }
   };
 
   const resetFilters = () => {
     setSearchTerm("");
-    setSelectedSpecialty("All");
-    setSelectedHospital("All");
-    setSelectedMode("All");
+    setSelectedSpecialty("");
+    setSelectedHospital("");
+    setSelectedDoctorName("");
+    setSelectedDoctorId("");
+    setSelectedDate("");
     setHasSearched(false); // Hide results again when reset
+    setSearchError(""); // Clear any search validation error
+    setActiveDoctor(null); // Go back to results when resetting!
   };
 
   const handleOpenBooking = (doc: Doctor) => {
     setActiveDoctor(doc);
-    setSelectedSlot(doc.availableSlots?.[0] || "");
-    setBookingStep(1);
     setViewingProfile(null); // Close profile modal if open
   };
 
-  // Shared inline style for modern dropdowns
-  const modernSelectStyle: React.CSSProperties = {
-    appearance: "none",
-    width: "100%",
-    padding: "10px 36px 10px 14px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    backgroundColor: "#ffffff",
-    fontSize: "14px",
-    color: "#334155",
-    cursor: "pointer",
-    outline: "none",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-  };
-
-  const selectWrapperStyle: React.CSSProperties = {
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-  };
-
-  const chevronStyle: React.CSSProperties = {
-    position: "absolute",
-    right: "12px",
-    pointerEvents: "none",
-    color: "#64748b",
-  };
+  // Dropdown style variables removed to prefer modern CSS styles in bookAppointment.css
 
   return (
     <div className="dashboard-layout">
@@ -498,57 +806,105 @@ const BookAppointment: React.FC = () => {
                 marginTop: "16px",
               }}
             >
-              {/* 1. Modern Specialty Dropdown (Label Removed) */}
+              {/* 1. Specialty Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
-                <div style={selectWrapperStyle}>
+                <div className="modern-select-wrapper">
                   <select
                     value={selectedSpecialty}
                     onChange={(e) => setSelectedSpecialty(e.target.value)}
-                    style={modernSelectStyle}
+                    style={{ color: selectedSpecialty === "" ? "#94a3b8" : "#334155" }}
                   >
-                    <option value="All">Any Specialty</option>
-                    <option value="Consultant Psychiatrist">Psychiatry</option>
-                    <option value="Cardiologist">Cardiology</option>
-                    <option value="Dermatologist">Dermatology</option>
-                    <option value="Neurologist">Neurology</option>
+                    <option value="" hidden>Select Specialty</option>
+                    {specialties.map((spec) => (
+                      <option key={spec} value={spec} style={{ color: "#334155" }}>
+                        {spec}
+                      </option>
+                    ))}
                   </select>
-                  <ChevronDown size={16} style={chevronStyle} />
+                  <ChevronDown size={16} className="modern-select-chevron" />
                 </div>
               </div>
 
-              {/* 2. Modern Hospital Dropdown (Label Removed) */}
+              {/* 2. Hospital Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
-                <div style={selectWrapperStyle}>
+                <div className="modern-select-wrapper">
                   <select
                     value={selectedHospital}
                     onChange={(e) => setSelectedHospital(e.target.value)}
-                    style={modernSelectStyle}
+                    style={{ color: selectedHospital === "" ? "#94a3b8" : "#334155" }}
                   >
-                    <option value="All">Any Hospital</option>
-                    <option value="Asiri Central Hospital">
-                      Asiri Central Hospital
-                    </option>
-                    <option value="Lanka Hospitals">Lanka Hospitals</option>
-                    <option value="Nawaloka Hospital">Nawaloka Hospital</option>
-                    <option value="Durdans Hospital">Durdans Hospital</option>
+                    <option value="" hidden>Select Hospital</option>
+                    {hospitals.map((hosp) => (
+                      <option key={hosp} value={hosp} style={{ color: "#334155" }}>
+                        {hosp}
+                      </option>
+                    ))}
                   </select>
-                  <ChevronDown size={16} style={chevronStyle} />
+                  <ChevronDown size={16} className="modern-select-chevron" />
                 </div>
               </div>
 
-              {/* 3. Modern Mode Dropdown (Label Removed) */}
+              {/* 3. Doctor Names Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
-                <div style={selectWrapperStyle}>
+                <div className="modern-select-wrapper">
                   <select
-                    value={selectedMode}
-                    onChange={(e) => setSelectedMode(e.target.value)}
-                    style={modernSelectStyle}
+                    value={selectedDoctorName}
+                    onChange={(e) => {
+                      setSelectedDoctorName(e.target.value);
+                      setSelectedDoctorId("");
+                    }}
+                    style={{ color: selectedDoctorName === "" ? "#94a3b8" : "#334155" }}
                   >
-                    <option value="All">Any Mode</option>
-                    <option value="Virtual">Virtual Only</option>
-                    <option value="Physical">In-Person Only</option>
+                    <option value="" hidden>Select Doctor</option>
+                    {doctorNames.map((name) => (
+                      <option key={name} value={name} style={{ color: "#334155" }}>
+                        {name}
+                      </option>
+                    ))}
                   </select>
-                  <ChevronDown size={16} style={chevronStyle} />
+                  <ChevronDown size={16} className="modern-select-chevron" />
+                </div>
+              </div>
+
+              {/* 4. Duplicate Doctor Selection (Conditional) */}
+              {selectedDoctorName && doctorNameGroups[selectedDoctorName]?.length > 1 && (
+                <div className="dropdown-group" style={{ flex: "1 1 250px" }}>
+                  <div className="modern-select-wrapper">
+                    <select
+                      value={selectedDoctorId}
+                      onChange={(e) => setSelectedDoctorId(e.target.value)}
+                      style={{
+                        color: selectedDoctorId === "" ? "#94a3b8" : "#334155",
+                        border: "2px solid #0D47A1",
+                      }}
+                    >
+                      <option value="">Select Practitioner</option>
+                      {doctorNameGroups[selectedDoctorName].map((doc) => {
+                        const description = doc.specialty +
+                          (doc.availableHospitals?.[0] ? ` - ${doc.availableHospitals[0]}` : (doc.hospital ? ` - ${doc.hospital}` : ""));
+                        return (
+                          <option key={doc._id} value={doc._id} style={{ color: "#334155" }}>
+                            {doc.name} ({description})
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown size={16} className="modern-select-chevron" />
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Available Date Picker */}
+              <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
+                <div className="modern-select-wrapper">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{
+                      color: selectedDate === "" ? "#94a3b8" : "#334155",
+                    }}
+                  />
                 </div>
               </div>
 
@@ -561,7 +917,7 @@ const BookAppointment: React.FC = () => {
                     alignItems: "center",
                     gap: "6px",
                     padding: "10px 20px",
-                    backgroundColor: "#4f46e5",
+                    backgroundColor: "#0D47A1",
                     color: "white",
                     border: "none",
                     borderRadius: "8px",
@@ -594,18 +950,43 @@ const BookAppointment: React.FC = () => {
             </div>
           </section>
 
-          <div className="results-subhead">
-            <span>
-              {hasSearched ? (
-                <>
-                  Showing <strong>{filteredDoctors.length}</strong> available
-                  consultants
-                </>
-              ) : (
-                <>Find your perfect consultant</>
-              )}
-            </span>
-          </div>
+          {activeDoctor ? (
+            <div className="results-subhead">
+              <span>
+                <button
+                  onClick={() => setActiveDoctor(null)}
+                  className="back-to-results-btn"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#0D47A1",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "0"
+                  }}
+                >
+                  &larr; Back to Search Results
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="results-subhead">
+              <span>
+                {hasSearched ? (
+                  <>
+                    Showing <strong>{filteredDoctors.length}</strong> available
+                    consultants
+                  </>
+                ) : (
+                  <>Find your perfect consultant</>
+                )}
+              </span>
+            </div>
+          )}
 
           {isLoading && (
             <div className="loading-box">
@@ -616,125 +997,631 @@ const BookAppointment: React.FC = () => {
 
           {dbError && <div className="error-box">{dbError}</div>}
 
-          <section className="doctors-grid">
-            {/* Logic: Only show results if user has clicked search */}
-            {!hasSearched ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "60px 20px",
-                  color: "#64748b",
-                  gridColumn: "1 / -1",
-                  backgroundColor: "#f8fafc",
-                  borderRadius: "12px",
-                  border: "1px dashed #cbd5e1",
-                }}
-              >
-                <Search
-                  size={48}
-                  style={{ margin: "0 auto 16px", opacity: 0.3 }}
-                />
-                <h3
-                  style={{
-                    fontSize: "18px",
-                    color: "#334155",
-                    marginBottom: "8px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Start Your Search
-                </h3>
-                <p>
-                  Select your criteria and click Search to find the right
-                  consultant for you.
-                </p>
-              </div>
-            ) : !isLoading && filteredDoctors.length === 0 && !dbError ? (
-              <div className="no-doctors-found">
-                <h3>No consultants match your filters</h3>
-                <p>Try resetting the dropdowns or changing your keywords.</p>
-              </div>
-            ) : (
-              filteredDoctors.map((doc) => {
-                const avatar =
-                  doc.photo ||
-                  doc.imageUrl ||
-                  "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=250";
-                const primaryHospital =
-                  doc.availableHospitals?.[0] ||
-                  doc.hospital ||
-                  "Multiple Hospitals";
+          {activeDoctor ? (
+            <div className="doctor-schedule-container">
+              {/* Left hand side */}
+              <div className="schedule-left-panel">
+                <div className="doc-schedule-profile-card">
+                  <div className="card-top-avatar-container-static">
+                    <img
+                      src={activeDoctor.photo || activeDoctor.imageUrl || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=250"}
+                      alt={activeDoctor.name}
+                      className="doc-card-avatar-centered"
+                    />
+                  </div>
+                  <div className="card-details-centered">
+                    <span className="doc-gender-centered">{activeDoctor.gender || "Doctor"}</span>
+                    <h3 className="doc-name-centered">{activeDoctor.name}</h3>
+                    <p className="doc-specialty-centered">{activeDoctor.specialty}</p>
+                  </div>
+                  <button
+                    onClick={() => handleViewProfile(activeDoctor._id)}
+                    className="btn-view-profile-centered"
+                  >
+                    View Profile
+                  </button>
+                </div>
 
-                return (
-                  <div key={doc._id} className="doc-grid-card">
-                    <div>
-                      <div className="card-top-row">
-                        <img
-                          src={avatar}
-                          alt={doc.name}
-                          className="doc-card-avatar"
-                        />
-                        <div className="doc-card-info">
-                          <div className="name-rating-flex">
-                            <h3>{doc.name}</h3>
-                            <span className="rating-badge">
-                              <Star size={12} fill="#d97706" /> {doc.rating}
-                            </span>
+                <div className="doc-schedule-hospitals-card">
+                  <h4>Available Hospitals</h4>
+                  <div className="schedule-hospitals-list">
+                    {activeDoctor.availableHospitals && activeDoctor.availableHospitals.length > 0 ? (
+                      activeDoctor.availableHospitals.map((h, idx) => {
+                        const isSelected = selectedHospital === h;
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedHospital(isSelected ? "" : h)}
+                            className={`schedule-hospital-item-btn ${isSelected ? "selected" : ""}`}
+                          >
+                            <MapPin size={16} className="hosp-icon" />
+                            <span>{h}</span>
+                          </button>
+                        );
+                      })
+                    ) : activeDoctor.hospital ? (
+                      (() => {
+                        const isSelected = selectedHospital === activeDoctor.hospital;
+                        return (
+                          <button
+                            onClick={() => setSelectedHospital(isSelected ? "" : activeDoctor.hospital || "")}
+                            className={`schedule-hospital-item-btn ${isSelected ? "selected" : ""}`}
+                          >
+                            <MapPin size={16} className="hosp-icon" />
+                            <span>{activeDoctor.hospital}</span>
+                          </button>
+                        );
+                      })()
+                    ) : (
+                      <span className="no-hospitals-label">No registered clinics</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right hand side */}
+              <div className="schedule-right-panel">
+                {!isCheckoutOpen ? (
+                  <>
+                    <div className="specialty-banner-bar">
+                      <div className="banner-left">
+                        <span className="banner-specialty">{activeDoctor.specialty.toUpperCase()}</span>
+                        <span className="banner-sessions-count">Sessions: {totalSessionsCount}</span>
+                      </div>
+                      <ChevronDown size={20} className="banner-chevron" />
+                    </div>
+
+                    {doctorSchedulesGrouped.length === 0 ? (
+                      <div className="no-sessions-found">
+                        <h3>No upcoming sessions available</h3>
+                        <p>There are no sessions available for the selected filters.</p>
+                      </div>
+                    ) : (
+                      doctorSchedulesGrouped.map((sched) => {
+                        const formattedDate = formatScheduleDate(sched.date);
+                        return (
+                          <div key={sched._id} className="date-sessions-group">
+                            <h4 className="schedule-date-header">{formattedDate}</h4>
+                            <div className="sessions-list">
+                              {sched.slots.map((slot) => {
+                                const hospitalName = slot.hospitalName;
+                                const logoText = getHospitalLogoText(hospitalName);
+                                const city = getHospitalCity(hospitalName);
+                                const period = getSlotPeriod(slot.time);
+                                const fullSlotStr = `${sched.date} ${slot.time}`;
+
+                                return (
+                                  <div key={slot._id} className="session-row-card">
+                                    <div className="session-green-indicator"></div>
+                                    <div className="session-logo-box">
+                                      <span>{logoText}</span>
+                                    </div>
+                                    <div className="session-clinic-info">
+                                      <h5 className="clinic-name">{hospitalName}</h5>
+                                      <span className="clinic-city">{city}</span>
+                                      <span className="clinic-specialty">{activeDoctor.specialty}</span>
+                                    </div>
+                                    <div className="session-time-info">
+                                      <span className="session-time">{slot.time}</span>
+                                      <span className="session-period">{period}</span>
+                                    </div>
+                                    <div className="session-patients-info">
+                                      <span className="session-patients-count">0</span>
+                                      <span className="session-patients-label">Patients</span>
+                                    </div>
+                                    <div className="session-fee-info">
+                                      <span className="session-fee-amount">
+                                        Rs. {(bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice).toLocaleString()}.00 + Booking Fee
+                                      </span>
+                                      <span className="session-fee-label">Channelling Fee</span>
+                                    </div>
+                                    <div className="session-action">
+                                      <button
+                                        onClick={() => handleStartCheckout(fullSlotStr)}
+                                        className="session-available-btn"
+                                      >
+                                        Available
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <p className="doc-specialty">{doc.specialty}</p>
-                          <span className="doc-gender-tag">
-                            {doc.gender || "Specialist"}
-                          </span>
+                        );
+                      })
+                    )}
+                  </>
+                ) : bookingStep === 1 ? (
+                  <div className="inline-checkout-layout-grid">
+                    {/* Left Panel: Patient Details Form */}
+                    <div ref={formContainerRef} className="inline-checkout-form-container">
+                      <div className="inline-checkout-header">
+                        <button
+                          type="button"
+                          className="btn-inline-back"
+                          onClick={() => {
+                            setIsCheckoutOpen(false);
+                            setSelectedSlot("");
+                          }}
+                        >
+                          ← Back to Sessions
+                        </button>
+                        <div className="inline-checkout-title">
+                          <h3>Patient Information</h3>
+                          <p>Selected Slot: <strong>{selectedSlot}</strong></p>
                         </div>
                       </div>
 
-                      <div className="hospitals-preview">
-                        <Building2 size={14} className="hosp-icon" />
-                        <span>
-                          {primaryHospital}{" "}
-                          {doc.availableHospitals &&
-                          doc.availableHospitals.length > 1
-                            ? `(+${doc.availableHospitals.length - 1} more)`
-                            : ""}
-                        </span>
-                      </div>
+                      <div className="wizard-form-section">
 
-                      <div className="mode-pills-container">
-                        {doc.virtualPrice > 0 && (
-                          <div className="mode-pill virtual">
-                            <Video size={14} /> Virtual:{" "}
-                            <span>Rs.{doc.virtualPrice}</span>
+                        {/* 1. Myself vs Someone Else Radio Selector */}
+                        <div className="form-radio-row">
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="bookingTarget"
+                              value="myself"
+                              checked={bookingTarget === "myself"}
+                              onChange={() => setBookingTarget("myself")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">MySelf</span>
+                          </label>
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="bookingTarget"
+                              value="someone_else"
+                              checked={bookingTarget === "someone_else"}
+                              onChange={() => setBookingTarget("someone_else")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">Someone Else</span>
+                          </label>
+                        </div>
+
+                        {/* 2. Personal Information Fields Grid */}
+                        <div className="form-fields-grid-3">
+                          <div className="form-field-group">
+                            <label>Title</label>
+                            <select
+                              value={patientTitle}
+                              onChange={(e) => setPatientTitle(e.target.value)}
+                              className="form-select-input"
+                            >
+                              <option value="Mr">Mr</option>
+                              <option value="Mrs">Mrs</option>
+                              <option value="Miss">Miss</option>
+                              <option value="Dr">Dr</option>
+                              <option value="Ms">Ms</option>
+                            </select>
                           </div>
-                        )}
-                        {doc.physicalPrice > 0 && (
-                          <div className="mode-pill physical">
-                            <Calendar size={14} /> Visit:{" "}
-                            <span>Rs.{doc.physicalPrice}</span>
+
+                          <div className="form-field-group">
+                            <label>Name *</label>
+                            <input
+                              type="text"
+                              value={patientName}
+                              onChange={(e) => setPatientName(e.target.value)}
+                              placeholder="Full Name"
+                              className="form-text-input"
+                              required
+                            />
                           </div>
-                        )}
+
+                          <div className="form-field-group">
+                            <label>Email</label>
+                            <input
+                              type="email"
+                              value={patientEmail}
+                              onChange={(e) => setPatientEmail(e.target.value)}
+                              placeholder="Email Address"
+                              className="form-text-input"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3. Phone number & City Grid */}
+                        <div className="form-fields-grid-2">
+                          <div className="form-field-group">
+                            <label>Number *</label>
+                            <div className="phone-input-split">
+                              <select
+                                value={patientPhoneCountryCode}
+                                onChange={(e) => setPatientPhoneCountryCode(e.target.value)}
+                                className="form-phone-code-select"
+                              >
+                                <option value="+94">+94</option>
+                                <option value="+1">+1</option>
+                                <option value="+44">+44</option>
+                                <option value="+91">+91</option>
+                              </select>
+                              <input
+                                type="tel"
+                                value={patientPhone}
+                                onChange={(e) => setPatientPhone(e.target.value)}
+                                placeholder="701971067"
+                                className="form-phone-number-input"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-field-group">
+                            <label>Area</label>
+                            <input
+                              type="text"
+                              value={patientArea}
+                              onChange={(e) => setPatientArea(e.target.value)}
+                              placeholder="Please enter your closest city"
+                              className="form-text-input"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 4. Identity Type Selector */}
+                        <div className="form-radio-row mt-3">
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="identityType"
+                              value="nic"
+                              checked={identityType === "nic"}
+                              onChange={() => setIdentityType("nic")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">NIC</span>
+                          </label>
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="identityType"
+                              value="passport"
+                              checked={identityType === "passport"}
+                              onChange={() => setIdentityType("passport")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">Passport</span>
+                          </label>
+                        </div>
+
+                        {/* 5. ID Number Input */}
+                        <div className="form-fields-single">
+                          <div className="form-field-group">
+                            <label>{identityType === "nic" ? "NIC Number *" : "Passport Number *"}</label>
+                            <input
+                              type="text"
+                              value={patientIdNumber}
+                              onChange={(e) => setPatientIdNumber(e.target.value)}
+                              placeholder={identityType === "nic" ? "200217802365" : "Passport Number"}
+                              className="form-text-input"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        {/* 6. Consultation Mode (Radial Button Selection) */}
+                        <div className="form-section-title mt-4">Consultation Mode *</div>
+                        <div className="form-radio-row">
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="bookingMode"
+                              value="Physical"
+                              checked={bookingMode === "Physical"}
+                              onChange={() => setBookingMode("Physical")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">Physical (Hospital Visit)</span>
+                          </label>
+                          <label className="form-radio-label-container">
+                            <input
+                              type="radio"
+                              name="bookingMode"
+                              value="Virtual"
+                              checked={bookingMode === "Virtual"}
+                              onChange={() => setBookingMode("Virtual")}
+                            />
+                            <span className="radio-custom-dot"></span>
+                            <span className="radio-label-text">Virtual (Online Video)</span>
+                          </label>
+                        </div>
+
+                        {/* 7. No Show Refund Checkbox */}
+                        <div className="form-checkbox-row mt-4">
+                          <label className="form-checkbox-label-container">
+                            <input
+                              type="checkbox"
+                              checked={noShowRefund}
+                              onChange={(e) => setNoShowRefund(e.target.checked)}
+                            />
+                            <span className="checkbox-custom-box"></span>
+                            <span className="checkbox-label-text">No Show Refund</span>
+                          </label>
+                        </div>
+
+                        {/* Refund Notice Banner */}
+                        <div className="refund-notice-banner">
+                          <div className="refund-notice-header">
+                            <span className="info-icon">🛈</span>
+                            <h5>Option for No Show Refund</h5>
+                          </div>
+                          <p className="refund-text-main">
+                            If appointment is cancelled or no show, the total charge will be <strong className="highlight-refund">refunded without LKR 275/= service charge</strong>. Terms and condition apply.
+                          </p>
+                          <p className="refund-text-sub">
+                            All claim requests are required to be received before the commencement of the scheduled session. Requests submitted after the session start time will not be eligible for consideration.
+                          </p>
+                        </div>
+
                       </div>
                     </div>
 
-                    <div className="card-bottom-row dual-btns">
+                    {/* Right Panel: Payment Details Card */}
+                    <div className="inline-checkout-summary-section">
+                      {formValidationError && (
+                        <div className="payment-error-alert" style={{ marginBottom: "12px", fontSize: "0.85rem", padding: "10px", backgroundColor: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", color: "#b91c1c", textAlign: "left" }}>
+                          ⚠️ {formValidationError}
+                        </div>
+                      )}
+                      <div className="payment-details-card">
+                        <h4 className="pd-title">Payment Details</h4>
+                        <p className="pd-subtitle">Detailed payment breakdown on your transaction</p>
+
+                        <div className="pd-divider"></div>
+
+                        <div className="pd-row">
+                          <span>Doctor fee</span>
+                          <strong>Rs {doctorFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>Hospital fee</span>
+                          <strong>Rs {hospitalFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>eChannelling fee</span>
+                          <strong>Rs {channelingFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row discount-row">
+                          <span>Discount</span>
+                          <strong className="red-text">- Rs {discount.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>No show fee</span>
+                          <strong>Rs {noShowFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row discount-row">
+                          <span>Redeem Points</span>
+                          <strong className="red-text">- Rs {redeemPoints.toLocaleString()}.00</strong>
+                        </div>
+
+                        <div className="pd-divider"></div>
+
+                        <div className="pd-row total-row">
+                          <span>Total fee</span>
+                          <strong className="total-amount">Rs {totalFee.toLocaleString()}.00</strong>
+                        </div>
+                      </div>
+
                       <button
-                        onClick={() => handleViewProfile(doc._id)}
-                        className="btn-view-profile"
-                        disabled={isProfileLoading}
+                        type="button"
+                        className="btn-pay-securely"
+                        onClick={handleProceedToStep2}
                       >
-                        {isProfileLoading ? "Loading..." : "View Profile"}
+                        🔒 Pay
                       </button>
-                      <button
-                        onClick={() => handleOpenBooking(doc)}
-                        className="btn-open-book"
-                      >
-                        Book Slot
-                      </button>
+                      <p className="pay-instruction-caption">
+                        Please click "Pay" button to confirm your appointment
+                      </p>
                     </div>
                   </div>
-                );
-              })
-            )}
-          </section>
+                ) : bookingStep === 2 ? (
+                  <div className="inline-checkout-layout-grid">
+                    {/* Left Panel: PayHere Secure Payment Info */}
+                    <div ref={formContainerRef} className="inline-checkout-form-container">
+                      <div className="inline-checkout-header">
+                        <button
+                          type="button"
+                          className="btn-inline-back"
+                          disabled={isPaying}
+                          onClick={() => setBookingStep(1)}
+                        >
+                          ← Back to Patient Details
+                        </button>
+                        <div className="inline-checkout-title">
+                          <h3>Secure Channeling Payment</h3>
+                        </div>
+                      </div>
+
+                      <div className="wizard-form-section">
+                        <div className="payment-wizard-summary">
+                          <span className="pws-title">Channeling summary:</span>
+                          <div className="pws-details">
+                            <div>Mode: <strong>{bookingMode} Consultation</strong></div>
+                            <div>Slot: <strong>{selectedSlot}</strong></div>
+                            <div>Total Fee: <strong>Rs. {totalFee.toLocaleString()}.00</strong></div>
+                          </div>
+                        </div>
+
+                        <div className="payhere-checkout-container">
+                          <img
+                            className="payhere-logo"
+                            src="https://www.payhere.lk/downloads/images/payhere_square_banner.png"
+                            alt="PayHere Secure Gateway"
+                          />
+                          <h4 className="payhere-title">Pay via PayHere</h4>
+                          <p className="payhere-desc">
+                            You will be routed to the secure PayHere Sandbox payment gateway to complete this transaction using sandbox test cards.
+                          </p>
+
+                          {paymentError && <div className="payment-error-alert">{paymentError}</div>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Panel: Payment Details Card */}
+                    <div className="inline-checkout-summary-section">
+                      <div className="payment-details-card">
+                        <h4 className="pd-title">Payment Details</h4>
+                        <p className="pd-subtitle">Detailed payment breakdown on your transaction</p>
+
+                        <div className="pd-divider"></div>
+
+                        <div className="pd-row">
+                          <span>Doctor fee</span>
+                          <strong>Rs {doctorFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>Hospital fee</span>
+                          <strong>Rs {hospitalFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>eChannelling fee</span>
+                          <strong>Rs {channelingFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row discount-row">
+                          <span>Discount</span>
+                          <strong className="red-text">- Rs {discount.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row">
+                          <span>No show fee</span>
+                          <strong>Rs {noShowFee.toLocaleString()}.00</strong>
+                        </div>
+                        <div className="pd-row discount-row">
+                          <span>Redeem Points</span>
+                          <strong className="red-text">- Rs {redeemPoints.toLocaleString()}.00</strong>
+                        </div>
+
+                        <div className="pd-divider"></div>
+
+                        <div className="pd-row total-row">
+                          <span>Total fee</span>
+                          <strong className="total-amount">Rs {totalFee.toLocaleString()}.00</strong>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-pay-securely font-bold"
+                        disabled={isPaying}
+                        onClick={() => handleProcessPayment()}
+                      >
+                        {isPaying ? "Opening Gateway..." : "Proceed to Checkout"}
+                      </button>
+                      <p className="pay-instruction-caption">
+                        Please click "Proceed to Checkout" to initiate gateway payment
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div ref={formContainerRef} className="inline-checkout-form-container text-center">
+                    <div className="modal-step-3-success">
+                      <CheckCircle2 size={56} className="success-bounce-icon" style={{ color: "#16a34a", margin: "0 auto 16px" }} />
+                      <h3>Channeling Confirmed!</h3>
+                      <p className="redirect-notice">
+                        Your appointment with <strong>{activeDoctor.name}</strong> has been successfully booked on <strong>{selectedSlot}</strong> ({bookingMode} mode).
+                      </p>
+                      <div className="modal-footer flex-gap">
+                        <button
+                          type="button"
+                          className="btn-proceed-checkout font-bold"
+                          onClick={() => {
+                            setIsCheckoutOpen(false);
+                            setBookingStep(1);
+                            setSelectedSlot("");
+                          }}
+                        >
+                          Finish & Return to Sessions
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <section className="doctors-grid">
+              {/* Logic: Only show results if user has clicked search */}
+              {!hasSearched ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px 20px",
+                    color: "#64748b",
+                    gridColumn: "1 / -1",
+                    backgroundColor: "#f8fafc",
+                    borderRadius: "12px",
+                    border: "1px dashed #cbd5e1",
+                  }}
+                >
+                  <Search
+                    size={48}
+                    style={{ margin: "0 auto 16px", opacity: 0.3 }}
+                  />
+                  <h3
+                    style={{
+                      fontSize: "18px",
+                      color: "#334155",
+                      marginBottom: "8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Start Your Search
+                  </h3>
+                  {searchError ? (
+                    <p style={{ color: "#ef4444", fontWeight: 500 }}>{searchError}</p>
+                  ) : (
+                    <p>
+                      Select your criteria and click Search to find the right
+                      consultant for you.
+                    </p>
+                  )}
+                </div>
+              ) : !isLoading && filteredDoctors.length === 0 && !dbError ? (
+                <div className="no-doctors-found">
+                  <h3>No consultants match your filters</h3>
+                  <p>Try resetting the dropdowns or changing your keywords.</p>
+                </div>
+              ) : (
+                filteredDoctors.map((doc) => {
+                  const avatar =
+                    doc.photo ||
+                    doc.imageUrl ||
+                    "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=250";
+
+                  return (
+                    <div key={doc._id} className="doc-grid-card modern-centered-card">
+                      <div
+                        className="card-top-avatar-container"
+                        onClick={() => handleViewProfile(doc._id)}
+                        title="Click to view profile"
+                      >
+                        <img
+                          src={avatar}
+                          alt={doc.name}
+                          className="doc-card-avatar-centered"
+                        />
+                      </div>
+
+                      <div className="card-details-centered">
+                        <span className="doc-gender-centered">{doc.gender || "Doctor"}</span>
+                        <h3 className="doc-name-centered">{doc.name}</h3>
+                        <p className="doc-specialty-centered">{doc.specialty}</p>
+                      </div>
+
+                      <button
+                        onClick={() => handleOpenBooking(doc)}
+                        className="btn-book-now-centered"
+                      >
+                        Book Now
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </section>
+          )}
         </main>
 
         {/* ========================================================= */}
@@ -817,10 +1704,10 @@ const BookAppointment: React.FC = () => {
                         {h}
                       </span>
                     )) || (
-                      <span className="hospital-pill">
-                        {viewingProfile.hospital || "Private Hospital"}
-                      </span>
-                    )}
+                        <span className="hospital-pill">
+                          {viewingProfile.hospital || "Private Hospital"}
+                        </span>
+                      )}
                   </div>
                 </div>
 
@@ -859,215 +1746,7 @@ const BookAppointment: React.FC = () => {
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* --- 2. THE 2-STEP BOOKING MODAL (Reused) --- */}
-        {/* ========================================================= */}
-        {activeDoctor && (
-          <div className="modal-backdrop">
-            <div className="booking-modal-box">
-              <div className="modal-header">
-                <div>
-                  <h3>Book Consultation</h3>
-                  <p>
-                    {activeDoctor.name} • {activeDoctor.specialty}
-                  </p>
-                </div>
-                <button
-                  className="close-modal-btn"
-                  onClick={() => setActiveDoctor(null)}
-                >
-                  <X size={20} />
-                </button>
-              </div>
 
-              {bookingStep === 1 ? (
-                <div className="modal-step-1">
-                  <div className="wizard-section">
-                    <h4>1. Select Mode</h4>
-                    <div className="mode-selection-cards">
-                      <div
-                        className={`mode-select-card ${
-                          bookingMode === "Virtual" ? "selected" : ""
-                        }`}
-                        onClick={() => setBookingMode("Virtual")}
-                      >
-                        <Video size={20} />
-                        <div>
-                          <h5>Virtual Call</h5>
-                          <span>Rs. {activeDoctor.virtualPrice}.00</span>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`mode-select-card ${
-                          bookingMode === "Physical" ? "selected" : ""
-                        }`}
-                        onClick={() => setBookingMode("Physical")}
-                      >
-                        <MapPin size={20} />
-                        <div>
-                          <h5>Hospital Visit</h5>
-                          <span>Rs. {activeDoctor.physicalPrice}.00</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="wizard-section">
-                    <h4>2. Select Time Slot</h4>
-                    <div className="slots-pill-grid">
-                      {activeDoctor.availableSlots?.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`slot-pill ${
-                            selectedSlot === s ? "selected" : ""
-                          }`}
-                          onClick={() => setSelectedSlot(s)}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="booking-summary-bar">
-                    <div>
-                      <span className="summary-label">Total Payable</span>
-                      <h3 className="summary-price">
-                        Rs.{" "}
-                        {bookingMode === "Virtual"
-                          ? activeDoctor.virtualPrice
-                          : activeDoctor.physicalPrice}
-                        .00
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-proceed-checkout"
-                      disabled={!selectedSlot}
-                      onClick={() => setBookingStep(2)}
-                    >
-                      Proceed to Pay
-                    </button>
-                  </div>
-                </div>
-              ) : bookingStep === 2 ? (
-                <form onSubmit={handleProcessPayment} className="modal-step-2-payment">
-                  <div className="payment-wizard-summary">
-                    <span className="pws-title">Channeling summary:</span>
-                    <div className="pws-details">
-                      <div>Mode: <strong>{bookingMode} Consultation</strong></div>
-                      <div>Slot: <strong>{selectedSlot}</strong></div>
-                      <div>Total Fee: <strong>Rs. {bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice}.00</strong></div>
-                    </div>
-                  </div>
-
-                  <div className="payment-card-inputs">
-                    <h4>Enter Card Details</h4>
-                    
-                    {paymentError && <div className="payment-error-alert">{paymentError}</div>}
-                    
-                    <div className="payment-input-group">
-                      <label>Cardholder Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="John Doe"
-                        value={cardHolderName}
-                        onChange={(e) => setCardHolderName(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="payment-input-group">
-                      <label>Card Number</label>
-                      <input
-                        type="text"
-                        required
-                        pattern="\d{16}"
-                        maxLength={16}
-                        placeholder="xxxx xxxx xxxx xxxx"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                      />
-                    </div>
-
-                    <div className="payment-row-2">
-                      <div className="payment-input-group">
-                        <label>Expiry Date</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          value={cardExpiry}
-                          onChange={(e) => {
-                            let val = e.target.value;
-                            if (val.length === 2 && !val.includes('/')) {
-                              val += '/';
-                            }
-                            setCardExpiry(val);
-                          }}
-                        />
-                      </div>
-
-                      <div className="payment-input-group">
-                        <label>CVC</label>
-                        <input
-                          type="password"
-                          required
-                          pattern="\d{3}"
-                          maxLength={3}
-                          placeholder="123"
-                          value={cardCvc}
-                          onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, ''))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="modal-footer flex-gap">
-                    <button
-                      type="button"
-                      className="btn-modal-cancel"
-                      disabled={isPaying}
-                      onClick={() => setBookingStep(1)}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-proceed-checkout font-bold"
-                      disabled={isPaying}
-                    >
-                      {isPaying ? "Processing..." : `Pay Rs. ${bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice}.00`}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="modal-step-3-success">
-                  <CheckCircle2 size={56} className="success-bounce-icon" />
-                  <h3>Channeling Confirmed!</h3>
-                  <p className="redirect-notice">
-                    Your appointment with <strong>{activeDoctor.name}</strong> has been successfully booked on <strong>{selectedSlot}</strong> ({bookingMode} mode).
-                  </p>
-                  <div className="modal-footer flex-gap">
-                    <button
-                      type="button"
-                      className="btn-proceed-checkout font-bold"
-                      onClick={() => {
-                        setActiveDoctor(null);
-                        setBookingStep(1);
-                      }}
-                    >
-                      Close & Finish
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

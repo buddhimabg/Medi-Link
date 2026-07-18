@@ -25,6 +25,7 @@ const app = express();
 ================== */
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.resolve("uploads")));
 
 /* ==================
@@ -56,6 +57,7 @@ app.use('/api/doctors', require('./routes/doctorRoutes'));
 app.use('/api/wellness', require('./routes/WellnessRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/assessments', require('./routes/assessmentRoutes'));
 
 /* ==================

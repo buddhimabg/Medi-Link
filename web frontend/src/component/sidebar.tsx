@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  ArrowLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
   Home,
   Calendar,
   BookOpen,
@@ -19,6 +20,7 @@ import "./Sidebar.css";
 const Sidebar: React.FC = () => {
   // We use this to check which page is currently active so we can highlight it
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
     { name: "Dashboard", path: "/dashboard", icon: <Home size={20} /> },
@@ -60,12 +62,16 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
       {/* Header */}
       <div className="sidebar-header">
-        <h2>MediLink</h2>
-        <button className="collapse-btn">
-          <ArrowLeft size={20} />
+        {!isCollapsed && <h2>MediLink</h2>}
+        <button 
+          className="collapse-btn" 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
         </button>
       </div>
 

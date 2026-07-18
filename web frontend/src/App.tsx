@@ -8,6 +8,7 @@ import Patientdashboard from "./pages/patientDashboard";
 import BookAppointment from "./pages/bookAppointment";
 import WellnessHub from "./pages/WellnessHub";
 import Assessments from "./pages/assessments"; // Added mental health assessments page
+import AppointmentHistory from "./pages/appointmentHistory";
 import WellnessVideos from "./pages/wellness/WellnessVideos";
 import WellnessMindfulness from "./pages/wellness/WellnessMindfulness";
 import WellnessSleep from "./pages/wellness/WellnessSleep";
@@ -25,6 +26,7 @@ const App: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<Patientdashboard />} />
         <Route path="/bookAppointment" element={<BookAppointment />} />
+        <Route path="/history" element={<AppointmentHistory />} />
         <Route path="/Wellnesshub" element={<WellnessHub />} />
         <Route path="/assessments" element={<Assessments />} />
         
