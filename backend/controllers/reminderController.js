@@ -504,6 +504,7 @@ const checkMedicationDuplicate = (newReminder, existingReminders = [], allNewRem
 
       return {
         ...reminder,
+        isDisabledToday: disabledToday,
         disabledToday,
         status: disabledToday ? "skipped" : "pending",
       };

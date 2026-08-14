@@ -13,6 +13,7 @@ import { Camera, Mic, BookOpen, Sparkles, Shield } from 'lucide-react';
 import { InlineAlert, LoadingButton } from '../../components/ui';
 import { FACE_API_MODEL_CDN_URL, UI_ALERT_TIMEOUT_MS } from '../../config';
 import { isMeaningfulText } from '../../utils/validation';
+import { getErrorMessage } from '../../utils/errorHandler';
 
 type DetectionStatus = 'idle' | 'loading' | 'success' | 'failed' | 'error';
 
@@ -39,6 +40,7 @@ const CheckInPage1: React.FC = () => {
   const [pageError, setPageError]             = useState<string>('');
   const [pageSuccess, setPageSuccess]         = useState<string>('');
   const [journalError, setJournalError]       = useState<string>('');
+  const [voiceError, setVoiceError]           = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -53,16 +55,24 @@ const CheckInPage1: React.FC = () => {
     const saved = localStorage.getItem('moodDraft');
     if (saved) {
       const d = JSON.parse(saved);
-      if (d.mood) setSelectedMood(d.mood);
-      if (d.note) setNote(d.note);
-      if (d.levels || d.aiFields) {
-        setCurrentCheckIn({
-          ...currentCheckIn,
-          ...(d.mood ? { mood: d.mood } : {}),
-          ...(d.note ? { note: d.note } : {}),
-          ...(d.levels ? { levels: d.levels } : {}),
-          ...(d.aiFields ? { aiFields: d.aiFields } : {}),
-        });
+      // Check if draft is stale (older than 24 hours)
+      const draftAge = d.savedAt ? Date.now() - d.savedAt : Infinity;
+      const isStale = draftAge > 24 * 60 * 60 * 1000;
+      if (isStale) {
+        // Clear stale draft entirely
+        localStorage.removeItem('moodDraft');
+      } else {
+        if (d.mood) setSelectedMood(d.mood);
+        if (d.note) setNote(d.note);
+        if (d.levels || d.aiFields) {
+          setCurrentCheckIn({
+            ...currentCheckIn,
+            ...(d.mood ? { mood: d.mood } : {}),
+            ...(d.note ? { note: d.note } : {}),
+            ...(d.levels ? { levels: d.levels } : {}),
+            ...(d.aiFields ? { aiFields: d.aiFields } : {}),
+          });
+        }
       }
     } else if (currentCheckIn.mood) {
       setSelectedMood(currentCheckIn.mood);
@@ -91,6 +101,7 @@ const CheckInPage1: React.FC = () => {
       date: formattedDate,
       levels: currentCheckIn.levels,
       aiFields: currentCheckIn.aiFields || {},
+      savedAt: Date.now(),
     };
     setCurrentCheckIn(draftData);
     localStorage.setItem('moodDraft', JSON.stringify(draftData));
@@ -106,6 +117,7 @@ const CheckInPage1: React.FC = () => {
 
   /* ── Voice recording ── */
   const handleStartRecording = async () => {
+    setVoiceError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr     = new MediaRecorder(stream);
@@ -121,12 +133,12 @@ const CheckInPage1: React.FC = () => {
           setCombinedLoading(true);
           const r = await analyzeCombined({ journalText: updated, cameraData: detectedMood ? { mood: detectedMood, confidence: detectedConfidence } : undefined });
           if (r) triggerReview(r);
-        } catch (e) { console.error(e); setPageError('Failed to analyze voice'); }
+        } catch (e) { console.error(e); setVoiceError(getErrorMessage(e, 'Failed to analyze voice')); }
         finally { setCombinedLoading(false); }
       };
       mr.start();
       setIsRecording(true);
-    } catch (e) { console.error(e); setPageError('Could not access microphone'); }
+    } catch (e) { console.error(e); setVoiceError('Could not access microphone'); }
   };
   const handleStopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -157,7 +169,7 @@ const CheckInPage1: React.FC = () => {
       if (r) triggerReview(r);
     } catch (e) {
       console.error(e);
-      setJournalError('Failed to run combined analysis');
+      setJournalError(getErrorMessage(e, 'Failed to run combined analysis'));
     } finally {
       setCombinedLoading(false);
     }
@@ -462,6 +474,11 @@ const CheckInPage1: React.FC = () => {
                   <div className="sma-loading-row" style={{ marginTop: '0.625rem' }}>
                     <div className="sma-spinner" />
                     <span className="sma-loading-text">Processing voice…</span>
+                  </div>
+                )}
+                {voiceError && (
+                  <div style={{ marginTop: '0.625rem' }}>
+                    <InlineAlert type="error" message={voiceError} onClose={() => setVoiceError('')} />
                   </div>
                 )}
               </div>

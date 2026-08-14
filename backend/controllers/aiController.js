@@ -32,17 +32,31 @@ const processJournal = async (req, res) => {
 };
 
 // POST /api/ai/analyze-speech
+// Accepts audio file via multer (req.file) or text transcript in body
 const processSpeech = async (req, res) => {
   try {
-    // In a real implementation, you'd handle file uploads with multer
-    const body = req.body || {};
-    const speechText = body.speechText || body.transcript || body.text || (typeof body === "string" ? body : null);
-    if ((!speechText || (typeof speechText === "string" && !speechText.trim())) && !req.file && Object.keys(body).length === 0) {
-      return res.status(400).json(apiFail("Speech analysis input is required"));
+    let result;
+
+    if (req.file && req.file.buffer) {
+      // Audio file uploaded — send to Gemini for transcription + analysis
+      console.log(`[AIController] Received audio file: ${req.file.mimetype}, size: ${req.file.size} bytes`);
+      result = await analyzeSpeech(req.file.buffer, req.file.mimetype || "audio/webm");
+    } else {
+      // Check for text transcript in body
+      const body = req.body || {};
+      const speechText = body.speechText || body.transcript || body.text || (typeof body === "string" ? body : null);
+
+      if (!speechText || (typeof speechText === "string" && !speechText.trim())) {
+        return res.status(400).json(apiFail("Speech analysis input is required. Please provide an audio file or text transcript."));
+      }
+
+      // Analyze text transcript
+      result = await analyzeSpeech(speechText, "text/plain");
     }
-    const result = await analyzeSpeech(req.body);
+
     res.json(apiSuccess(result, "Speech analyzed successfully"));
   } catch (error) {
+    console.error("[AIController] Speech analysis error:", error);
     res.status(500).json(apiFail("Failed to analyze speech", error.message));
   }
 };
@@ -93,8 +107,8 @@ const processCombinedAnalysis = async (req, res) => {
     }
     
     if (hasSpeech) {
-      // simulate speech analysis with the provided text
-      speechResult = await analyzeSpeech(speechText);
+      // Analyze speech text transcript
+      speechResult = await analyzeSpeech(speechText, "text/plain");
     }
 
     if (hasCamera) {

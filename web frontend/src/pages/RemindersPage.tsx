@@ -133,7 +133,13 @@ const RemindersPage = () => {
     initialRefresh: true,
   });
 
-  const todayReminders = useMemo(() => getTodayReminders(reminders), [reminders]);
+  const todayReminders = useMemo(() => {
+    // Filter out expired/completed reminders — they should not appear on the page
+    const activeReminders = reminders.filter(
+      (r) => r.isActive !== false && r.status !== "completed"
+    );
+    return getTodayReminders(activeReminders);
+  }, [reminders]);
 
   const counts = useMemo(() => {
     const offToday = todayReminders.filter((item) => isReminderOffToday(item)).length;
@@ -532,7 +538,7 @@ const RemindersPage = () => {
     const disabledDates = Array.isArray(reminder.disabledDates)
       ? reminder.disabledDates.map((value) => String(value).trim()).filter(Boolean)
       : [];
-    const isOffToday = reminder.disabledToday || disabledDates.includes(todayDate);
+    const isOffToday = reminder.disabledToday || reminder.isDisabledToday || reminder.status === "skipped" || disabledDates.includes(todayDate);
     const shouldDisableToday = forceDisableToday ?? !isOffToday;
     const nextDisabledDates = shouldDisableToday
       ? Array.from(new Set([...disabledDates, todayDate]))
@@ -566,7 +572,9 @@ const RemindersPage = () => {
         };
       }));
 
-      await loadReminders({ force: true });
+      // Invalidate cache so the next auto-refresh picks up the persisted state,
+      // but don't force-refetch — the optimistic update above already reflects the correct UI.
+      useReminderStore.getState().invalidateReminders();
       setActionMessage(shouldDisableToday ? "Reminder turned off for today." : "Reminder turned on for today.");
     } catch (requestError) {
       setActionError(getErrorMessage(requestError, "Unable to update reminder."));
@@ -581,7 +589,7 @@ const RemindersPage = () => {
       return;
     }
 
-    if (reminder.disabledToday) {
+    if (reminder.disabledToday || reminder.isDisabledToday || reminder.status === "skipped") {
       return;
     }
 

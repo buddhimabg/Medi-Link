@@ -60,6 +60,14 @@ client.interceptors.response.use(
     }
 
     if (error?.request) {
+      // Distinguish timeout from true network failure
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        const customError = new Error("Request timed out. The AI service may be busy — please try again.") as CustomError;
+        customError.type = "TimeoutError";
+        customError.status = 0;
+        customError.details = null;
+        throw customError;
+      }
       const customError = new Error("Network error. Please check your connection.") as CustomError;
       customError.type = "NetworkError";
       customError.status = 0;

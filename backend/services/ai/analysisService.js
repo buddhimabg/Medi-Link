@@ -4,47 +4,209 @@
  * Analysis Service
  * Provides a hybrid rule-based and LLM (mock) analysis of journal text.
  * Returns detailed suggestions with confidence scores and evidence for each metric.
+ *
+ * Supports both POSITIVE and NEGATIVE keyword detection for all 7 wellbeing metrics,
+ * plus negation handling (e.g. "not stressed", "don't feel anxious").
  */
 
-// Keywords mapping for rule detection
+// ─── Keyword mapping: each metric has positive AND negative indicators ───
 const RULE_KEYWORDS = {
-  stress: [
-    /stressed/i,
-    /overwhelmed/i,
-    /deadlines?/i,
-    /pressure/i,
-    /pressured/i,
+  // ── Stress ──
+  stressHigh: [
+    /\bstressed\b/i,
+    /\boverwhelmed\b/i,
+    /\bdeadlines?\b/i,
+    /\bpressured?\b/i,
+    /\bunder pressure\b/i,
+    /\bburnout\b/i,
+    /\bburnt?\s*out\b/i,
+    /\btoo much work\b/i,
+    /\bstressful\b/i,
   ],
-  anxiety: [
-    /worried/i,
-    /nervous/i,
-    /anxious/i,
-    /fearful/i,
-    /apprehensive/i,
+  stressLow: [
+    /\brelax(?:ed|ing)?\b/i,
+    /\bno stress\b/i,
+    /\bstress[\s-]*free\b/i,
+    /\bpeaceful\b/i,
+    /\bcalm\b/i,
+    /\bat ease\b/i,
+    /\bchilled?\b/i,
+    /\bunwinding\b/i,
   ],
-  focusDecrease: [/difficulty concentrating/i, /hard to focus/i, /can't focus/i, /trouble concentrating/i],
-  energyDecrease: [
-    /not energetic/i,
-    /tired/i,
-    /exhausted/i,
-    /fatigued/i,
-    /low energy/i,
+
+  // ── Anxiety ──
+  anxietyHigh: [
+    /\bworried\b/i,
+    /\bnervous\b/i,
+    /\banxious\b/i,
+    /\bfearful\b/i,
+    /\bapprehensive\b/i,
+    /\bpanick?(?:ing|ed|y)?\b/i,
+    /\buneasy\b/i,
+    /\bon edge\b/i,
   ],
-  socialIncrease: [
-    /talk with friends/i,
-    /talk with family/i,
-    /family support/i,
-    /social support/i,
-    /friends? support/i,
+  anxietyLow: [
+    /\bcalm\b/i,
+    /\brelax(?:ed|ing)?\b/i,
+    /\bat peace\b/i,
+    /\bno anxi(?:ety|ous)\b/i,
+    /\bpeaceful\b/i,
+    /\bcomfortable\b/i,
+    /\bserene\b/i,
   ],
-  sleepDecrease: [
-    /poor sleep/i,
-    /awake at night/i,
-    /insomnia/i,
-    /can't sleep/i,
-    /sleeping only \d+-?\d* hours/i,
+
+  // ── Focus ──
+  focusLow: [
+    /\bdifficulty concentrating\b/i,
+    /\bhard to focus\b/i,
+    /\bcan'?t focus\b/i,
+    /\btrouble concentrating\b/i,
+    /\bdistracted\b/i,
+    /\bfoggy\b/i,
+    /\bbrain fog\b/i,
+    /\bcan'?t concentrate\b/i,
+  ],
+  focusHigh: [
+    /\bfocused\b/i,
+    /\bconcentrat(?:ed|ing)\b/i,
+    /\bin the zone\b/i,
+    /\bsharp\b/i,
+    /\bclear headed\b/i,
+    /\bclear[\s-]*mind(?:ed)?\b/i,
+    /\bproductive\b/i,
+    /\bgood focus\b/i,
+  ],
+
+  // ── Energy ──
+  energyLow: [
+    /\bnot energetic\b/i,
+    /\btired\b/i,
+    /\bexhausted\b/i,
+    /\bfatigued\b/i,
+    /\blow energy\b/i,
+    /\bdrained\b/i,
+    /\bsluggish\b/i,
+    /\blethargic\b/i,
+    /\bno energy\b/i,
+    /\bwiped out\b/i,
+  ],
+  energyHigh: [
+    /\benergetic\b/i,
+    /\benergy.{0,10}(?:good|great|high|amazing|fantastic)\b/i,
+    /\b(?:good|great|high|amazing|fantastic).{0,10}energy\b/i,
+    /\bfull of energy\b/i,
+    /\bactive\b/i,
+    /\bvigorous\b/i,
+    /\bfeel(?:ing)?\s+alive\b/i,
+    /\brefreshed\b/i,
+    /\bwide awake\b/i,
+    /\benergized\b/i,
+  ],
+
+  // ── Motivation ──
+  motivationLow: [
+    /\bno motivation\b/i,
+    /\bunmotivated\b/i,
+    /\black(?:ing)? motivation\b/i,
+    /\bcan'?t (?:be bothered|start)\b/i,
+    /\bdon'?t (?:want|feel like) (?:do|doing)\b/i,
+    /\bno drive\b/i,
+    /\bapathetic\b/i,
+    /\bhard to start\b/i,
+    /\bprocrastinat(?:ing|ed|e)\b/i,
+    /\blazy\b/i,
+  ],
+  motivationHigh: [
+    /\bmotivated\b/i,
+    /\binspired\b/i,
+    /\bdetermined\b/i,
+    /\bdriven\b/i,
+    /\bproductive\b/i,
+    /\bambitious\b/i,
+    /\bready to (?:go|work|start)\b/i,
+    /\bfeel(?:ing)? (?:more )?motivated\b/i,
+    /\bfeel(?:ing)? great about\b/i,
+    /\bexcited to\b/i,
+    /\beager\b/i,
+  ],
+
+  // ── Social Interaction ──
+  socialHigh: [
+    /\btalk(?:ed|ing)? (?:with|to) friends?\b/i,
+    /\btalk(?:ed|ing)? (?:with|to) family\b/i,
+    /\bfamily support\b/i,
+    /\bsocial support\b/i,
+    /\bfriends? support\b/i,
+    /\bspent time with\b/i,
+    /\bhung out\b/i,
+    /\bsociali[sz](?:ed|ing)\b/i,
+    /\bmet (?:up )?with\b/i,
+    /\bconnected with\b/i,
+    /\bgathering\b/i,
+    /\bparty\b/i,
+    /\bsocial\b/i,
+  ],
+  socialLow: [
+    /\bisolat(?:ed|ion|ing)\b/i,
+    /\balone\b/i,
+    /\blonely\b/i,
+    /\bavoided (?:people|everyone|interaction)\b/i,
+    /\bno social\b/i,
+    /\bwithdr(?:awn|ew)\b/i,
+    /\banti[\s-]*social\b/i,
+    /\bdidn'?t talk\b/i,
+    /\bstayed in\b/i,
+    /\bno one to talk\b/i,
+  ],
+
+  // ── Sleep ──
+  sleepLow: [
+    /\bpoor(?:ly)? sleep\b/i,
+    /\bslept poorly\b/i,
+    /\bawake at night\b/i,
+    /\binsomnia\b/i,
+    /\bcan'?t sleep\b/i,
+    /\bcouldn'?t sleep\b/i,
+    /\bsleeping only \d+-?\d* hours?\b/i,
+    /\bbad sleep\b/i,
+    /\btossed? and turned?\b/i,
+    /\bwoke up (?:multiple|several|many) times?\b/i,
+    /\bdidn'?t sleep (?:well|enough|much)\b/i,
+    /\bhardly slept\b/i,
+    /\brestless night\b/i,
+  ],
+  sleepHigh: [
+    /\bsleep\s*well\b/i,
+    /\bslept\s*well\b/i,
+    /\bgood\s*(?:night'?s?)?\s*sleep\b/i,
+    /\bgreat\s*sleep\b/i,
+    /\brestful\s*sleep\b/i,
+    /\bslept\s*(?:really\s+|very\s+)?good\b/i,
+    /\bslept\s*(?:really\s+|very\s+)?great\b/i,
+    /\b(?:well|good)\s*(?:night'?s?)?\s*rest\b/i,
+    /\bslept\s*enough\b/i,
+    /\bslept\s*(?:\d+|eight|nine|ten)\s*hours?\b/i,
+    /\bfull\s*night'?s?\s*(?:sleep|rest)\b/i,
+    /\bwoke\s*up\s*(?:feeling\s+)?(?:refreshed|rested|great|good)\b/i,
+    /\brestful\b/i,
+    /\b(?:deep|solid|sound)\s*sleep\b/i,
   ],
 };
+
+// ── Negation patterns — checked in the vicinity of matched keywords ──
+const NEGATION_PATTERNS = [
+  /\bnot\b/i,
+  /\bno\b/i,
+  /\bdon'?t\b/i,
+  /\bdoesn'?t\b/i,
+  /\bdidn'?t\b/i,
+  /\bnever\b/i,
+  /\bwithout\b/i,
+  /\bhardly\b/i,
+  /\bbarely\b/i,
+  /\bnot\s+(?:really|very|that)\b/i,
+  /\bdo not\b/i,
+];
 
 /**
  * Helper to test a list of regexes against text and collect matches.
@@ -61,73 +223,141 @@ function findMatches(text, regexList) {
 }
 
 /**
+ * Checks if a keyword match is negated by looking at the surrounding context
+ * (up to 5 words before the match position).
+ */
+function isNegated(fullText, matchedWord) {
+  const lowerText = fullText.toLowerCase();
+  const lowerMatch = matchedWord.toLowerCase();
+  const matchIndex = lowerText.indexOf(lowerMatch);
+  if (matchIndex === -1) return false;
+
+  // Look at up to 40 characters before the matched word for a negation
+  const preceding = lowerText.substring(Math.max(0, matchIndex - 40), matchIndex);
+
+  for (const neg of NEGATION_PATTERNS) {
+    if (neg.test(preceding)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Rule‑based detection for each metric.
+ * Checks both positive and negative indicators, plus negation handling.
  * Returns an object where each key is a metric name and the value contains
  *   { value, confidence, source, evidence }.
  * Returns null for a metric if no evidence is found.
  */
 function detectByRules(journalText, source = "journal") {
   const result = {};
-
   const baseConfidence = source === "speech" ? 0.75 : 0.9;
 
-  // Helper to set result
-  const setMetric = (metric, value, evidence) => {
-    result[metric] = { 
-      value: Math.min(10, Math.max(1, value)), 
-      confidence: baseConfidence, 
-      source: [source], 
-      evidence 
+  const setMetric = (metric, value, evidence, confidence) => {
+    result[metric] = {
+      value: Math.min(10, Math.max(1, value)),
+      confidence: confidence || baseConfidence,
+      source: [source],
+      evidence,
     };
   };
 
-  // Stress detection
-  const stressMatches = findMatches(journalText, RULE_KEYWORDS.stress);
-  if (stressMatches.length) {
-    setMetric("stressLevel", 7, stressMatches);
-  } else {
-    result["stressLevel"] = null;
-  }
+  /**
+   * Detect a metric using both high (negative-wellbeing) and low (positive-wellbeing)
+   * keyword lists, with negation awareness.
+   *
+   * @param {string} metric        - The metric key (e.g. "stressLevel")
+   * @param {RegExp[]} highKeywords - Keywords indicating HIGH/bad values
+   * @param {RegExp[]} lowKeywords  - Keywords indicating LOW/good values
+   * @param {number} highValue      - The value to assign when high keywords match
+   * @param {number} lowValue       - The value to assign when low keywords match
+   * @param {number} negatedHighValue - The value when high keyword is negated (flip)
+   * @param {number} negatedLowValue  - The value when low keyword is negated (flip)
+   */
+  const detectMetric = (metric, highKeywords, lowKeywords, highValue, lowValue, negatedHighValue, negatedLowValue) => {
+    const highMatches = findMatches(journalText, highKeywords);
+    const lowMatches = findMatches(journalText, lowKeywords);
 
-  // Anxiety detection
-  const anxietyMatches = findMatches(journalText, RULE_KEYWORDS.anxiety);
-  if (anxietyMatches.length) {
-    setMetric("anxietyLevel", 8, anxietyMatches);
-  } else {
-    result["anxietyLevel"] = null;
-  }
+    // Filter out negated matches and categorize
+    const effectiveHigh = [];
+    const effectiveLow = [];
 
-  // Focus detection (decrease)
-  const focusMatches = findMatches(journalText, RULE_KEYWORDS.focusDecrease);
-  if (focusMatches.length) {
-    setMetric("focusLevel", 4, focusMatches);
-  } else {
-    result["focusLevel"] = null;
-  }
+    for (const m of highMatches) {
+      if (isNegated(journalText, m)) {
+        // "not stressed" → means LOW stress → positive
+        effectiveLow.push(`not ${m}`);
+      } else {
+        effectiveHigh.push(m);
+      }
+    }
 
-  // Energy detection (decrease)
-  const energyMatches = findMatches(journalText, RULE_KEYWORDS.energyDecrease);
-  if (energyMatches.length) {
-    setMetric("energyLevel", 4, energyMatches);
-  } else {
-    result["energyLevel"] = null;
-  }
+    for (const m of lowMatches) {
+      if (isNegated(journalText, m)) {
+        // "not relaxed" → means HIGH stress → negative
+        effectiveHigh.push(`not ${m}`);
+      } else {
+        effectiveLow.push(m);
+      }
+    }
 
-  // Social interaction increase
-  const socialMatches = findMatches(journalText, RULE_KEYWORDS.socialIncrease);
-  if (socialMatches.length) {
-    setMetric("socialInteraction", 7, socialMatches);
-  } else {
-    result["socialInteraction"] = null;
-  }
+    if (effectiveHigh.length > 0 && effectiveLow.length > 0) {
+      // Conflicting signals — use whichever has more evidence, reduce confidence
+      if (effectiveHigh.length >= effectiveLow.length) {
+        setMetric(metric, highValue, [...effectiveHigh, ...effectiveLow], baseConfidence - 0.15);
+      } else {
+        setMetric(metric, lowValue, [...effectiveLow, ...effectiveHigh], baseConfidence - 0.15);
+      }
+    } else if (effectiveHigh.length > 0) {
+      setMetric(metric, highValue, effectiveHigh);
+    } else if (effectiveLow.length > 0) {
+      setMetric(metric, lowValue, effectiveLow);
+    } else {
+      result[metric] = null;
+    }
+  };
 
-  // Sleep detection (decrease)
-  const sleepMatches = findMatches(journalText, RULE_KEYWORDS.sleepDecrease);
-  if (sleepMatches.length) {
-    setMetric("sleepLevel", 4, sleepMatches);
-  } else {
-    result["sleepLevel"] = null;
-  }
+  // ─── Stress: high=7(bad), low=2(good, relaxed) ───
+  detectMetric("stressLevel",
+    RULE_KEYWORDS.stressHigh, RULE_KEYWORDS.stressLow,
+    7, 2, 2, 7
+  );
+
+  // ─── Anxiety: high=7(bad), low=2(good, calm) ───
+  detectMetric("anxietyLevel",
+    RULE_KEYWORDS.anxietyHigh, RULE_KEYWORDS.anxietyLow,
+    7, 2, 2, 7
+  );
+
+  // ─── Focus: low=4(bad), high=8(good) ───
+  detectMetric("focusLevel",
+    RULE_KEYWORDS.focusLow, RULE_KEYWORDS.focusHigh,
+    4, 8, 8, 4
+  );
+
+  // ─── Energy: low=2(bad), high=8(good) ───
+  detectMetric("energyLevel",
+    RULE_KEYWORDS.energyLow, RULE_KEYWORDS.energyHigh,
+    2, 8, 8, 2
+  );
+
+  // ─── Motivation: low=2(bad), high=8(good) ───
+  detectMetric("motivationLevel",
+    RULE_KEYWORDS.motivationLow, RULE_KEYWORDS.motivationHigh,
+    2, 8, 8, 2
+  );
+
+  // ─── Social Interaction: low=2(bad), high=8(good) ───
+  detectMetric("socialInteraction",
+    RULE_KEYWORDS.socialLow, RULE_KEYWORDS.socialHigh,
+    2, 8, 8, 2
+  );
+
+  // ─── Sleep: low=2(bad), high=8(good) ───
+  detectMetric("sleepLevel",
+    RULE_KEYWORDS.sleepLow, RULE_KEYWORDS.sleepHigh,
+    2, 8, 8, 2
+  );
 
   return result;
 }
@@ -144,6 +374,7 @@ function mockLLMAnalysis(journalText, source = "journal") {
     "energyLevel",
     "socialInteraction",
     "sleepLevel",
+    "motivationLevel",
   ];
   const result = {};
   for (const metric of metrics) {
@@ -197,40 +428,20 @@ function combineResults(ruleResult, llmResult) {
  * Main export – performs full analysis and returns both a simple suggestions map
  * (compatible with existing API) and a detailed structure.
  * Supports source tagging ("journal" or "speech").
+ *
+ * Uses Gemini AI when available, falls back to rule-based analysis.
  */
-function analyzeJournalEnhanced(journalText, source = "journal") {
-  const ruleResult = detectByRules(journalText, source);
-  const llmResult = mockLLMAnalysis(journalText, source);
-  const detailed = combineResults(ruleResult, llmResult);
-
-  // Build the simple suggestions object for backward compatibility.
-  const suggestions = {};
-  for (const [key, val] of Object.entries(detailed)) {
-    if (val) {
-      suggestions[key] = val.value;
-    } else {
-      suggestions[key] = null;
-    }
+async function analyzeJournalEnhanced(journalText, source = "journal") {
+  const { analyzeTextWithGemini, isGeminiAvailable } = require("./geminiService");
+  if (!isGeminiAvailable()) {
+    throw new Error("AI analysis is not configured: GEMINI_API_KEY is missing in backend .env file.");
   }
 
-  // Detect simple mood based on text
-  let detectedMood = "okay";
-  const lowerText = journalText.toLowerCase();
-  if (lowerText.includes("sad") || lowerText.includes("terrible")) detectedMood = "sad";
-  if (lowerText.includes("great") || lowerText.includes("awesome")) detectedMood = "great";
-  if (lowerText.includes("good") || lowerText.includes("nice")) detectedMood = "good";
-
-  return {
-    suggestions,
-    detailedSuggestions: detailed,
-    detectedMood: {
-      mood: detectedMood,
-      confidence: source === "speech" ? 0.7 : 0.85,
-      source: [source]
-    }
-  };
+  console.log(`[AnalysisService] Using Gemini AI for ${source} analysis...`);
+  return await analyzeTextWithGemini(journalText, source);
 }
 
 module.exports = {
   analyzeJournalEnhanced,
 };
+

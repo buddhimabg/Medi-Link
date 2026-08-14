@@ -15,7 +15,7 @@ const { analyzeJournalEnhanced } = require("./analysisService");
  * field that contains confidence scores and evidence for each metric.
  */
 const analyzeJournal = async (journalText) => {
-  const { suggestions, detailedSuggestions, detectedMood } = analyzeJournalEnhanced(journalText, "journal");
+  const { suggestions, detailedSuggestions, detectedMood } = await analyzeJournalEnhanced(journalText, "journal");
 
   // Preserve original fields (placeholders for now).
   const result = {
