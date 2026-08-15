@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck, ShieldAlert, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck, ShieldAlert, AlertCircle, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/api';
 import './ManageDoctorsPage.css';
@@ -402,7 +402,7 @@ const ManageDoctors: React.FC = () => {
         {/* Search and Filters */}
         <div className="search-filter-bar">
           <div className="search-container">
-            <span className="search-icon">🔍</span>
+            <Search className="search-icon" size={18} />
             <input
               type="text"
               placeholder="Search by name, email, or NIC..."

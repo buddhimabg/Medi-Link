@@ -240,6 +240,12 @@ body {
   gap: 16px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  align-items: center;
+  background: white;
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  border: 1px solid #f3f4f6;
 }
 
 .search-container {
@@ -247,38 +253,43 @@ body {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 250px;
+  min-width: 300px;
 }
 
 .search-icon {
   position: absolute;
   left: 16px;
-  font-size: 18px;
-  color: #9ca3af;
+  color: #64748b;
+  pointer-events: none;
 }
 
 .search-input {
   width: 100%;
-  padding-left: 48px;
-  padding-right: 16px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  border: 1px solid #e5e7eb;
+  padding: 12px 16px 12px 46px;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
+  font-weight: 500;
   outline: none;
-  background-color: #ffffff;
-  color: #111827;
-  transition: border-color 0.3s ease;
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+
+.search-input:hover {
+  background-color: white;
+  border-color: #cbd5e1;
 }
 
 .search-input:focus {
+  background-color: white;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 .search-input::placeholder {
-  color: #9ca3af;
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .filter-group {
@@ -286,25 +297,33 @@ body {
 }
 
 .filter-select {
-  padding: 10px 15px;
-  background-color: white;
-  border: 1px solid #e5e7eb;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 12px 40px 12px 16px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  color: #1f2937;
+  transition: all 0.2s ease;
+  color: #334155;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  min-width: 160px;
 }
 
 .filter-select:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+  background-color: white;
+  border-color: #cbd5e1;
 }
 
 .filter-select:focus {
   outline: none;
+  background-color: white;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 /* ===== DOCTORS TABLE SECTION ===== */
