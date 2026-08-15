@@ -11,7 +11,7 @@ const CheckInPage3 = React.lazy(() => import("./pages/check-in/CheckInPage3"));
 const CheckinSummary = React.lazy(() => import("./pages/check-in/CheckinSummary"));
 const LoginPage = React.lazy(() => import("./pages/loginPage"));
 const RegisterPage = React.lazy(() => import("./pages/registerpage"));
-const LandingPage = React.lazy(() => import("./pages/landingpage"));
+
 const MoodHistory = React.lazy(() => import("./pages/MoodHistory"));
 const InsightsPage = React.lazy(() => import("./pages/InsightsPage"));
 const MoodFixPage = React.lazy(() => import("./pages/MoodFixPage"));
@@ -85,7 +85,7 @@ const App: React.FC = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/home" element={<LandingPage />} />
+          <Route path="/home" element={<Dashboard />} />
 
           {/* Check-in flow */}
           <Route path="/check-in" element={<CheckInPage1 />} />
