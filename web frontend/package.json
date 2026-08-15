@@ -15,7 +15,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "axios": "^1.13.6",
     "chart.js": "^4.5.1",
-    "lucide-react": "^1.11.0",
+    "lucide-react": "^1.31.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
