@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
@@ -17,28 +18,48 @@ exports.getDashboardStats = async (req, res, next) => {
     const totalDoctors = await Doctor.countDocuments();
     const totalAppointments = await Appointment.countDocuments();
 
-    // Calculate revenue
-    const revenue = totalAppointments * 50;
+    // Calculate revenue based on completed appointments only
+    const completedAppointments = await Appointment.countDocuments({ status: 'completed' });
+    const revenue = completedAppointments * 50;
 
-    // Calculate monthly growth
+    // Calculate cumulative growth compared to last month
     const thisMonthStart = new Date();
     thisMonthStart.setDate(1);
     thisMonthStart.setHours(0, 0, 0, 0);
 
-    const thisMonthPatients = await Patient.countDocuments({
-      createdAt: { $gte: thisMonthStart }
+    const lastMonthTotalPatients = await Patient.countDocuments({
+      createdAt: { $lt: thisMonthStart }
     });
+    const patientGrowth = lastMonthTotalPatients > 0 
+      ? ((totalPatients - lastMonthTotalPatients) / lastMonthTotalPatients * 100).toFixed(1) 
+      : (totalPatients > 0 ? '100.0' : '0.0');
+    const patientChangeStr = parseFloat(patientGrowth) >= 0 ? `+${patientGrowth}% vs last month` : `${patientGrowth}% vs last month`;
 
-    const lastMonthDate = new Date();
-    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-    const lastMonthStart = new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth(), 1);
-    const lastMonthEnd = new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth() + 1, 0);
-
-    const lastMonthPatients = await Patient.countDocuments({
-      createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
+    const lastMonthTotalDoctors = await Doctor.countDocuments({
+      createdAt: { $lt: thisMonthStart }
     });
+    const doctorGrowth = lastMonthTotalDoctors > 0 
+      ? ((totalDoctors - lastMonthTotalDoctors) / lastMonthTotalDoctors * 100).toFixed(1) 
+      : (totalDoctors > 0 ? '100.0' : '0.0');
+    const doctorChangeStr = parseFloat(doctorGrowth) >= 0 ? `+${doctorGrowth}% vs last month` : `${doctorGrowth}% vs last month`;
 
-    const patientGrowth = lastMonthPatients ? ((thisMonthPatients - lastMonthPatients) / lastMonthPatients * 100).toFixed(1) : 0;
+    const lastMonthTotalAppointments = await Appointment.countDocuments({
+      date: { $lt: thisMonthStart }
+    });
+    const apptGrowth = lastMonthTotalAppointments > 0 
+      ? ((totalAppointments - lastMonthTotalAppointments) / lastMonthTotalAppointments * 100).toFixed(1) 
+      : (totalAppointments > 0 ? '100.0' : '0.0');
+    const apptChangeStr = parseFloat(apptGrowth) >= 0 ? `+${apptGrowth}% vs last month` : `${apptGrowth}% vs last month`;
+
+    const lastMonthCompletedAppts = await Appointment.countDocuments({
+      date: { $lt: thisMonthStart },
+      status: 'completed'
+    });
+    const lastMonthRevenueTotal = lastMonthCompletedAppts * 50;
+    const revenueGrowth = lastMonthRevenueTotal > 0 
+      ? ((revenue - lastMonthRevenueTotal) / lastMonthRevenueTotal * 100).toFixed(1) 
+      : (revenue > 0 ? '100.0' : '0.0');
+    const revenueChangeStr = parseFloat(revenueGrowth) >= 0 ? `+${revenueGrowth}% vs last month` : `${revenueGrowth}% vs last month`;
 
     // Calculate weekly appointments
     const sevenDaysAgo = new Date();
@@ -48,12 +69,12 @@ exports.getDashboardStats = async (req, res, next) => {
     const weeklyAppointmentsRaw = await Appointment.aggregate([
       {
         $match: {
-          appointmentDate: { $gte: sevenDaysAgo }
+          date: { $gte: sevenDaysAgo }
         }
       },
       {
         $group: {
-          _id: { $dayOfWeek: "$appointmentDate" },
+          _id: { $dayOfWeek: "$date" },
           count: { $sum: 1 }
         }
       }
@@ -116,19 +137,19 @@ exports.getDashboardStats = async (req, res, next) => {
       data: {
         totalPatients: {
           value: totalPatients,
-          change: `+${patientGrowth}% vs last month`
+          change: patientChangeStr
         },
         totalDoctors: {
           value: totalDoctors,
-          change: '+23 vs last month'
+          change: doctorChangeStr
         },
         appointments: {
           value: totalAppointments,
-          change: '+25 vs last month'
+          change: apptChangeStr
         },
         revenue: {
-          value: `$${(revenue / 1000).toFixed(1)}K`,
-          change: '+15% vs last month'
+          value: `$${revenue}`,
+          change: revenueChangeStr
         },
         weeklyAppointments,
         patientGrowthData
@@ -147,15 +168,26 @@ exports.getDashboardStats = async (req, res, next) => {
  */
 exports.getRecentActivity = async (req, res, next) => {
   try {
+    const { limit = 15 } = req.query;
+
     const activities = await SystemActivity.find()
       .sort({ createdAt: -1 })
-      .limit(10)
-      .populate('userId', 'name');
+      .limit(parseInt(limit))
+      .populate('userId', 'name email role');
 
     const formattedActivities = activities.map(activity => ({
+      id: activity._id,
       type: activity.activityType,
       text: activity.description,
-      time: getTimeAgo(activity.createdAt)
+      time: getTimeAgo(activity.createdAt),
+      timestamp: activity.createdAt,
+      status: activity.status || 'success',
+      resourceType: activity.resourceType || 'System',
+      user: activity.userId ? {
+        name: activity.userId.name,
+        email: activity.userId.email,
+        role: activity.userId.role
+      } : null
     }));
 
     logger.debug(`Recent activity retrieved`);

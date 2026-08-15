@@ -103,22 +103,43 @@ exports.getDashboardStats = async (req, res, next) => {
  */
 exports.getAppointmentTrends = async (req, res, next) => {
   try {
-    const trends = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+    twelveMonthsAgo.setDate(1);
+    twelveMonthsAgo.setHours(0, 0, 0, 0);
 
-      const count = await Appointment.countDocuments({
-        appointmentDate: {
-          $gte: new Date(dateStr),
-          $lt: new Date(new Date(dateStr).getTime() + 24 * 60 * 60 * 1000)
+    const appointments = await Appointment.aggregate([
+      {
+        $addFields: {
+          parsedDate: { $toDate: { $ifNull: ["$appointmentDate", "$date"] } }
         }
-      });
+      },
+      {
+        $match: {
+          parsedDate: { $gte: twelveMonthsAgo }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: "$parsedDate" },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
 
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const trends = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthIndex = d.getMonth();
+      const monthName = monthNames[monthIndex];
+      
+      const record = appointments.find(a => a._id === (monthIndex + 1));
       trends.push({
-        date: dateStr,
-        count: count || Math.floor(Math.random() * 100) + 50
+        month: monthName,
+        value: record ? record.count : 0
       });
     }
 
@@ -147,9 +168,9 @@ exports.getAppointmentStatus = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        completed: completed || 2345,
-        upcoming: upcoming || 325,
-        cancelled: cancelled || 168
+        completed: completed,
+        upcoming: upcoming,
+        cancelled: cancelled
       }
     });
   } catch (error) {
@@ -173,8 +194,8 @@ exports.getAppointmentTypes = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        virtualConsultation: virtualConsultation || 1615,
-        inPersonVisit: inPersonVisit || 1082
+        virtualConsultation: virtualConsultation,
+        inPersonVisit: inPersonVisit
       }
     });
   } catch (error) {
@@ -190,11 +211,46 @@ exports.getAppointmentTypes = async (req, res, next) => {
  */
 exports.getRevenueTrends = async (req, res, next) => {
   try {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const revenues = months.map((month, index) => ({
-      month,
-      revenue: (Math.random() * 50000 + 30000).toFixed(2)
-    }));
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+    twelveMonthsAgo.setDate(1);
+    twelveMonthsAgo.setHours(0, 0, 0, 0);
+
+    const appointments = await Appointment.aggregate([
+      {
+        $addFields: {
+          parsedDate: { $toDate: { $ifNull: ["$appointmentDate", "$date"] } }
+        }
+      },
+      {
+        $match: {
+          parsedDate: { $gte: twelveMonthsAgo },
+          status: 'completed'
+        }
+      },
+      {
+        $group: {
+          _id: { $month: "$parsedDate" },
+          revenue: { $sum: 50 } // Assuming $50 per appointment as in generateRevenueReport
+        }
+      }
+    ]);
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const revenues = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthIndex = d.getMonth();
+      const monthName = monthNames[monthIndex];
+      
+      const record = appointments.find(a => a._id === (monthIndex + 1));
+      revenues.push({
+        month: monthName,
+        value: record ? record.revenue : 0
+      });
+    }
 
     logger.debug(`Revenue trends retrieved`);
 
@@ -212,11 +268,27 @@ exports.getRevenueTrends = async (req, res, next) => {
  */
 exports.getRevenueBreakdown = async (req, res, next) => {
   try {
+    const completedAppointments = await Appointment.aggregate([
+      { $match: { status: 'completed' } },
+      {
+        $group: {
+          _id: '$consultationType',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const typeMap = {};
+    completedAppointments.forEach(item => {
+      typeMap[item._id] = item.count * 50;
+    });
+
+    const totalRevenue = Object.values(typeMap).reduce((sum, val) => sum + val, 0);
+
     const breakdown = {
-      consultations: { value: 196500, percentage: 64.6 },
-      prescriptions: { value: 61000, percentage: 20.1 },
-      labTests: { value: 35500, percentage: 11.7 },
-      otherServices: { value: 15000, percentage: 4.9 }
+      consultations: { value: typeMap['in-person'] || 0, percentage: totalRevenue > 0 ? parseFloat((((typeMap['in-person'] || 0) / totalRevenue) * 100).toFixed(1)) : 0 },
+      videoConsultations: { value: typeMap['video'] || 0, percentage: totalRevenue > 0 ? parseFloat((((typeMap['video'] || 0) / totalRevenue) * 100).toFixed(1)) : 0 },
+      phoneConsultations: { value: typeMap['phone'] || 0, percentage: totalRevenue > 0 ? parseFloat((((typeMap['phone'] || 0) / totalRevenue) * 100).toFixed(1)) : 0 }
     };
 
     logger.debug(`Revenue breakdown retrieved`);
@@ -235,11 +307,41 @@ exports.getRevenueBreakdown = async (req, res, next) => {
  */
 exports.getPaymentMethods = async (req, res, next) => {
   try {
-    const methods = {
-      insurance: { value: 152600, percentage: 50.2 },
-      creditCard: { value: 97200, percentage: 31.9 },
-      cash: { value: 35200, percentage: 11.6 }
-    };
+    // Aggregate completed appointments and join with doctor to get specialization
+    const results = await Appointment.aggregate([
+      { $match: { status: 'completed' } },
+      {
+        $lookup: {
+          from: 'doctors',
+          localField: 'doctorId',
+          foreignField: '_id',
+          as: 'doctor'
+        }
+      },
+      { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: '$doctor.specialization',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const specMap = {};
+    results.forEach(item => {
+      const name = item._id || 'Other';
+      specMap[name] = item.count * 50;
+    });
+
+    const totalRevenue = Object.values(specMap).reduce((sum, val) => sum + val, 0);
+
+    const methods = {};
+    Object.keys(specMap).forEach(key => {
+      methods[key.toLowerCase()] = {
+        value: specMap[key],
+        percentage: totalRevenue > 0 ? parseFloat(((specMap[key] / totalRevenue) * 100).toFixed(1)) : 0
+      };
+    });
 
     logger.debug(`Payment methods retrieved`);
 
@@ -257,10 +359,44 @@ exports.getPaymentMethods = async (req, res, next) => {
  */
 exports.getSpecialtyPerformance = async (req, res, next) => {
   try {
-    const specialties = ['Cardiology', 'Pediatrics', 'Orthopedics', 'Urology', 'General'];
-    const performance = specialties.map(specialty => ({
+    const distinctSpecialties = await Doctor.distinct('specialization');
+    const validSpecialties = distinctSpecialties.filter(s => s && s.trim() !== '');
+    const predefinedSpecialties = ['General', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Psychiatry', 'Dermatology', 'Oncology', 'Urology', 'Counselor'];
+    
+    const allSpecialties = [...new Set([...predefinedSpecialties, ...validSpecialties])];
+
+    const results = await Appointment.aggregate([
+      { $match: { status: 'completed' } },
+      {
+        $lookup: {
+          from: 'doctors',
+          localField: 'doctorId',
+          foreignField: '_id',
+          as: 'doctor'
+        }
+      },
+      { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: '$doctor.specialization',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const countMap = {};
+    results.forEach(r => {
+      if (r._id) {
+        countMap[r._id] = r.count;
+      }
+    });
+
+    const maxValue = Math.max(...results.map(r => r.count), 10);
+    
+    let performance = allSpecialties.map(specialty => ({
       specialty,
-      appointments: Math.floor(Math.random() * 200) + 150
+      value: countMap[specialty] || 0,
+      maxValue: Math.ceil(maxValue * 1.2)
     }));
 
     logger.debug(`Specialty performance retrieved`);
@@ -279,19 +415,86 @@ exports.getSpecialtyPerformance = async (req, res, next) => {
  */
 exports.getTopDoctors = async (req, res, next) => {
   try {
-    const doctors = await Doctor.find()
-      .populate('userId', 'name')
-      .sort({ rating: -1 })
-      .limit(5);
+    const doctorsData = await Doctor.aggregate([
+      {
+        $lookup: {
+          from: 'appointments',
+          localField: '_id',
+          foreignField: 'doctorId',
+          as: 'appointments'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $addFields: {
+          calculatedPatients: {
+            $size: {
+              $ifNull: [
+                {
+                  $setUnion: {
+                    $map: {
+                      input: '$appointments',
+                      as: 'apt',
+                      in: '$$apt.patientId'
+                    }
+                  }
+                },
+                []
+              ]
+            }
+          },
+          calculatedRating: {
+            $avg: {
+              $filter: {
+                input: {
+                  $map: {
+                    input: '$appointments',
+                    as: 'apt',
+                    in: '$$apt.rating'
+                  }
+                },
+                as: 'rating',
+                cond: { $ne: ['$$rating', null] }
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          finalPatients: { $add: [{ $ifNull: ['$totalPatients', 0] }, '$calculatedPatients'] },
+          finalRating: { 
+            $cond: [
+              { $and: [{ $ne: ['$calculatedRating', null] }, { $gt: ['$calculatedRating', 0] }] }, 
+              { $round: [{ $divide: [{ $add: [{ $ifNull: ['$rating', 0] }, '$calculatedRating'] }, 2] }, 1] }, 
+              { $ifNull: ['$rating', 0] }
+            ] 
+          }
+        }
+      },
+      {
+        $sort: { finalRating: -1, finalPatients: -1 }
+      },
+      {
+        $limit: 5
+      }
+    ]);
 
-    const topDoctors = doctors.map(doc => ({
+    const topDoctors = doctorsData.map(doc => ({
       id: doc._id,
-      name: doc.userId.name,
-      patients: doc.totalPatients || Math.floor(Math.random() * 200) + 150,
-      rating: doc.rating || 4.5
+      name: doc.name || (doc.user && doc.user.length > 0 ? doc.user[0].name : 'Unknown Doctor'),
+      patients: doc.finalPatients || 0,
+      rating: doc.finalRating || 0
     }));
 
-    logger.debug(`Top doctors retrieved`);
+    logger.debug(`Top doctors retrieved dynamically`);
 
     res.json({ success: true, data: topDoctors });
   } catch (error) {
@@ -307,17 +510,70 @@ exports.getTopDoctors = async (req, res, next) => {
  */
 exports.getPatientSatisfaction = async (req, res, next) => {
   try {
-    const avgRating = 4.7;
-    const totalReviews = 1245;
+    // 1. Get real ratings from Appointments
+    const ratingAggregation = await Appointment.aggregate([
+      { $match: { rating: { $ne: null, $gte: 1, $lte: 5 } } },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    let dynamicCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let dynamicTotalReviews = 0;
+    let dynamicSumRating = 0;
+
+    ratingAggregation.forEach(item => {
+      const star = Math.round(item._id);
+      if (star >= 1 && star <= 5) {
+        dynamicCounts[star] += item.count;
+        dynamicTotalReviews += item.count;
+        dynamicSumRating += star * item.count;
+      }
+    });
+
+    // 2. Get static data from Doctors
+    const doctors = await Doctor.find({ totalReviews: { $gt: 0 } });
+    
+    let staticTotalReviews = 0;
+    let staticSumRating = 0;
+    
+    doctors.forEach(doc => {
+      staticTotalReviews += doc.totalReviews;
+      staticSumRating += doc.rating * doc.totalReviews;
+    });
+
+    // 3. Combine them
+    const totalReviews = staticTotalReviews + dynamicTotalReviews;
+    const sumRating = staticSumRating + dynamicSumRating;
+    const avgRating = totalReviews > 0 ? (sumRating / totalReviews) : 0;
+    
+    // Simulate static distribution based on static average
+    const staticAvg = staticTotalReviews > 0 ? (staticSumRating / staticTotalReviews) : 0;
+    const staticDist5 = Math.round(staticTotalReviews * (staticAvg / 5));
+    const staticDist4 = Math.round(staticTotalReviews * ((5 - staticAvg) / 5) * 0.8);
+    const staticDist3 = Math.round(staticTotalReviews * ((5 - staticAvg) / 5) * 0.15);
+    const staticDist2 = Math.round(staticTotalReviews * ((5 - staticAvg) / 5) * 0.05);
+    const staticDist1 = Math.max(0, staticTotalReviews - (staticDist5 + staticDist4 + staticDist3 + staticDist2));
+
+    // Final blended distribution
+    const dist5 = staticDist5 + dynamicCounts[5];
+    const dist4 = staticDist4 + dynamicCounts[4];
+    const dist3 = staticDist3 + dynamicCounts[3];
+    const dist2 = staticDist2 + dynamicCounts[2];
+    const dist1 = staticDist1 + dynamicCounts[1];
+
     const ratingDistribution = {
-      5: { count: 854, percentage: 68.6 },
-      4: { count: 256, percentage: 20.6 },
-      3: { count: 87, percentage: 7 },
-      2: { count: 32, percentage: 2.6 },
-      1: { count: 16, percentage: 1.3 }
+      5: { count: dist5, percentage: totalReviews > 0 ? parseFloat(((dist5 / totalReviews) * 100).toFixed(1)) : 0 },
+      4: { count: dist4, percentage: totalReviews > 0 ? parseFloat(((dist4 / totalReviews) * 100).toFixed(1)) : 0 },
+      3: { count: dist3, percentage: totalReviews > 0 ? parseFloat(((dist3 / totalReviews) * 100).toFixed(1)) : 0 },
+      2: { count: dist2, percentage: totalReviews > 0 ? parseFloat(((dist2 / totalReviews) * 100).toFixed(1)) : 0 },
+      1: { count: dist1, percentage: totalReviews > 0 ? parseFloat(((dist1 / totalReviews) * 100).toFixed(1)) : 0 }
     };
 
-    logger.debug(`Patient satisfaction retrieved`);
+    logger.debug(`Patient satisfaction retrieved dynamically`);
 
     res.json({
       success: true,

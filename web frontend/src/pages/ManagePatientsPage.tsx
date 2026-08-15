@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/api';
 import './ManagePatientsPage.css';
@@ -22,8 +23,8 @@ const ManagePatients: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
-  const [patientError, setPatientError] = useState<string | null>(null);
+  const [_isLoadingPatients, _setIsLoadingPatients] = useState(true);
+  const [_patientError, _setPatientError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalPatients: 0,
     activePatients: 0,
@@ -32,74 +33,57 @@ const ManagePatients: React.FC = () => {
   });
 
   const fetchPatients = async () => {
-    setIsLoadingPatients(true);
+    _setIsLoadingPatients(true);
     try {
       const [patientsRes, statsRes] = await Promise.all([
         apiFetch<any>('/patients'),
         apiFetch<any>('/patients/statistics').catch(() => null)
       ]);
 
-      if (statsRes && statsRes.success) {
-        setStats({
-          totalPatients: statsRes.data.totalPatients || 0,
-          activePatients: statsRes.data.activePatients || 0,
-          inactivePatients: statsRes.data.inactivePatients || 0,
-          newThisMonth: statsRes.data.newThisMonth || 0
-        });
-      }
-
-      const loadedPatients = (patientsRes.data || []).map((patient: any) => {
-        const name = patient.userId?.name || 'Unknown';
-        const gender = patient.gender
-          ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)
-          : 'Other';
-        let assignedDoctor = 'Unassigned';
-
-        if (patient.assignedDoctor) {
-          if (typeof patient.assignedDoctor === 'string') {
-            assignedDoctor = patient.assignedDoctor;
-          } else {
-            assignedDoctor = patient.assignedDoctor.userId?.name || 'Assigned Doctor';
-          }
-        }
-
-        const status: 'Active' | 'Inactive' | 'Suspended' =
-          patient.status === 'inactive'
-            ? 'Inactive'
-            : patient.status === 'suspended'
-            ? 'Suspended'
-            : 'Active';
-
-        let age = null;
-        if (patient.dateOfBirth) {
-            const diff_ms = Date.now() - new Date(patient.dateOfBirth).getTime();
-            const age_dt = new Date(diff_ms); 
-            age = Math.abs(age_dt.getUTCFullYear() - 1970);
-        }
-
-        return {
-          id: patient._id || patient.id || name,
-          initials: name
+      if (patientsRes?.data) {
+        const mappedPatients = patientsRes.data.map((p: any) => {
+          const name = typeof p.name === 'string' ? p.name : (p.userId?.name || 'Unknown Patient');
+          const initials = name
             .split(' ')
             .map((part: string) => part[0])
             .join('')
-            .toUpperCase(),
-          name,
-          age,
-          gender: gender as Patient['gender'],
-          email: patient.userId?.email || 'N/A',
-          assignedDoctor,
-          status
-        };
-      });
-      setPatients(loadedPatients);
-      setPatientError(null);
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      setPatientError(error instanceof Error ? error.message : 'Failed to load patient data');
-      setPatients([]);
+            .toUpperCase()
+            .substring(0, 2);
+          const rawStatus = typeof p.status === 'string' ? p.status.toLowerCase() : 'active';
+          const status = rawStatus === 'inactive' ? 'Inactive' : rawStatus === 'suspended' ? 'Suspended' : 'Active';
+
+          let assignedDoctor = 'Dr. Not Assigned';
+          const doc = p.primaryDoctorId || p.assignedDoctor || p.doctor;
+          if (doc) {
+            if (typeof doc === 'string') {
+              assignedDoctor = doc;
+            } else if (typeof doc === 'object') {
+              assignedDoctor = doc.name || doc.userId?.name || doc.fullName || 'Dr. Assigned';
+            }
+          }
+
+          return {
+            id: p._id || p.id || String(Math.random()),
+            initials,
+            name,
+            age: typeof p.age === 'number' ? p.age : (p.dateOfBirth ? Math.max(0, new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : null),
+            gender: typeof p.gender === 'string' ? (p.gender.charAt(0).toUpperCase() + p.gender.slice(1).toLowerCase()) : 'Other',
+            email: typeof p.email === 'string' ? p.email : (p.userId?.email || ''),
+            assignedDoctor,
+            status
+          };
+        });
+        setPatients(mappedPatients);
+      }
+
+      if (statsRes?.data) {
+        setStats(statsRes.data);
+      }
+      _setPatientError(null);
+    } catch (err: any) {
+      _setPatientError(err?.message || 'Failed to fetch patients');
     } finally {
-      setIsLoadingPatients(false);
+      _setIsLoadingPatients(false);
     }
   };
 
@@ -108,14 +92,20 @@ const ManagePatients: React.FC = () => {
   }, []);
 
   const filteredPatients = patients.filter((patient) => {
-    const search = searchTerm.toLowerCase().trim();
     const matchesSearch =
-      !search ||
-      [patient.name, patient.email, patient.assignedDoctor, patient.status, patient.initials]
-        .some((field) => field.toLowerCase().includes(search));
-    const matchesStatus = !filterStatus || patient.status === filterStatus;
+      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === '' || patient.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  const handleViewPatient = (id: string) => {
+    const patient = patients.find(p => p.id === id);
+    if (patient) {
+      setSelectedPatient(patient);
+      setIsViewModalOpen(true);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     const patient = patients.find(p => p.id === id);
@@ -126,17 +116,9 @@ const ManagePatients: React.FC = () => {
 
     try {
       await apiFetch(`/patients/${id}`, { method: 'DELETE' });
-      await fetchPatients(); // Refresh from DB
+      await fetchPatients();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to delete patient');
-    }
-  };
-
-  const handleView = (id: string) => {
-    const patient = patients.find(p => p.id === id);
-    if (patient) {
-      setSelectedPatient(patient);
-      setIsViewModalOpen(true);
     }
   };
 
@@ -148,51 +130,43 @@ const ManagePatients: React.FC = () => {
   return (
     <div className="manage-patients-container">
 
-      {/* Sidebar */}
       <aside className="sidebar">
-        {/* Logo */}
         <div className="logo-section">
           <h2 className="logo">MediLink</h2>
         </div>
 
-        {/* Profile Card */}
-        <div className="profile-section">
-          <img
-            src="https://i.pinimg.com/736x/98/d4/e3/98d4e3c28316349f3f7ccc976929e986.jpg"
-            alt="Profile"
-            className="profile-image"
-          />
-        </div>
-
-        {/* Navigation */}
         <nav className="navigation">
           <ul className="nav-list">
             <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon">📊</span>
+              <span className="nav-icon"><LayoutDashboard size={20} /></span>
               <span className="nav-label">Dashboard</span>
             </li>
             <li className="nav-item" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon">👨‍⚕️</span>
+              <span className="nav-icon"><Stethoscope size={20} /></span>
               <span className="nav-label">Manage Doctors</span>
             </li>
+            <li className="nav-item" onClick={() => navigate('/doctor-approvals')}>
+              <span className="nav-icon"><ShieldCheck size={20} /></span>
+              <span className="nav-label">Doctor Approvals</span>
+            </li>
             <li className="nav-item nav-item-active" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon">👥</span>
+              <span className="nav-icon"><Users size={20} /></span>
               <span className="nav-label">Manage Patients</span>
               <span className="nav-arrow">›</span>
             </li>
             <li className="nav-item" onClick={() => navigate('/reports')}>
-              <span className="nav-icon">📋</span>
+              <span className="nav-icon"><FileText size={20} /></span>
               <span className="nav-label">Reports</span>
             </li>
             <li className="nav-item" onClick={() => navigate('/settings')}>
-              <span className="nav-icon">⚙️</span>
+              <span className="nav-icon"><Settings size={20} /></span>
               <span className="nav-label">Settings</span>
             </li>
           </ul>
         </nav>
 
         <button className="logout-btn" onClick={() => navigate('/login')}>
-          <span className="logout-icon">🚪</span>
+          <span className="logout-icon"><LogOut size={20} /></span>
           <span className="logout-text">Log Out</span>
         </button>
       </aside>
@@ -287,18 +261,18 @@ const ManagePatients: React.FC = () => {
                   <td className="td">
                     <div className="actions-cell">
                       <button
-                        onClick={() => handleView(patient.id)}
-                        className="action-btn"
+                        onClick={() => handleViewPatient(patient.id)}
+                        className="action-btn view-btn text-btn"
                         title="View"
                       >
-                        👁️
+                        View
                       </button>
                       <button
                         onClick={() => handleDelete(patient.id)}
-                        className="action-btn"
+                        className="action-btn delete-btn text-btn"
                         title="Delete"
                       >
-                        🗑️
+                        Delete
                       </button>
                     </div>
                   </td>

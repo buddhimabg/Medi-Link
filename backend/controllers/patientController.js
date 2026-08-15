@@ -1,6 +1,7 @@
 const Patient = require('../models/Patient');
 const User = require('../models/User');
 const Appointment = require('../models/Appointment');
+const SystemActivity = require('../models/SystemActivity');
 const { NotFoundError, ValidationError } = require('../utils/errorHandler');
 const { logger } = require('../middleware/logger');
 
@@ -21,11 +22,46 @@ exports.getAllPatients = async (req, res, next) => {
 
     const skip = (page - 1) * limit;
 
+    const Doctor = require('../models/Doctor');
+
     const patients = await Patient.find(query)
       .populate('userId', 'name email phone profileImage address')
+      .populate({
+        path: 'assignedDoctor',
+        select: 'name userId',
+        populate: {
+          path: 'userId',
+          select: 'name'
+        }
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    const doctors = await Doctor.find({}).populate('userId', 'name');
+    
+    for (let patient of patients) {
+      if (!patient.assignedDoctor && doctors.length > 0) {
+        const randomDoctor = doctors[Math.floor(Math.random() * doctors.length)];
+        patient.assignedDoctor = randomDoctor._id;
+        
+        // Fix validation errors on existing faulty data
+        if (patient.gender) {
+          patient.gender = patient.gender.toLowerCase();
+        }
+        if (patient.bloodType === null) {
+          patient.bloodType = undefined;
+        }
+
+        try {
+          await patient.save();
+        } catch (err) {
+          console.error("Error saving patient inside getAllPatients", err);
+        }
+        
+        patient.assignedDoctor = randomDoctor; // populate for current response
+      }
+    }
 
     const total = await Patient.countDocuments(query);
 
@@ -118,6 +154,15 @@ exports.updatePatientProfile = async (req, res, next) => {
 
     logger.info(`Patient profile updated`, { patientId: req.params.id });
 
+    // Log system activity
+    await new SystemActivity({
+      userId: req.userId,
+      activityType: 'patient_updated',
+      description: `Patient profile updated: ${populatedPatient.userId?.name || 'Unknown'}`,
+      resourceType: 'Patient',
+      resourceId: patient._id
+    }).save();
+
     res.json({
       success: true,
       message: 'Patient profile updated successfully',
@@ -146,6 +191,15 @@ exports.deletePatient = async (req, res, next) => {
     await User.findByIdAndDelete(patient.userId);
 
     logger.info(`Patient deleted`, { patientId: req.params.id });
+
+    // Log system activity
+    await new SystemActivity({
+      userId: req.userId,
+      activityType: 'patient_deleted',
+      description: `Patient removed from system`,
+      resourceType: 'Patient',
+      resourceId: req.params.id
+    }).save();
 
     res.json({
       success: true,

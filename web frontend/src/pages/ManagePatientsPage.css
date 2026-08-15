@@ -15,7 +15,7 @@
 }
 
 .logo-section {
-  margin-bottom: 40px;
+  margin-bottom: 100px;
   text-align: center;
 }
 
@@ -354,17 +354,39 @@ body {
 }
 
 .action-btn {
-  background-color: transparent;
-  border: none;
-  font-size: 16px;
+  background-color: #f3f4f6;
+  border: 1px solid transparent;
+  font-size: 14px;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.3s ease;
-  padding: 4px 8px;
+  transition: all 0.3s ease;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  color: #374151;
 }
 
 .action-btn:hover {
-  opacity: 1;
+  background-color: #e5e7eb;
+}
+
+.action-btn.view-btn.text-btn {
+  color: #3b82f6;
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.action-btn.view-btn.text-btn:hover {
+  background-color: #dbeafe;
+}
+
+.action-btn.delete-btn.text-btn {
+  color: #ef4444;
+  background-color: #fef2f2;
+  border-color: #ef4444;
+}
+
+.action-btn.delete-btn.text-btn:hover {
+  background-color: #fee2e2;
 }
 
 /* ===== MODAL STYLES ===== */

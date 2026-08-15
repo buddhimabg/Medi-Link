@@ -1,5 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Stethoscope, Users, FileText, Settings as SettingsIcon, LogOut, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../api/api';
 import './SettingsPage.css';
 
 const Settings: React.FC = () => {
@@ -29,6 +31,27 @@ const Settings: React.FC = () => {
     weeklyDigest: true
   });
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await apiFetch<any>('/auth/profile');
+        if (response?.success && response.data) {
+          setProfile(prev => ({
+            ...prev,
+            fullName: response.data.name || prev.fullName,
+            email: response.data.email || prev.email,
+            phone: response.data.phone || prev.phone,
+            role: response.data.role || prev.role
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile:", error);
+      }
+    };
+    
+    fetchProfile();
+  }, []);
+
   const handleLogout = () => {
     navigate('/login');
   };
@@ -50,9 +73,25 @@ const Settings: React.FC = () => {
     setNotifications(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Settings saved successfully.');
+    try {
+      const response = await apiFetch<any>('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: profile.fullName,
+          email: profile.email,
+          phone: profile.phone
+        })
+      });
+      if (response?.success) {
+        alert('Settings saved successfully.');
+      } else {
+        alert(response?.message || 'Failed to save settings.');
+      }
+    } catch (error: any) {
+      alert(error.message || 'An error occurred while saving.');
+    }
   };
 
   // Admin Control Functions
@@ -395,34 +434,31 @@ const Settings: React.FC = () => {
           <h2 className="logo">MediLink</h2>
         </div>
 
-        <div className="profile-section">
-          <img
-            src="https://i.pinimg.com/736x/98/d4/e3/98d4e3c28316349f3f7ccc976929e986.jpg"
-            alt="Profile"
-            className="profile-image"
-          />
-        </div>
 
         <nav className="navigation">
           <ul className="nav-list">
             <li className="nav-item" onClick={() => handleNav('/admin-dashboard')}>
-              <span className="nav-icon">📊</span>
+              <span className="nav-icon"><LayoutDashboard size={20} /></span>
               <span className="nav-label">Dashboard</span>
             </li>
             <li className="nav-item" onClick={() => handleNav('/manage-doctors')}>
-              <span className="nav-icon">👨‍⚕️</span>
+              <span className="nav-icon"><Stethoscope size={20} /></span>
               <span className="nav-label">Manage Doctors</span>
             </li>
+            <li className="nav-item" onClick={() => handleNav('/doctor-approvals')}>
+              <span className="nav-icon"><ShieldCheck size={20} /></span>
+              <span className="nav-label">Doctor Approvals</span>
+            </li>
             <li className="nav-item" onClick={() => handleNav('/manage-patients')}>
-              <span className="nav-icon">👥</span>
+              <span className="nav-icon"><Users size={20} /></span>
               <span className="nav-label">Manage Patients</span>
             </li>
             <li className="nav-item" onClick={() => handleNav('/reports')}>
-              <span className="nav-icon">📋</span>
+              <span className="nav-icon"><FileText size={20} /></span>
               <span className="nav-label">Reports</span>
             </li>
             <li className="nav-item nav-item-active" onClick={() => handleNav('/settings')}>
-              <span className="nav-icon">⚙️</span>
+              <span className="nav-icon"><SettingsIcon size={20} /></span>
               <span className="nav-label">Settings</span>
               <span className="nav-arrow">›</span>
             </li>
@@ -430,7 +466,7 @@ const Settings: React.FC = () => {
         </nav>
 
         <button className="logout-btn" onClick={handleLogout}>
-          <span className="logout-icon">🚪</span>
+          <span className="logout-icon"><LogOut size={20} /></span>
           <span className="logout-text">Log Out</span>
         </button>
       </aside>

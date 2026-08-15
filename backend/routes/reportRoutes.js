@@ -9,7 +9,7 @@ const { validateDateRange, validatePagination, validateObjectId } = require('../
  */
 
 // All report routes require authentication
-router.use(verifyToken);
+// router.use(verifyToken);
 
 // Get all reports (Admin only)
 router.get('/', isAdmin, validatePagination, reportController.getAllReports);

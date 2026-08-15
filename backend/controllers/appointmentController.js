@@ -276,6 +276,20 @@ exports.cancelAppointment = async (req, res, next) => {
 
     logger.info(`Appointment cancelled`, { appointmentId: req.params.id });
 
+    // Log system activity
+    try {
+      await new SystemActivity({
+        userId: req.userId,
+        activityType: 'appointment_cancelled',
+        description: `Appointment cancelled`,
+        resourceType: 'Appointment',
+        resourceId: req.params.id,
+        status: 'success'
+      }).save();
+    } catch (actErr) {
+      // Non-critical, don't fail the main operation
+    }
+
     res.json({
       success: true,
       message: 'Appointment cancelled successfully',

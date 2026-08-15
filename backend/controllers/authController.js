@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
+const SystemActivity = require('../models/SystemActivity');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { 
@@ -68,6 +69,20 @@ exports.register = async (req, res, next) => {
       });
       await patient.save();
       logger.info(`Authentication: register`, { email, role: 'patient' });
+    }
+
+    // Log system activity for registration
+    try {
+      await new SystemActivity({
+        userId: user._id,
+        activityType: user.role === 'patient' ? 'patient_registered' : 'user_registered',
+        description: `New ${user.role} registered: ${name} (${email})`,
+        resourceType: user.role === 'patient' ? 'Patient' : 'User',
+        resourceId: user._id,
+        status: 'success'
+      }).save();
+    } catch (actErr) {
+      logger.warn(`Failed to log registration activity`, { error: actErr.message });
     }
 
     // Send welcome email asynchronously
@@ -160,6 +175,20 @@ exports.login = async (req, res, next) => {
     );
 
     logger.info(`Authentication: login successful`, { email, role: user.role });
+
+    // Log system activity for login
+    try {
+      await new SystemActivity({
+        userId: user._id,
+        activityType: 'user_login',
+        description: `${user.name} logged in (${user.role})`,
+        resourceType: 'User',
+        resourceId: user._id,
+        status: 'success'
+      }).save();
+    } catch (actErr) {
+      logger.warn(`Failed to log login activity`, { error: actErr.message });
+    }
 
     res.json({
       success: true,

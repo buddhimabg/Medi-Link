@@ -1,6 +1,7 @@
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const Appointment = require('../models/Appointment');
+const SystemActivity = require('../models/SystemActivity');
 const { NotFoundError, ValidationError, DuplicateError } = require('../utils/errorHandler');
 const { logger } = require('../middleware/logger');
 
@@ -11,7 +12,7 @@ const { logger } = require('../middleware/logger');
  */
 exports.getAllDoctors = async (req, res, next) => {
   try {
-    const { specialization, status, search, page = 1, limit = 50 } = req.query;
+    const { specialization, status, isVerified, search, page = 1, limit = 50 } = req.query;
 
     let query = {};
 
@@ -21,6 +22,10 @@ exports.getAllDoctors = async (req, res, next) => {
 
     if (status) {
       query.status = status;
+    }
+
+    if (isVerified !== undefined && isVerified !== 'all') {
+      query.isVerified = isVerified === 'true' || isVerified === true;
     }
 
     const skip = (page - 1) * limit;
@@ -38,9 +43,14 @@ exports.getAllDoctors = async (req, res, next) => {
     if (search) {
       const searchLower = search.toLowerCase();
       filteredDoctors = doctors.filter(doc =>
+        doc.name?.toLowerCase().includes(searchLower) ||
         doc.userId?.name?.toLowerCase().includes(searchLower) ||
+        doc.email?.toLowerCase().includes(searchLower) ||
         doc.userId?.email?.toLowerCase().includes(searchLower) ||
-        doc.specialization?.toLowerCase().includes(searchLower)
+        doc.specialty?.toLowerCase().includes(searchLower) ||
+        doc.specialization?.toLowerCase().includes(searchLower) ||
+        doc.licenseNumber?.toLowerCase().includes(searchLower) ||
+        doc.nic?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -101,15 +111,26 @@ exports.createDoctor = async (req, res, next) => {
       address,
       nic,
       specialization,
+      specialty,
       licenseNumber,
       experience,
+      yearsOfExperience,
       qualifications,
       consultationFee,
-      password
+      password,
+      status,
+      rating,
+      bio,
+      photo,
+      languages,
+      licenseDocument,
+      isVerified
     } = req.body;
 
+    const spec = specialization || specialty;
+
     // Validate required fields
-    if (!name || !email || !specialization) {
+    if (!name || !email || !spec) {
       return next(new ValidationError('Name, email, and specialization are required'));
     }
 
@@ -141,32 +162,68 @@ exports.createDoctor = async (req, res, next) => {
 
     await user.save();
 
-    // Create Doctor profile linked to the user
-    const doctor = new Doctor({
-      userId: user._id,
-      licenseNumber: licenseNumber || `LIC-${Date.now()}`,
-      nic: nic || '',
-      specialization,
-      experience: experience || 0,
-      qualifications: qualifications || [],
-      consultationFee: consultationFee || 0,
-      status: 'active',
-      isVerified: false
-    });
+    try {
+      // Find max id
+      const lastDoctor = await Doctor.findOne().sort({ id: -1 }).select('id');
+      const nextId = (lastDoctor && lastDoctor.id) ? Number(lastDoctor.id) + 1 : 1;
 
-    await doctor.save();
+      // When admin creates doctor, default isVerified to true unless explicitly specified
+      const verifiedFlag = isVerified !== undefined ? (isVerified === true || isVerified === 'true') : true;
 
-    // Populate the response with user data
-    const populatedDoctor = await Doctor.findById(doctor._id)
-      .populate('userId', 'name email phone address profileImage');
+      // Create Doctor profile linked to the user
+      const doctor = new Doctor({
+        id: nextId,
+        userId: user._id,
+        name,
+        email,
+        phone: phone || '',
+        address: address || '',
+        licenseNumber: licenseNumber || `SLMC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
+        nic: nic || '',
+        specialization: spec,
+        specialty: spec,
+        experience: experience !== undefined ? experience : (yearsOfExperience || 0),
+        yearsOfExperience: yearsOfExperience !== undefined ? yearsOfExperience : (experience || 0),
+        qualifications: qualifications || [],
+        consultationFee: consultationFee || 0,
+        status: status || 'active',
+        rating: rating || 0,
+        bio: bio || '',
+        photo: photo || `https://ui-avatars.com/api/?background=1565c0&color=fff&size=120&name=${encodeURIComponent(name)}`,
+        languages: languages || ['English', 'Sinhala'],
+        licenseDocument: licenseDocument || '',
+        isVerified: verifiedFlag,
+        verifiedAt: verifiedFlag ? new Date() : undefined,
+        verifiedBy: verifiedFlag ? (req.userId || undefined) : undefined
+      });
 
-    logger.info(`Doctor created by admin`, { doctorId: doctor._id, email });
+      await doctor.save();
 
-    res.status(201).json({
-      success: true,
-      message: 'Doctor created successfully',
-      data: populatedDoctor
-    });
+      // Populate the response with user data
+      const populatedDoctor = await Doctor.findById(doctor._id)
+        .populate('userId', 'name email phone address profileImage');
+
+      logger.info(`Doctor created by admin`, { doctorId: doctor._id, email });
+
+      // Log system activity
+      await new SystemActivity({
+        userId: req.userId,
+        activityType: 'doctor_profile_added',
+        description: `New doctor added: ${name} (${specialization})`,
+        resourceType: 'Doctor',
+        resourceId: doctor._id
+      }).save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Doctor created successfully',
+        data: populatedDoctor
+      });
+    } catch (error) {
+      // Rollback user creation if doctor creation fails
+      await User.findByIdAndDelete(user._id);
+      throw error;
+    }
   } catch (error) {
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
@@ -192,11 +249,13 @@ exports.updateDoctor = async (req, res, next) => {
       address,
       nic,
       specialization,
+      specialty,
       licenseNumber,
       experience,
       qualifications,
       consultationFee,
-      status
+      status,
+      rating
     } = req.body;
 
     // Find the doctor
@@ -205,15 +264,36 @@ exports.updateDoctor = async (req, res, next) => {
       return next(new NotFoundError('Doctor'));
     }
 
-    // Check if email already exists (if changing email)
-    if (email) {
-      const existingUser = await User.findOne({
-        email,
-        _id: { $ne: doctor.userId }
-      });
-      if (existingUser) {
-        return next(new DuplicateError('Email', email));
+    // Check if this is a flat document (no userId) or linked document
+    const isFlat = !doctor.userId;
+
+    if (isFlat) {
+      // ── FLAT DOCUMENT: update fields directly on the Doctor record ──
+      if (name !== undefined) doctor.name = name;
+      if (email !== undefined) doctor.email = email;
+      if (phone !== undefined) doctor.phone = phone;
+      if (address !== undefined) doctor.address = address;
+    } else {
+      // ── LINKED DOCUMENT: update the User record ──
+      // Check if email already exists (if changing email)
+      if (email) {
+        const existingUser = await User.findOne({
+          email,
+          _id: { $ne: doctor.userId }
+        });
+        if (existingUser) {
+          return next(new DuplicateError('Email', email));
+        }
       }
+
+      const userUpdate = {};
+      if (name !== undefined) userUpdate.name = name;
+      if (email !== undefined) userUpdate.email = email;
+      if (phone !== undefined) userUpdate.phone = phone;
+      if (address !== undefined) userUpdate.address = address;
+      userUpdate.updatedAt = new Date();
+
+      await User.findByIdAndUpdate(doctor.userId, userUpdate);
     }
 
     // Check if license number already exists (if changing)
@@ -227,32 +307,46 @@ exports.updateDoctor = async (req, res, next) => {
       }
     }
 
-    // Update User record
-    const userUpdate = {};
-    if (name !== undefined) userUpdate.name = name;
-    if (email !== undefined) userUpdate.email = email;
-    if (phone !== undefined) userUpdate.phone = phone;
-    if (address !== undefined) userUpdate.address = address;
-    userUpdate.updatedAt = new Date();
-
-    await User.findByIdAndUpdate(doctor.userId, userUpdate);
-
-    // Update Doctor record
-    if (specialization !== undefined) doctor.specialization = specialization;
+    // Update Doctor record fields
+    const spec = specialization || specialty;
+    if (spec !== undefined) {
+      doctor.specialization = spec;
+      doctor.specialty = spec;
+    }
     if (licenseNumber !== undefined) doctor.licenseNumber = licenseNumber;
     if (nic !== undefined) doctor.nic = nic;
     if (experience !== undefined) doctor.experience = experience;
     if (qualifications !== undefined) doctor.qualifications = qualifications;
     if (consultationFee !== undefined) doctor.consultationFee = consultationFee;
     if (status !== undefined) doctor.status = status;
+    if (rating !== undefined) doctor.rating = rating;
 
     await doctor.save();
 
     // Populate and return
-    const populatedDoctor = await Doctor.findById(doctor._id)
-      .populate('userId', 'name email phone address profileImage');
+    let populatedDoctor;
+    if (isFlat) {
+      populatedDoctor = doctor;
+    } else {
+      populatedDoctor = await Doctor.findById(doctor._id)
+        .populate('userId', 'name email phone address profileImage');
+    }
 
-    logger.info(`Doctor updated`, { doctorId: req.params.id });
+    const doctorName = isFlat ? doctor.name : (populatedDoctor.userId?.name || 'Unknown');
+    logger.info(`Doctor updated`, { doctorId: req.params.id, status });
+
+    // Log system activity
+    try {
+      await new SystemActivity({
+        userId: req.userId || null,
+        activityType: 'doctor_updated',
+        description: `Doctor profile updated: ${doctorName}${status ? ` (status: ${status})` : ''}`,
+        resourceType: 'Doctor',
+        resourceId: doctor._id
+      }).save();
+    } catch (actErr) {
+      logger.warn(`Failed to log system activity: ${actErr.message}`);
+    }
 
     res.json({
       success: true,
@@ -294,7 +388,12 @@ exports.createOrUpdateDoctorProfile = async (req, res, next) => {
     let doctor = await Doctor.findOne({ userId: req.userId });
 
     if (!doctor) {
+      // Find max id
+      const lastDoctor = await Doctor.findOne().sort({ id: -1 }).select('id');
+      const nextId = (lastDoctor && lastDoctor.id) ? Number(lastDoctor.id) + 1 : 1;
+
       doctor = new Doctor({
+        id: nextId,
         userId: req.userId,
         licenseNumber,
         specialization,
@@ -399,6 +498,15 @@ exports.deleteDoctor = async (req, res, next) => {
 
     logger.info(`Doctor deleted`, { doctorId: req.params.id });
 
+    // Log system activity
+    await new SystemActivity({
+      userId: req.userId,
+      activityType: 'doctor_deleted',
+      description: `Doctor removed from system`,
+      resourceType: 'Doctor',
+      resourceId: req.params.id
+    }).save();
+
     res.json({
       success: true,
       message: 'Doctor deleted successfully'
@@ -484,6 +592,117 @@ exports.getDoctorAppointments = async (req, res, next) => {
     });
   } catch (error) {
     logger.error(`Get doctor appointments error: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * Verify / Approve or Reject Doctor (Admin endpoint)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.verifyDoctor = async (req, res, next) => {
+  try {
+    const { isVerified, verificationNotes, rejectionReason, status } = req.body;
+    const doctorId = req.params.id;
+
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) {
+      return next(new NotFoundError('Doctor'));
+    }
+
+    const willBeVerified = isVerified === true || isVerified === 'true';
+    doctor.isVerified = willBeVerified;
+
+    if (willBeVerified) {
+      doctor.verifiedAt = new Date();
+      doctor.verifiedBy = req.userId || null;
+      doctor.rejectionReason = undefined;
+      if (status) {
+        doctor.status = status;
+      } else if (doctor.status === 'inactive') {
+        doctor.status = 'active';
+      }
+    } else {
+      doctor.rejectionReason = rejectionReason || 'Verification rejected by administrator';
+      doctor.verifiedAt = undefined;
+      if (status) {
+        doctor.status = status;
+      }
+    }
+
+    if (verificationNotes !== undefined) {
+      doctor.verificationNotes = verificationNotes;
+    }
+
+    await doctor.save();
+
+    const isFlat = !doctor.userId;
+    let populatedDoctor;
+    if (isFlat) {
+      populatedDoctor = doctor;
+    } else {
+      populatedDoctor = await Doctor.findById(doctor._id)
+        .populate('userId', 'name email phone address profileImage');
+    }
+
+    const doctorName = isFlat ? doctor.name : (populatedDoctor.userId?.name || 'Doctor');
+
+    // Log system activity
+    try {
+      await new SystemActivity({
+        userId: req.userId || null,
+        activityType: willBeVerified ? 'doctor_verified' : 'doctor_verification_rejected',
+        description: willBeVerified
+          ? `Doctor verified & approved: ${doctorName} (License: ${doctor.licenseNumber || 'N/A'})`
+          : `Doctor verification rejected: ${doctorName}${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`,
+        resourceType: 'Doctor',
+        resourceId: doctor._id
+      }).save();
+    } catch (actErr) {
+      logger.warn(`Failed to log system activity: ${actErr.message}`);
+    }
+
+    logger.info(`Doctor verification updated`, { doctorId: doctor._id, isVerified: willBeVerified });
+
+    res.json({
+      success: true,
+      message: willBeVerified ? 'Doctor verified and approved successfully' : 'Doctor verification rejected',
+      data: populatedDoctor
+    });
+  } catch (error) {
+    logger.error(`Verify doctor error: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * Get Doctor Approval Statistics (Admin endpoint)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.getApprovalStats = async (req, res, next) => {
+  try {
+    const total = await Doctor.countDocuments();
+    const pending = await Doctor.countDocuments({ isVerified: false });
+    const verified = await Doctor.countDocuments({ isVerified: true });
+    const active = await Doctor.countDocuments({ status: 'active' });
+    const onLeave = await Doctor.countDocuments({ status: 'on-leave' });
+    const inactive = await Doctor.countDocuments({ status: 'inactive' });
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        pending,
+        verified,
+        active,
+        onLeave,
+        inactive
+      }
+    });
+  } catch (error) {
+    logger.error(`Get approval stats error: ${error.message}`);
     next(error);
   }
 };

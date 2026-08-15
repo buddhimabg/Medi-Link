@@ -4,14 +4,51 @@ const doctorSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    required: false,
+    sparse: true
+  },
+
+  // Direct fields for flat document structure (medilink_db)
+  id: {
+    type: Number,
+    unique: true,
+    sparse: true
+  },
+
+  name: {
+    type: String,
+    trim: true
+  },
+
+  email: {
+    type: String,
+    trim: true
+  },
+
+  phone: {
+    type: String,
+    trim: true
+  },
+
+  address: {
+    type: String,
+    trim: true
+  },
+
+  specialty: {
+    type: String,
+    trim: true
+  },
+
+  photo: {
+    type: String,
+    trim: true
   },
 
   licenseNumber: {
     type: String,
-    required: [true, 'License number is required'],
     unique: true,
+    sparse: true,
     trim: true
   },
 
@@ -22,7 +59,6 @@ const doctorSchema = new mongoose.Schema({
 
   specialization: {
     type: String,
-    required: [true, 'Specialization is required'],
     enum: [
       'Cardiology',
       'Neurology',
@@ -33,7 +69,16 @@ const doctorSchema = new mongoose.Schema({
       'Dermatology',
       'Oncology',
       'Urology',
-      'Counselor'
+      'Counselor',
+      'Consultant Psychiatrist',
+      'Clinical Psychologist',
+      'Counseling Psychologist',
+      'Child & Adolescent Psychiatrist',
+      'Neuropsychiatrist',
+      'Addiction Specialist',
+      'Geriatric Psychiatrist',
+      'Psychotherapist',
+      'Behavioral Therapist'
     ]
   },
 
@@ -142,6 +187,37 @@ const doctorSchema = new mongoose.Schema({
     default: false
   },
 
+  verificationNotes: {
+    type: String,
+    trim: true
+  },
+
+  verifiedAt: {
+    type: Date
+  },
+
+  verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
+  rejectionReason: {
+    type: String,
+    trim: true
+  },
+
+  licenseDocument: {
+    type: String,
+    trim: true
+  },
+
+  yearsOfExperience: {
+    type: Number,
+    default: 0
+  },
+
+  availableSlots: [String],
+
   bio: {
     type: String,
     trim: true,
@@ -193,10 +269,24 @@ doctorSchema.virtual('completionRate').get(function() {
   return total > 0 ? ((this.completedAppointments / total) * 100).toFixed(2) : 0;
 });
 
+// Auto-assign sequential id if missing
+doctorSchema.pre('save', async function(next) {
+  if (!this.id) {
+    try {
+      const lastDoctor = await this.constructor.findOne().sort({ id: -1 }).select('id');
+      this.id = (lastDoctor && lastDoctor.id) ? Number(lastDoctor.id) + 1 : 1;
+    } catch (err) {
+      // Continue if search fails
+    }
+  }
+  next();
+});
+
 // Index for performance
 doctorSchema.index({ userId: 1 });
 doctorSchema.index({ specialization: 1 });
 doctorSchema.index({ status: 1 });
+doctorSchema.index({ isVerified: 1 });
 doctorSchema.index({ rating: -1 });
 doctorSchema.index({ createdAt: -1 });
 

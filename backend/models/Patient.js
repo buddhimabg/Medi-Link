@@ -4,12 +4,22 @@ const patientSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: false,
     unique: true
+  },
+
+  name: {
+    type: String,
+    required: false
   },
 
   dateOfBirth: {
     type: Date,
+    required: false
+  },
+
+  age: {
+    type: Number,
     required: false
   },
 
@@ -154,19 +164,18 @@ const patientSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual for age
-patientSchema.virtual('age').get(function() {
-  if (!this.dateOfBirth) return null;
-  const today = new Date();
-  let age = today.getFullYear() - this.dateOfBirth.getFullYear();
-  const monthDiff = today.getMonth() - this.dateOfBirth.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < this.dateOfBirth.getDate())) {
-    age--;
-  }
-  
-  return age;
-});
+// patientSchema.virtual('age').get(function() {
+//   if (!this.dateOfBirth) return null;
+//   const today = new Date();
+//   let age = today.getFullYear() - this.dateOfBirth.getFullYear();
+//   const monthDiff = today.getMonth() - this.dateOfBirth.getMonth();
+//   
+//   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < this.dateOfBirth.getDate())) {
+//     age--;
+//   }
+//   
+//   return age;
+// });
 
 // Virtual for completion rate
 patientSchema.virtual('completionRate').get(function() {

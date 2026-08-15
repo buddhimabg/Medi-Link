@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck, ShieldAlert, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/api';
 import './ManageDoctorsPage.css';
@@ -12,6 +13,8 @@ interface Doctor {
   phone: string;
   address: string;
   nic: string;
+  licenseNumber: string;
+  isVerified: boolean;
   rating: number;
   status: 'Active' | 'On Leave' | 'Inactive';
   avatar?: string;
@@ -23,7 +26,10 @@ interface DoctorFormData {
   phone: string;
   address: string;
   nic: string;
+  licenseNumber: string;
   specialty: string;
+  status: 'Active' | 'On Leave' | 'Inactive';
+  rating: number;
 }
 
 const SPECIALTIES = [
@@ -45,7 +51,10 @@ const emptyForm: DoctorFormData = {
   phone: '',
   address: '',
   nic: '',
-  specialty: 'General'
+  licenseNumber: '',
+  specialty: 'General',
+  status: 'Active',
+  rating: 0
 };
 
 const ManageDoctors: React.FC = () => {
@@ -69,14 +78,14 @@ const ManageDoctors: React.FC = () => {
     setIsLoadingDoctors(true);
     try {
       const response = await apiFetch<{ success: boolean; data: any[] }>('/doctors');
-      const loadedDoctors: Doctor[] = (response.data || []).map((doctor) => {
-        const name = doctor.userId?.name || 'Unknown';
+      const loadedDoctors: Doctor[] = (response.data || []).map((doctor: any) => {
+        const name = doctor.name || doctor.userId?.name || 'Unknown';
         const status: 'Active' | 'On Leave' | 'Inactive' =
           doctor.status === 'on-leave'
             ? 'On Leave'
             : doctor.status === 'inactive'
-            ? 'Inactive'
-            : 'Active';
+              ? 'Inactive'
+              : 'Active';
         return {
           id: doctor._id || doctor.id,
           name,
@@ -84,15 +93,18 @@ const ManageDoctors: React.FC = () => {
             .split(' ')
             .map((part: string) => part[0])
             .join('')
-            .toUpperCase(),
-          specialty: doctor.specialization || 'Unknown',
-          email: doctor.userId?.email || '',
-          phone: doctor.userId?.phone || '',
-          address: doctor.userId?.address || '',
+            .toUpperCase()
+            .substring(0, 2),
+          specialty: doctor.specialty || doctor.specialization || 'Unknown',
+          email: doctor.email || doctor.userId?.email || '',
+          phone: doctor.phone || doctor.userId?.phone || '',
+          address: doctor.address || doctor.userId?.address || '',
           nic: doctor.nic || '',
+          licenseNumber: doctor.licenseNumber || '',
+          isVerified: doctor.isVerified === true,
           rating: doctor.rating || 0,
           status,
-          avatar: doctor.userId?.profileImage || undefined
+          avatar: doctor.photo || doctor.userId?.profileImage || undefined
         };
       });
       setDoctors(loadedDoctors);
@@ -135,12 +147,12 @@ const ManageDoctors: React.FC = () => {
     }
   ];
 
-  const statuses = ['all', 'Active', 'On Leave', 'Inactive'];
+  const statuses = ['all', 'Active', 'On Leave'];
 
   const filteredDoctors = doctors.filter((doctor) => {
     const matchesSearch = doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doctor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doctor.nic.toLowerCase().includes(searchTerm.toLowerCase());
+      doctor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doctor.nic.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSpecialty = selectedSpecialty === 'all' || doctor.specialty === selectedSpecialty;
     const matchesStatus = selectedStatus === 'all' || doctor.status === selectedStatus;
     return matchesSearch && matchesSpecialty && matchesStatus;
@@ -168,7 +180,10 @@ const ManageDoctors: React.FC = () => {
       phone: doctor.phone,
       address: doctor.address,
       nic: doctor.nic,
-      specialty: doctor.specialty
+      licenseNumber: doctor.licenseNumber || '',
+      specialty: doctor.specialty,
+      status: doctor.status,
+      rating: doctor.rating || 0
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -186,7 +201,7 @@ const ManageDoctors: React.FC = () => {
   // ─── FORM INPUT CHANGE ───
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: name === 'rating' ? Number(value) : value }));
   };
 
   // ─── SUBMIT (CREATE or UPDATE) ───
@@ -197,6 +212,27 @@ const ManageDoctors: React.FC = () => {
     if (!formData.name || !formData.email || !formData.specialty) {
       setFormError('Please fill in Name, Email, and Specialty');
       return;
+    }
+
+    if (!formData.email.includes('@')) {
+      setFormError('Email must contain an @ symbol');
+      return;
+    }
+
+    if (formData.phone) {
+      const phoneClean = formData.phone.replace(/\s+/g, '');
+      if (!/^\+94\d{9}$/.test(phoneClean)) {
+        setFormError('Tel number must start with +94 followed by exactly 9 digits');
+        return;
+      }
+    }
+
+    if (formData.nic) {
+      const nicClean = formData.nic.replace(/\s+/g, '');
+      if (!/^\d{12}$/.test(nicClean)) {
+        setFormError('NIC must have exactly 12 numbers');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -212,11 +248,14 @@ const ManageDoctors: React.FC = () => {
             phone: formData.phone,
             address: formData.address,
             nic: formData.nic,
-            specialization: formData.specialty
+            licenseNumber: formData.licenseNumber || undefined,
+            specialization: formData.specialty,
+            status: formData.status === 'On Leave' ? 'on-leave' : formData.status === 'Inactive' ? 'inactive' : 'active',
+            rating: formData.rating
           })
         });
       } else {
-        // ── CREATE ──
+        // ── CREATE (Admin added doctor is automatically verified) ──
         await apiFetch('/doctors', {
           method: 'POST',
           body: JSON.stringify({
@@ -225,8 +264,12 @@ const ManageDoctors: React.FC = () => {
             phone: formData.phone,
             address: formData.address,
             nic: formData.nic,
+            licenseNumber: formData.licenseNumber || `SLMC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
             specialization: formData.specialty,
-            password: 'Doctor@123456'
+            password: 'Doctor@123456',
+            status: formData.status === 'On Leave' ? 'on-leave' : formData.status === 'Inactive' ? 'inactive' : 'active',
+            rating: formData.rating,
+            isVerified: true // Admin added doctors are already verified
           })
         });
       }
@@ -287,42 +330,44 @@ const ManageDoctors: React.FC = () => {
           <h2 className="logo">MediLink</h2>
         </div>
 
-        <div className="profile-section">
-          <img
-            src="https://i.pinimg.com/736x/98/d4/e3/98d4e3c28316349f3f7ccc976929e986.jpg"
-            alt="Profile"
-            className="profile-image"
-          />
-        </div>
 
         <nav className="navigation">
           <ul className="nav-list">
             <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon">📊</span>
+              <span className="nav-icon"><LayoutDashboard size={20} /></span>
               <span className="nav-label">Dashboard</span>
             </li>
             <li className="nav-item nav-item-active" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon">👨‍⚕️</span>
+              <span className="nav-icon"><Stethoscope size={20} /></span>
               <span className="nav-label">Manage Doctors</span>
               <span className="nav-arrow">›</span>
             </li>
+            <li className="nav-item" onClick={() => navigate('/doctor-approvals')}>
+              <span className="nav-icon"><ShieldCheck size={20} /></span>
+              <span className="nav-label">Doctor Approvals</span>
+              {doctors.filter(d => !d.isVerified).length > 0 && (
+                <span className="sidebar-pending-badge" style={{ marginLeft: 'auto', background: '#f59e0b', color: '#fff', fontSize: '0.72rem', fontWeight: 800, padding: '2px 7px', borderRadius: '9999px' }}>
+                  {doctors.filter(d => !d.isVerified).length}
+                </span>
+              )}
+            </li>
             <li className="nav-item" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon">👥</span>
+              <span className="nav-icon"><Users size={20} /></span>
               <span className="nav-label">Manage Patients</span>
             </li>
             <li className="nav-item" onClick={() => navigate('/reports')}>
-              <span className="nav-icon">📋</span>
+              <span className="nav-icon"><FileText size={20} /></span>
               <span className="nav-label">Reports</span>
             </li>
             <li className="nav-item" onClick={() => navigate('/settings')}>
-              <span className="nav-icon">⚙️</span>
+              <span className="nav-icon"><Settings size={20} /></span>
               <span className="nav-label">Settings</span>
             </li>
           </ul>
         </nav>
 
         <button className="logout-btn" onClick={handleLogout}>
-          <span className="logout-icon">🚪</span>
+          <span className="logout-icon"><LogOut size={20} /></span>
           <span className="logout-text">Log Out</span>
         </button>
       </aside>
@@ -406,6 +451,22 @@ const ManageDoctors: React.FC = () => {
           </div>
         )}
 
+        {/* Pending Approvals Notice Banner */}
+        {doctors.filter(d => !d.isVerified).length > 0 && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#92400e', fontWeight: 600, fontSize: '0.88rem' }}>
+              <AlertCircle size={18} color="#d97706" />
+              <span>You have <strong>{doctors.filter(d => !d.isVerified).length} doctor(s)</strong> awaiting Medical Council license verification and approval.</span>
+            </div>
+            <button
+              onClick={() => navigate('/doctor-approvals')}
+              style={{ background: '#d97706', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Review Approvals →
+            </button>
+          </div>
+        )}
+
         {/* Doctors Table */}
         {!isLoadingDoctors && (
           <section className="doctors-section">
@@ -414,9 +475,11 @@ const ManageDoctors: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Doctor</th>
+                    <th>SLMC License</th>
                     <th>Specialty</th>
                     <th>Contact</th>
                     <th>NIC</th>
+                    <th>Verification</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -431,6 +494,11 @@ const ManageDoctors: React.FC = () => {
                         <span>{doctor.name}</span>
                       </td>
                       <td>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0284c7', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '3px 7px', borderRadius: '5px', fontSize: '0.8rem' }}>
+                          {doctor.licenseNumber || 'SLMC-PENDING'}
+                        </span>
+                      </td>
+                      <td>
                         <span className="specialty-badge">{doctor.specialty}</span>
                       </td>
                       <td className="contact-cell">
@@ -439,24 +507,39 @@ const ManageDoctors: React.FC = () => {
                       </td>
                       <td className="nic-cell">{doctor.nic || '—'}</td>
                       <td>
+                        {doctor.isVerified ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '3px 8px', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700 }}>
+                            <ShieldCheck size={12} /> Verified
+                          </span>
+                        ) : (
+                          <span
+                            onClick={() => navigate('/doctor-approvals')}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                            title="Click to review in Doctor Approvals"
+                          >
+                            <ShieldAlert size={12} /> Pending Review
+                          </span>
+                        )}
+                      </td>
+                      <td>
                         <span className={`status-badge ${getStatusClass(doctor.status)}`}>
                           {doctor.status}
                         </span>
                       </td>
                       <td className="actions-cell">
                         <button
-                          className="action-btn view-btn"
+                          className="action-btn view-btn text-btn"
                           onClick={() => handleEditDoctor(doctor.id)}
                           title="Edit"
                         >
-                          ✏️
+                          Edit
                         </button>
                         <button
-                          className="action-btn delete-btn"
+                          className="action-btn delete-btn text-btn"
                           onClick={() => handleDeleteDoctor(doctor.id)}
                           title="Delete"
                         >
-                          🗑️
+                          Delete
                         </button>
                       </td>
                     </tr>
@@ -544,6 +627,18 @@ const ManageDoctors: React.FC = () => {
                 </div>
 
                 <div className="form-group">
+                  <label htmlFor="licenseNumber">Medical Council License Number (SLMC)</label>
+                  <input
+                    type="text"
+                    id="licenseNumber"
+                    name="licenseNumber"
+                    value={formData.licenseNumber}
+                    onChange={handleInputChange}
+                    placeholder="SLMC-2026-12345 (optional, auto-generated if empty)"
+                  />
+                </div>
+
+                <div className="form-group">
                   <label htmlFor="address">Address</label>
                   <input
                     type="text"
@@ -567,6 +662,53 @@ const ManageDoctors: React.FC = () => {
                       <option key={spec} value={spec}>{spec}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Status</label>
+                  <div className="radio-group" style={{ display: 'flex', gap: '10px', marginTop: '8px', width: '100%' }}>
+                    <label style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', backgroundColor: formData.status === 'Active' ? '#eef2ff' : '#fff', borderColor: formData.status === 'Active' ? '#6366f1' : '#ccc', transition: 'all 0.2s' }}>
+                      <input
+                        type="radio"
+                        name="status"
+                        value="Active"
+                        checked={formData.status === 'Active'}
+                        onChange={handleInputChange}
+                        style={{ display: 'none' }}
+                      />
+                      <span style={{ fontWeight: formData.status === 'Active' ? '600' : 'normal', color: formData.status === 'Active' ? '#4f46e5' : '#333' }}>Active</span>
+                    </label>
+                    <label style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', backgroundColor: formData.status === 'On Leave' ? '#fffbeb' : '#fff', borderColor: formData.status === 'On Leave' ? '#f59e0b' : '#ccc', transition: 'all 0.2s' }}>
+                      <input
+                        type="radio"
+                        name="status"
+                        value="On Leave"
+                        checked={formData.status === 'On Leave'}
+                        onChange={handleInputChange}
+                        style={{ display: 'none' }}
+                      />
+                      <span style={{ fontWeight: formData.status === 'On Leave' ? '600' : 'normal', color: formData.status === 'On Leave' ? '#d97706' : '#333' }}>On Leave</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Rating {formData.rating > 0 ? `(${formData.rating}/5)` : ''}</label>
+                  <div className="rating-radio-group" style={{ display: 'flex', gap: '10px', marginTop: '8px', width: '100%' }}>
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <label key={num} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', backgroundColor: formData.rating === num ? '#eef2ff' : '#fff', borderColor: formData.rating === num ? '#6366f1' : '#ccc', transition: 'all 0.2s' }}>
+                        <input
+                          type="radio"
+                          name="rating"
+                          value={num}
+                          checked={formData.rating === num}
+                          onChange={handleInputChange}
+                          style={{ display: 'none' }}
+                        />
+                        <span style={{ fontWeight: formData.rating === num ? '600' : 'normal', color: formData.rating === num ? '#4f46e5' : '#333' }}>{num}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="modal-footer">

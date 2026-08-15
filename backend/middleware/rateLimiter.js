@@ -17,8 +17,8 @@ const apiLimiter = rateLimit({
     });
   },
   skip: (req) => {
-    // Skip rate limiting for health check endpoint
-    return req.path === '/api/health';
+    // Skip rate limiting for health check endpoint or in development mode
+    return req.path === '/api/health' || process.env.NODE_ENV === 'development';
   }
 });
 

@@ -9,7 +9,7 @@ dotenv.config();
  * Handles database connection with proper error handling and connection pooling
  */
 
-const MONGODB_URI = 'mongodb://pavindugrx11_db_user:9hg8An6yL295JPLW@ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net:27017,ac-pdfzbxj-shard-00-01.rqoahkh.mongodb.net:27017,ac-pdfzbxj-shard-00-02.rqoahkh.mongodb.net:27017/medilink?ssl=true&replicaSet=atlas-76m1iy-shard-0&authSource=admin&retryWrites=true&w=majority&appName=medi-link';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://pavindugrx11_db_user:9hg8An6yL295JPLW@ac-pdfzbxj-shard-00-00.rqoahkh.mongodb.net:27017,ac-pdfzbxj-shard-00-01.rqoahkh.mongodb.net:27017,ac-pdfzbxj-shard-00-02.rqoahkh.mongodb.net:27017/medilink?ssl=true&replicaSet=atlas-76m1iy-shard-0&authSource=admin&retryWrites=true&w=majority&appName=medi-link';
 
 // Connection options
 const connectionOptions = {
