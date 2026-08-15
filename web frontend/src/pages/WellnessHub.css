@@ -417,7 +417,7 @@
 }
 
 /* --- FOOTER --- */
-{/*.site-footer {
+.site-footer {
   border-top: 1px solid #eaeaea;
   padding-top: 4rem;
   margin-top: 2rem;
@@ -524,7 +524,6 @@
   font-size: 0.85rem;
   color: #888;
 } 
- */}
 
  /* --- TOP NAVIGATION / BACK BUTTON --- */
 .top-navigation-bar {

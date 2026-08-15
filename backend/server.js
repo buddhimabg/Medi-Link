@@ -53,7 +53,7 @@ app.use("/api/lab-reports", labReportRoutes);
 app.use("/api/biomarkers", biomarkerRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/doctors', require('./routes/doctorRoutes'));
- 
+
 app.use('/api/wellness', require('./routes/WellnessRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
