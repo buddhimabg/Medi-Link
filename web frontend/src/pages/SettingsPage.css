@@ -23,6 +23,8 @@ body {
   display: flex;
   min-height: 100vh;
   height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background-color: #eef4fb;
 }
 
@@ -41,7 +43,7 @@ body {
 }
 
 .settings-container .logo-section {
-  margin-bottom: 100px;
+  margin-bottom: 30px;
   text-align: center;
 }
 
@@ -53,7 +55,7 @@ body {
 }
 
 .settings-container .profile-section {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   text-align: center;
 }
 
@@ -147,7 +149,9 @@ body {
 
 .settings-container .main-content {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: auto;
   padding: 40px;
   background-color: #eef4fb;
 }

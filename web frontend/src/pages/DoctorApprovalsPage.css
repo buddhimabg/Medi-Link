@@ -2,7 +2,9 @@
 
 .approvals-page-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background-color: #f8fafc;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: #1e293b;
@@ -120,8 +122,10 @@
 /* ─── MAIN CONTENT ─── */
 .main-content {
   flex: 1;
+  min-width: 0;
   padding: 32px;
   overflow-y: auto;
+  overflow-x: auto;
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;

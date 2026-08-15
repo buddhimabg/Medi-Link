@@ -17,6 +17,8 @@ body {
 .reports-container {
   display: flex;
   height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background-color: #f5f7fa;
 }
 
@@ -33,7 +35,7 @@ body {
 }
 
 .logo-section {
-  margin-bottom: 100px;
+  margin-bottom: 30px;
   text-align: center;
 }
 
@@ -46,7 +48,7 @@ body {
 }
 
 .profile-section {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   text-align: center;
 }
 
@@ -140,7 +142,9 @@ body {
 
 .main-content {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: auto;
   padding: 40px;
   background-color: #f5f7fa;
 }

@@ -3,3 +3,5 @@ node_modules/
 *.log
 backend/logs/*.log
 !backend/logs/.gitkeep
+backend/.env
+web frontend/.env
