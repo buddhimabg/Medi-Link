@@ -1,2 +1,4 @@
 node_modules/
 .env
+TESTING_CHECKLIST.md
+sample_medical_lab_report.txt
