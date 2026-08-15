@@ -18,45 +18,38 @@ const moodSchema = new mongoose.Schema(
     },
     sleepLevel: {
       type: Number,
-      required: true,
       min: 1,
       max: 10
     },
     anxietyLevel: {
       type: Number,
-      required: true,
       min: 1,
       max: 10
     },
     energyLevel: {
       type: Number,
-      required: true,
       min: 1,
       max: 10
     },
     motivationLevel: {
       type: Number,
-      required: true,
       min: 1,
       max: 10
     },
     socialInteraction: {
       type: Number,
-      required: true,
       min: 1,
       max: 10
     },
     stressLevel: {
       type: Number,
       min: 1,
-      max: 10,
-      default: 5
+      max: 10
     },
     focusLevel: {
       type: Number,
       min: 1,
-      max: 10,
-      default: 5
+      max: 10
     },
     shareWithDoctor: {
       type: Boolean,
@@ -65,7 +58,49 @@ const moodSchema = new mongoose.Schema(
     tags: {
       type: [String],
       default: []
-    }
+    },
+    mentalHealthScore: {
+      type: Number,
+      min: 0,
+      max: 10,
+      default: 5,
+      index: true // Index for efficient sorting/filtering by score
+    },
+    // Journal Analysis (Optional AI Fields)
+    journalSentimentMood: { type: String },
+    journalPrimaryEmotion: { type: String },
+    journalEmotionalIntensity: { type: Number, min: 1, max: 10 },
+    journalStressLevel: { type: Number, min: 1, max: 10 },
+    journalTopics: [{ type: String }],
+    journalCopingStrategies: [{ type: String }],
+    journalAiSummary: { type: String },
+
+    // Speech Analysis (Optional AI Fields)
+    speechTranscript: { type: String },
+    speechSentimentMood: { type: String },
+    speechPrimaryEmotion: { type: String },
+    speechEmotionalIntensity: { type: Number, min: 1, max: 10 },
+    speechStressLevel: { type: Number, min: 1, max: 10 },
+    speechTopics: [{ type: String }],
+    speechCopingStrategies: [{ type: String }],
+    speechAiSummary: { type: String },
+
+    // Camera Analysis (Never used for scoring)
+    cameraDetectedMood: { type: String },
+    cameraConfidence: { type: Number, min: 0, max: 100 },
+
+    // Aggregated / General Fields
+    finalConfirmedMood: {
+      sleepLevel: Number,
+      anxietyLevel: Number,
+      energyLevel: Number,
+      motivationLevel: Number,
+      socialInteraction: Number,
+      stressLevel: Number,
+      focusLevel: Number
+    },
+    overallWellbeingScore: { type: Number },
+    emotionalRiskLevel: { type: String, enum: ['Low', 'Medium', 'High', 'Critical'] }
   },
   {
     timestamps: true // automatically creates createdAt and updatedAt

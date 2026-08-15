@@ -3,6 +3,7 @@
 const Mood = require("../models/mood");
 const Insight = require("../models/insight");
 const { buildMoodInsights } = require("../utils/insightEngine");
+const FactorMeta = require("../models/FactorMeta");
 const {
   calculateMentalHealthScore,
   calculateRecoveryScore,
@@ -47,33 +48,34 @@ const hasEnhancedInsightShape = (insight) => {
     hasSummary &&
     hasTrend &&
     Array.isArray(insight.factorInsights) &&
-    Array.isArray(insight.factorChanges) &&
     Array.isArray(insight.recommendations) &&
     Array.isArray(insight.dailyTrend) &&
-    insight.weeklyComparison &&
-    typeof insight.weeklyComparison === "object" &&
-    Array.isArray(insight.correlationInsights) &&
-    Array.isArray(insight.riskAlerts) &&
-    insight.dailyInsight &&
-    typeof insight.dailyInsight === "object" &&
     insight.metrics &&
     typeof insight.metrics === "object" &&
     Array.isArray(insight.patterns) &&
-    typeof insight.confidenceLevel === "string" &&
     insight.bestDay &&
-    typeof insight.bestDay === "object"
+    typeof insight.bestDay === "object" &&
+    typeof insight.hasEnoughComparisonData === "boolean"
   );
 };
 
+
 /* =====================================================
    CREATE MOOD ENTRY
-   Save mood record and calculate score
+   Calculate score BEFORE saving and store with document
 ===================================================== */
 const createMoodEntry = async (data) => {
-  const mood = new Mood(data);
-  const saved = await mood.save();
-
-  const mentalHealthScore = calculateMentalHealthScore(saved);
+  // Create temporary document to calculate score
+  const tempMood = new Mood(data);
+  
+  // Calculate score before saving
+  const mentalHealthScore = calculateMentalHealthScore(tempMood);
+  
+  // Add score to data
+  tempMood.mentalHealthScore = mentalHealthScore;
+  
+  // Save document with score
+  const saved = await tempMood.save();
 
   return { saved, mentalHealthScore };
 };
@@ -86,12 +88,27 @@ const createMoodEntry = async (data) => {
    - Recovery score
 ===================================================== */
 const getDashboardStats = async (userId) => {
-  const moods = await Mood.find({ userId })
-    .sort({ createdAt: -1 }) // get latest entries first for easier processing of streaks and recent data
-    .lean();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); 
+  const last7Days = new Date(today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS);
+
+  // Fetch only recent full moods for average/recovery, and only dates for streak
+  const [recentMoods, allMoodDates] = await Promise.all([
+    Mood.find({
+      userId,
+      createdAt: {
+        $gte: last7Days,
+        $lte: new Date(today.getTime() + ONE_DAY_MS - 1)
+      }
+    }).sort({ createdAt: -1 }).lean(),
+    Mood.find({ userId })
+      .select({ createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean()
+  ]);
 
   // If no mood entries found
-  if (!moods.length) {
+  if (!allMoodDates.length) {
     return {
       sevenDayAverage: 0,
       checkInStreak: 0,
@@ -99,28 +116,10 @@ const getDashboardStats = async (userId) => {
     };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); 
-
-  // Start date for last 7 days
-  const last7Days = new Date(
-    today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS
-  );
-
-  // Filter only recent mood entries
-  const moodsLast7Days = moods.filter((mood) => {
-    const moodDate = new Date(mood.createdAt);
-
-    return (
-      moodDate >= last7Days &&
-      moodDate <= new Date(today.getTime() + ONE_DAY_MS - 1)
-    );
-  });
-
   return {
-    sevenDayAverage: calculateSevenDayAverage(moodsLast7Days),
-    checkInStreak: calculateCheckInStreak(moods),
-    recoveryScore: calculateRecoveryScore(moodsLast7Days),
+    sevenDayAverage: calculateSevenDayAverage(recentMoods),
+    checkInStreak: calculateCheckInStreak(allMoodDates),
+    recoveryScore: calculateRecoveryScore(recentMoods),
   };
 };
 
@@ -172,8 +171,9 @@ const getWeeklyChart = async (userId) => {
     if (grouped[dateStr]) {
       const entries = grouped[dateStr];
 
+      // Use stored mentalHealthScore instead of calculating
       const totalScore = entries.reduce((sum, mood) => {
-        return sum + calculateMentalHealthScore(mood);
+        return sum + (mood.mentalHealthScore || calculateMentalHealthScore(mood));
       }, 0);
 
       const average = totalScore / entries.length;
@@ -203,16 +203,36 @@ const getWeeklyChart = async (userId) => {
 
 /* =====================================================
    MOOD HISTORY
-   Returns all mood records
+   Returns mood records with optimized fields
 ===================================================== */
-const getMoodHistory = async (userId) => {
+const getMoodHistory = async (userId, limit = 50, skip = 0) => {
+  const totalCount = await Mood.countDocuments({ userId });
+  
   const moods = await Mood.find({ userId })
     .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .select({
+      mood: 1,
+      mentalHealthScore: 1,  // Get stored score (no calculation needed)
+      sleepLevel: 1,
+      anxietyLevel: 1,
+      energyLevel: 1,
+      motivationLevel: 1,
+      focusLevel: 1,
+      socialInteraction: 1,
+      stressLevel: 1,
+      note: 1,
+      tags: 1,
+      createdAt: 1,
+      // Exclude: shareWithDoctor (not needed for history display)
+    })
     .lean();
 
   return {
     success: true,
     count: moods.length,
+    total: totalCount,
     data: moods,
   };
 };
@@ -239,22 +259,14 @@ const getWeeklyInsights = async (userId) => {
     ? new Date(latestEntry.createdAt)
     : null;
 
+  const latestEntryTimestamp = latestCreatedAt ? latestCreatedAt.getTime() : 0;
+  const currentCacheKey = `${todayKey}_${latestEntryTimestamp}`;
+
   // Return cached insight if still valid
   if (
     existingInsight &&
     hasEnhancedInsightShape(existingInsight) &&
-    existingInsight.lastGeneratedDate === todayKey &&
-    existingInsight.sourceEntryCount === entryCount &&
-    (
-      (existingInsight.sourceLastEntryAt === null &&
-        latestCreatedAt === null) ||
-      (
-        existingInsight.sourceLastEntryAt &&
-        latestCreatedAt &&
-        new Date(existingInsight.sourceLastEntryAt).getTime() ===
-          latestCreatedAt.getTime()
-      )
-    )
+    existingInsight.cacheKey === currentCacheKey
   ) {
     return existingInsight;
   }
@@ -274,25 +286,30 @@ const getWeeklyInsights = async (userId) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  // Generate insights
-  const computed = buildMoodInsights(periodEntries, { now });
+  // Load factor meta from DB (if available) and generate insights
+  const metas = await FactorMeta.find({}).lean();
+  const factorMetaMap = metas.reduce((acc, m) => {
+    acc[m.key] = m;
+    return acc;
+  }, {});
+
+  const computed = buildMoodInsights(periodEntries, { now, factorMeta: factorMetaMap });
 
   const payload = {
     ...computed,
 
-    summary: computed.summary,
-    overallTrend: computed.overallTrend,
-    overallChange: computed.overallChange,
+    summary: computed.summary || computed.summaryText,
+    overallTrend: computed.overallTrend || computed.overallMoodTrend,
 
-    summaryText: computed.summary,
-    overallMoodTrend: computed.overallTrend,
-    moodTrend: computed.overallTrend,
-    moodChange: computed.overallChange,
+    summaryText: computed.summaryText || computed.summary,
+    overallMoodTrend: computed.overallMoodTrend || computed.overallTrend,
+    moodTrend: computed.overallMoodTrend || computed.overallTrend,
+    moodChange: computed.moodChange || computed.overallChange,
+    factorMeta: metas,
 
     userId,
     lastGeneratedDate: todayKey,
-    sourceEntryCount: entryCount,
-    sourceLastEntryAt: latestCreatedAt,
+    cacheKey: currentCacheKey,
   };
 
   // Save / update insight
@@ -301,7 +318,7 @@ const getWeeklyInsights = async (userId) => {
     payload,
     {
       upsert: true,
-      new: true,
+      returnDocument: 'after',
       setDefaultsOnInsert: true,
     }
   ).lean();

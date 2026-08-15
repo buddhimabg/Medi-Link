@@ -1,0 +1,228 @@
+/* MoodFixActivityDetail page styles */
+
+/* ── Camera detect button ── */
+.sma-cam-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #0C5BD5 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(12, 91, 213, 0.25);
+  align-self: flex-start;
+}
+.sma-cam-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(12, 91, 213, 0.35); }
+
+/* ── Loading ── */
+.sma-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.sma-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #bfdbfe;
+  border-top-color: #0C5BD5;
+  border-radius: 50%;
+  animation: smaSpinAnim 0.85s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes smaSpinAnim { to { transform: rotate(360deg); } }
+.sma-loading-text {
+  font-size: 0.8rem;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+/* ── Detection result card (success — compact) ── */
+.sma-result-card {
+  background: white;
+  border: 1.5px solid #d1fae5;
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+  animation: smaSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes smaSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sma-result-mood-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sma-result-emoji {
+  font-size: 2.5rem;
+  line-height: 1;
+  animation: emojiPop2 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes emojiPop2 {
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.sma-result-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sma-result-name {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+/* Confidence bar */
+.sma-conf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.sma-conf-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.sma-conf-bar {
+  flex: 1;
+  height: 5px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sma-conf-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sma-conf-pct {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #374151;
+  white-space: nowrap;
+}
+
+/* Result action buttons */
+.sma-result-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.sma-btn-accept {
+  flex: 1;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+.sma-btn-accept:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(16,185,129,0.35); }
+
+.sma-btn-retry {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sma-btn-retry:hover { background: #e5e7eb; }
+
+.sma-btn-cancel {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #9ca3af;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sma-btn-cancel:hover { background: #fee2e2; color: #ef4444; border-color: #fecaca; }
+
+/* ── Failed card (blue tone) ── */
+.sma-failed-card {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1.5px solid #93c5fd;
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+  animation: smaSlideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.sma-failed-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+.sma-failed-emoji {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+.sma-failed-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #1e40af;
+}
+.sma-failed-desc {
+  font-size: 0.75rem;
+  color: #2563eb;
+  margin-top: 0.1rem;
+}
+.sma-tips-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.sma-tips-list li {
+  font-size: 0.72rem;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+/* ── Error card ── */
+.sma-error-card {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 1.5px solid #fda4af;
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+  animation: smaSlideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sma-error-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #be123c;
+}

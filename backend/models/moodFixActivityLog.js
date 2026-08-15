@@ -64,16 +64,6 @@ const moodFixActivityLogSchema = new mongoose.Schema(
       type: Number,
       default: -1,
     },
-    feedback: {
-      type: String,
-      default: "",
-    },
-    rating: {
-      type: Number,
-      min: 1,
-      max: 5,
-      default: null,
-    },
     status: {
       type: String,
       enum: ["started", "completed"],
@@ -96,6 +86,7 @@ const moodFixActivityLogSchema = new mongoose.Schema(
 
 moodFixActivityLogSchema.index({ userId: 1, createdAt: -1 });
 moodFixActivityLogSchema.index({ userId: 1, status: 1, completedAt: -1 });
+moodFixActivityLogSchema.index({ userId: 1, activityId: 1, status: 1, startedAt: -1 });
 
 const MoodFixActivityLog = mongoose.model("MoodFixActivityLog", moodFixActivityLogSchema);
 

@@ -40,22 +40,22 @@ const loginUser = async (req, res) => {
 
     //Find the user in the database by their email
     const user = await User.findOne({ email });
-    
+
     if (!user) {
-       
+
       return res.status(404).json({ message: "User not found. Please register first." });
     }
 
     // 2. Compare the typed password with the scrambled password in the database
     const isMatch = await bcrypt.compare(password, user.password);
-    
+
     if (!isMatch) {
-       
+
       return res.status(400).json({ message: "Invalid password. Please try again." });
     }
 
-    
-     
+
+
     res.status(200).json({
       _id: user._id,
       name: user.name,

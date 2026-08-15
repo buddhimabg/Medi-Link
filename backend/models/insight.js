@@ -155,6 +155,10 @@ const insightSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    factorMeta: {
+      type: mongoose.Schema.Types.Mixed,
+      default: [],
+    },
     dailyInsight: {
       type: dailyInsightSchema,
       default: () => ({}),

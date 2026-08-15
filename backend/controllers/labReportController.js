@@ -15,15 +15,17 @@ const {
  */
 const uploadAndAnalyzeReport = async (req, res) => {
   try {
-    // NOTE: Temporary userId handling (no auth system integrated yet)
-    const userId = req.body?.userId || "testuser001";
+    const userId = req.body?.userId || req.query?.userId;
+    if (!userId) {
+      return res.status(400).json(apiFail("userId is required."));
+    }
 
     // Validate file existence
     if (!req.file) {
       return res.status(400).json(apiFail("Please upload a PDF or image report file."));
     }
 
-    // Service layer handles analysis logic (clean separation of concerns)
+    // Service layer handles analysis logic 
     const report = await createLabReportAnalysis({
       userId,
       file: req.file,
@@ -38,6 +40,9 @@ const uploadAndAnalyzeReport = async (req, res) => {
   } catch (error) {
     // Error handling added for stability (important for production + marking)
     console.error("Upload Report Error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json(apiFail(error.message));
+    }
     return res.status(500).json(apiFail("Internal server error"));
   }
 };
@@ -49,13 +54,14 @@ const uploadAndAnalyzeReport = async (req, res) => {
 const getReportHistory = async (req, res) => {
   try {
     const { userId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
 
     // Validate required parameter
     if (!userId) {
       return res.status(400).json(apiFail("userId is required."));
     }
 
-    const reports = await getLabReportHistory(userId);
+    const reports = await getLabReportHistory(userId, limit);
 
     return res.json(
       apiSuccess(

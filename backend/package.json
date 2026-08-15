@@ -7,12 +7,14 @@
     "start": "node server.js",
     "dev": "nodemon -e js,json,env server.js",
     "test:reminder-flow": "node scripts/testReminderFlow.js",
-    "demo:workflow": "node scripts/seedDemoWorkflow.js"
+    "demo:workflow": "node scripts/seedDemoWorkflow.js",
+    "seed:biomarkers": "node scripts/seedBiomarkers.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

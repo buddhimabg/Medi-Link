@@ -1,27 +1,112 @@
 const mongoose = require("mongoose");
 
-const reminderLogSchema = new mongoose.Schema(
+const reminderSchema = new mongoose.Schema(
   {
     userId: {
       type: String,
-      required: true,
+      required: [true, 'User ID is required'],
       index: true,
     },
-    reminderId: {
+    title: {
       type: String,
-      required: true,
-      index: true,
+      required: [true, 'Reminder title is required'],
+      trim: true,
+      maxlength: [100, 'Title cannot exceed 100 characters'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Description cannot exceed 500 characters'],
+    },
+    instruction: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [300, 'Instruction cannot exceed 300 characters'],
+    },
+    category: {
+      type: String,
+      enum: ['meditation', 'mood', 'activity', 'appointment'],
+      required: [true, 'Category is required'],
+    },
+    time: {
+      type: String,
+      required: [true, 'Time is required'],
+      match: [/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Please provide time in HH:mm format'],
+    },
+    frequency: {
+      type: String,
+      enum: ['once', 'daily', 'weekly', 'specific', 'custom'],
+      required: [true, 'Frequency is required'],
     },
     date: {
       type: String,
-      required: true,
-      match: [/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"],
+      match: [/^\d{4}-\d{2}-\d{2}$/, 'Please provide date in YYYY-MM-DD format'],
+    },
+    durationDays: {
+      type: Number,
+      default: 0,
+    },
+    endDate: {
+      type: String,
+      match: [/^\d{4}-\d{2}-\d{2}$/, 'Please provide date in YYYY-MM-DD format'],
+      default: null,
+    },
+    daysOfWeek: {
+      type: [Number],
+      validate: {
+        validator: function(v) {
+          return v.every(day => day >= 0 && day <= 6);
+        },
+        message: 'Days of week must be between 0 (Sunday) and 6 (Saturday)',
+      },
+    },
+    customDates: {
+      type: [Date],
+    },
+    specificDates: {
+      type: [String],
+      default: [],
+    },
+    disabledDates: {
+      type: [String],
+      default: [],
+    },
+    isDisabledToday: {
+      type: Boolean,
+      default: false,
       index: true,
     },
-    status: {
+    snoozedUntil: {
+      type: Date,
+      default: null,
+    },
+    completionHistory: {
+      type: [
+        {
+          date: { type: String, required: true },
+          status: { type: String, enum: ['completed', 'skipped', 'snoozed'], required: true },
+          notes: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now },
+        }
+      ],
+      default: [],
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    createdFrom: {
       type: String,
-      enum: ["completed", "skipped"],
-      required: true,
+      enum: ['system', 'prescription', 'user'],
+      required: [true, 'createdFrom is required'],
+    },
+    timezone: {
+      type: String,
+      default: 'Asia/Colombo',
+    },
+    lastTriggeredAt: {
+      type: Date,
     },
   },
   {
@@ -29,8 +114,9 @@ const reminderLogSchema = new mongoose.Schema(
   }
 );
 
-reminderLogSchema.index({ userId: 1, reminderId: 1, date: 1 }, { unique: true });
+reminderSchema.index({ userId: 1, isActive: 1 });
+reminderSchema.index({ userId: 1, time: 1, isActive: 1 });
 
-const ReminderLog = mongoose.model("ReminderLog", reminderLogSchema);
+const Reminder = mongoose.model("Reminder", reminderSchema);
 
-module.exports = ReminderLog;
+module.exports = Reminder;

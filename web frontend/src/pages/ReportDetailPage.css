@@ -1,0 +1,98 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap");
+
+.report-shell {
+  font-family: "Outfit", "Nunito Sans", sans-serif;
+  background: 
+    radial-gradient(circle at top right, rgba(12, 91, 213, 0.06), transparent 35%),
+    radial-gradient(circle at left center, rgba(34, 197, 94, 0.03), transparent 25%),
+    #f8fafc;
+}
+
+/* Card aesthetics */
+.report-summary-panel {
+  background: linear-gradient(135deg, #f8fafc, #ffffff);
+  border: 1px solid rgba(12, 91, 213, 0.12);
+  box-shadow: 0 10px 30px rgba(12, 91, 213, 0.03);
+}
+
+.report-summary-card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px rgba(12, 91, 213, 0.04);
+}
+
+.report-marker-card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.01);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.report-marker-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(12, 91, 213, 0.3);
+  box-shadow: 0 12px 30px rgba(12, 91, 213, 0.08);
+}
+
+.report-marker-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(12, 91, 213, 0.15);
+  background: rgba(12, 91, 213, 0.05);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.report-marker-card:hover .report-marker-icon {
+  background: rgba(12, 91, 213, 0.1);
+  transform: scale(1.05);
+}
+
+.report-status-pill {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+}
+
+.report-recommendation-panel {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.report-recommendation-panel:hover {
+  transform: translateY(-3px);
+  border-color: rgba(12, 91, 213, 0.2);
+  box-shadow: 0 12px 25px rgba(12, 91, 213, 0.06);
+}
+
+/* subtle button hover polish */
+button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* nicer scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

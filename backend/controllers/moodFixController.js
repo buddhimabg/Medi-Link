@@ -37,19 +37,13 @@ const getAllowedMoods = async () => {
 // GET /api/mood-fix/activities  - Get activity catalog filtered by mood
 const getMoodFixActivities = async (req, res) => {
   try {
-    const allowedMoods = await getAllowedMoods();
-    const mood = normalizeMood(req.query.mood); // read mood from query parameter and normalize
     const query = { isActive: true }; // only return active activities
 
-    if (mood) {
-      if (!allowedMoods.includes(mood)) {
-        return res.status(400).json(
-          apiFail("Invalid mood", {
-            allowedMoods,
-          })
-        );
+    if (req.query && req.query.mood) {
+      const normalizedMood = normalizeMood(req.query.mood);
+      if (normalizedMood && normalizedMood !== "all") {
+        query.moods = normalizedMood;
       }
-      query.moods = mood;
     }
 
     const activities = await MoodFixActivity.find(query)
@@ -209,7 +203,7 @@ const completeMoodFixStep = async (req, res) => {
 const completeMoodFixActivity = async (req, res) => {
   try {
     const { id } = req.params; 
-    const { moodAfter} = req.body; 
+    const { moodAfter } = req.body; 
 
     const log = await MoodFixActivityLog.findById(id);
     if (!log) {
@@ -235,13 +229,19 @@ const completeMoodFixActivity = async (req, res) => {
     }
 
     if (typeof moodAfter !== "number" || Number.isNaN(moodAfter)) {
-      return res.status(400).json(apiFail("moodAfter is required", null));
+      return res.status(400).json(apiFail("moodAfter is required and must be a number.", null));
+    }
+
+    if (!Number.isInteger(moodAfter)) {
+      return res.status(400).json(apiFail("moodAfter must be a whole number (integer).", null));
+    }
+
+    if (moodAfter < 1 || moodAfter > 10) {
+      return res.status(400).json(apiFail("moodAfter must be between 1 and 10.", null));
     }
 
     log.moodAfter = moodAfter;
     log.moodLabelAfter = scoreToMood(moodAfter);
-    log.feedback = feedback || "";
-    log.rating = typeof rating === "number" ? rating : null;
     log.status = "completed";
     log.completedAt = new Date();
 
@@ -253,9 +253,82 @@ const completeMoodFixActivity = async (req, res) => {
   }
 };
 
+// POST /api/mood-fix/feedback - Save mood after activity (frontend-only tracking)
+const saveMoodAfterFeedback = async (req, res) => {
+  try {
+    const { userId, activityId, activityTitle, moodAfter } = req.body;
+
+    if (!userId || !activityId || typeof moodAfter !== "number" || Number.isNaN(moodAfter)) {
+      return res.status(400).json(
+        apiFail("Missing required fields", {
+          required: ["userId", "activityId", "moodAfter"],
+        })
+      );
+    }
+
+    if (moodAfter < 1 || moodAfter > 10) {
+      return res.status(400).json(apiFail("moodAfter must be 1-10", null));
+    }
+
+    const activity = await MoodFixActivity.findOne({ activityId, isActive: true });
+    if (!activity) {
+      return res.status(404).json(apiFail("Activity not found", null));
+    }
+
+    const moodLabel = scoreToMood(moodAfter);
+    const now = new Date();
+
+    const startedLog = await MoodFixActivityLog.findOne({
+      userId,
+      activityId,
+      status: "started",
+    }).sort({ startedAt: -1 });
+
+    let log;
+
+    if (startedLog) {
+      startedLog.moodAfter = moodAfter;
+      startedLog.moodLabelAfter = moodLabel;
+      startedLog.status = "completed";
+      startedLog.completedAt = now;
+      log = await startedLog.save();
+    } else {
+      const stepsSnapshot = Array.isArray(activity.steps) ? activity.steps : [];
+      const completedStepIndexes = stepsSnapshot.map((_, index) => index);
+
+      log = await MoodFixActivityLog.create({
+        userId,
+        activity: activity._id,
+        activityId,
+        activityTitle: activityTitle || activity.title,
+        moodAfter,
+        moodLabelAfter: moodLabel,
+        duration: activity.duration || "",
+        stepsSnapshot,
+        totalSteps: stepsSnapshot.length,
+        completedStepIndexes,
+        lastCompletedStepIndex: stepsSnapshot.length > 0 ? stepsSnapshot.length - 1 : -1,
+        status: "completed",
+        startedAt: now,
+        completedAt: now,
+      });
+    }
+
+    res.status(201).json(
+      apiSuccess(
+        { feedbackId: log._id, moodAfter, moodLabel, activityId, status: log.status },
+        "Mood feedback saved successfully"
+      )
+    );
+  } catch (error) {
+    res.status(500).json(apiFail("Failed to save mood feedback", error.message));
+  }
+};
+
 module.exports = {
   getMoodFixActivities,
   startMoodFixActivity,
   completeMoodFixStep,
   completeMoodFixActivity,
+  saveMoodAfterFeedback,
 };

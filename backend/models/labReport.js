@@ -129,6 +129,7 @@ const labReportSchema = new mongoose.Schema(
 );
 
 labReportSchema.index({ userId: 1, createdAt: -1 });
+labReportSchema.index({ userId: 1, overallScore: -1 });
 
 const LabReport = mongoose.model("LabReport", labReportSchema);
 
