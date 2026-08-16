@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const registerPatient = async (req, res) => {
   try {
@@ -54,7 +55,14 @@ const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid password. Please try again." });
     }
 
-
+    // Doctor-portal routes (video call, chatbot, journals) are protected by a
+    // JWT-verifying middleware, so every login issues one. Patient pages don't
+    // read this field, only the doctor-portal frontend does.
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.name },
+      process.env.JWT_SECRET || "medilink_secret",
+      { expiresIn: "7d" }
+    );
 
     res.status(200).json({
       _id: user._id,
@@ -65,6 +73,7 @@ const loginUser = async (req, res) => {
       city: user.city,
       dob: user.dob,
       role: user.role,
+      token,
       message: "Login successful!"
     });
 

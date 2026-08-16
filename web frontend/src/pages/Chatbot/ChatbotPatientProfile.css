@@ -1,0 +1,181 @@
+/* =====================================================
+   ChatbotPatientProfile.css  —  Patient profile page
+   ===================================================== */
+
+.cbp-header {
+  background: linear-gradient(135deg, #EEF2FF 0%, #DBEAFE 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.cbp-header-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1A1A2E;
+  letter-spacing: -0.3px;
+}
+
+/* Tabs */
+.cbp-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid #E5E7EB;
+  margin-bottom: 20px;
+}
+.cbp-tab {
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #6B7280;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.15s;
+  margin-bottom: -2px;
+}
+.cbp-tab:hover { color: #2B52D4; }
+.cbp-tab.active { color: #2B52D4; border-bottom-color: #2B52D4; }
+
+/* Grid layout */
+.cbp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.cbp-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+/* Profile summary */
+.cbp-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+/* Diagnoses badges */
+.cbp-diagnosis-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cbp-diagnosis-tag {
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* Medication adherence */
+.cbp-adherence-bar-wrap {
+  margin: 10px 0;
+}
+.cbp-adherence-bar { background: #E5E7EB; border-radius: 6px; height: 8px; }
+.cbp-adherence-fill { background: #2B52D4; height: 100%; border-radius: 6px; transition: width 0.6s ease; }
+
+/* Weekly dose tracker */
+.cbp-week-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.cbp-day-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.cbp-day-label { font-size: 10.5px; color: #6B7280; }
+.cbp-dose-dot {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Active Rx */
+.cbp-rx-card {
+  background: #EEF2FF;
+  border: 1px solid #DBEAFE;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.cbp-rx-name { font-size: 13px; font-weight: 700; color: #1A1A2E; }
+.cbp-rx-sub  { font-size: 11.5px; color: #6B7280; margin-top: 2px; }
+
+/* Clinical notes */
+.cbp-note-text { font-size: 13px; color: #374151; line-height: 1.7; }
+.cbp-read-more { color: #2B52D4; font-weight: 600; cursor: pointer; font-size: 12.5px; }
+
+/* Journal activity */
+.cbp-journal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F3F4F6;
+  cursor: pointer;
+}
+.cbp-journal-item:last-child { border-bottom: none; }
+.cbp-journal-dot { width: 8px; height: 8px; background: #2B52D4; border-radius: 50%; flex-shrink: 0; }
+.cbp-journal-date { font-size: 11px; color: #9CA3AF; }
+.cbp-journal-title { font-size: 13px; font-weight: 500; color: #1A1A2E; }
+.cbp-journal-arrow { margin-left: auto; color: #9CA3AF; }
+
+/* Right side panel inside profile */
+.cbp-side {
+  width: 240px;
+  background: #F4F6FB;
+  border-left: 1px solid #E5E7EB;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.cbp-jump-btn {
+  background: #fff;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A1A2E;
+  transition: all 0.15s;
+}
+.cbp-jump-btn:hover { border-color: #2B52D4; color: #2B52D4; }
+
+/* Profile layout */
+.cbp-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+.cbp-main-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  background: #F4F6FB;
+}

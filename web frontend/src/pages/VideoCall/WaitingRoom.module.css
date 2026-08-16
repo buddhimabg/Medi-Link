@@ -1,0 +1,247 @@
+/* src/pages/VideoCall/WaitingRoom.module.css */
+.page { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+
+/* ── Topbar ── */
+.topbar { height:56px; background:var(--clr-card); border-bottom:1px solid var(--clr-border); display:flex; align-items:center; gap:12px; padding:0 24px; flex-shrink:0; }
+.menuBtn { display:none; background:none; border:1px solid var(--clr-border); border-radius:8px; width:34px; height:34px; font-size:18px; cursor:pointer; color:var(--clr-text-dark); }
+.backBtn { background:none; border:none; color:var(--clr-primary); font-size:13px; font-weight:600; cursor:pointer; }
+.logo { font-size:18px; font-weight:700; }
+.logo span { color:var(--clr-primary); }
+.timerText { font-size:14px; font-weight:700; color:var(--clr-text-dark); font-family:monospace; }
+.topbarRight { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.iconBtn { background:none; border:1px solid var(--clr-border); border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:14px; }
+.avatar { width:32px; height:32px; border-radius:50%; background:var(--clr-primary); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+/* ── Layout ── */
+.layout { display:flex; flex:1; overflow:hidden; }
+.main { flex:1; overflow-y:auto; padding:32px 24px; background:var(--clr-bg); display:flex; justify-content:center; align-items:center; }
+.inner { width:100%; max-width:600px; display:flex; flex-direction:column; align-items:center; gap:20px; }
+
+/* ── Polling status row ── */
+.pollRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6B7280;
+  font-size: 13px;
+  align-self: flex-start;
+}
+.pollDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #F59E0B;
+  animation: mlPulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.pollText { line-height: 1.4; }
+
+/* ══════════════════════════════════════════════
+   INVITATION SENT OVERLAY
+   (the card shown after clicking Send Invitation)
+══════════════════════════════════════════════ */
+.inviteOverlay {
+  width: 100%;
+  background: var(--clr-card);
+  border: 1.5px solid var(--clr-primary);
+  border-radius: 20px;
+  padding: 28px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 8px 32px rgba(43, 82, 212, 0.12);
+  animation: overlayIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+.inviteOverlay .pollRow {
+  align-self: center;
+}
+
+/* Count-up timer section */
+.countUpWrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.countUpLabel {
+  font-size: 14px;
+  color: var(--clr-text-mid);
+  font-weight: 500;
+}
+.countUpNum {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--clr-primary);
+  font-family: monospace;
+}
+.countUpOf {
+  font-size: 13px;
+  color: var(--clr-text-mid);
+}
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  background: var(--clr-border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progressBar {
+  height: 100%;
+  background: var(--clr-primary);
+  border-radius: 99px;
+  transition: width 0.9s ease;
+}
+
+/* ═══════════════════════════════════════════════
+   AVATAR SCENE  —  ripples + orbit + avatar
+═══════════════════════════════════════════════ */
+.avatarScene {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ripple rings */
+.ripple1, .ripple2, .ripple3 {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid #2B52D4;
+  opacity: 0;
+  animation: rippleOut 3.6s ease-out infinite;
+}
+.ripple1 { width:90px; height:90px; animation-delay:0s; }
+.ripple2 { width:90px; height:90px; animation-delay:1.2s; }
+.ripple3 { width:90px; height:90px; animation-delay:2.4s; }
+
+/* Orbit ring */
+.orbitRing {
+  position: absolute;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  border: 2px dashed rgba(43,82,212,0.45);
+  animation: orbitSpin 5s linear infinite;
+}
+.orbitRingActive {
+  border-color: rgba(34,197,94,0.7);
+  animation: orbitSpin 2s linear infinite;
+}
+
+/* Avatar */
+.bigAvatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  position: relative;
+}
+.bigAvatarWaiting {
+  background: var(--clr-primary);
+  animation: avatarBreathe 2.8s ease-in-out infinite;
+}
+.bigAvatarJoined {
+  background: #22C55E;
+  animation: avatarJoined 0.5s ease-out forwards;
+}
+
+/* ── Text block ── */
+.textBlock { text-align:center; }
+.textTitle { font-size:20px; font-weight:700; color:var(--clr-text-dark); }
+.textSub   { font-size:13px; color:var(--clr-text-mid); margin-top:4px; }
+
+/* ── Session code box ── */
+.codeBox { background:var(--clr-primary-light); border:1px solid var(--clr-primary); border-radius:var(--radius-sm); padding:10px 20px; font-size:13px; font-weight:600; color:var(--clr-primary); font-family:monospace; }
+
+/* ── Queue card ── */
+.card { background:var(--clr-card); border-radius:var(--radius); border:1px solid var(--clr-border); padding:16px 20px; box-shadow:var(--shadow-card); }
+.cardFull { width:100%; }
+.cardTitle { font-size:13px; font-weight:700; color:var(--clr-text-dark); margin-bottom:12px; }
+
+.qRow { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--clr-border-light); }
+.dot  { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dotAmber { background:var(--clr-amber); animation:mlPulse 1.5s infinite; }
+.dotGray  { background:var(--clr-border); }
+.qAvatar { width:32px; height:32px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.qInfo { flex:1; }
+.qName { font-size:12px; font-weight:600; color:var(--clr-text-dark); }
+.qTime { font-size:11px; color:var(--clr-text-mid); }
+
+/* ── Badges ── */
+.badge      { display:inline-flex; align-items:center; padding:3px 8px; border-radius:var(--radius-pill); font-size:11px; font-weight:600; }
+.badgeBlue  { background:var(--clr-primary-light); color:var(--clr-primary); }
+.badgeAmber { background:var(--clr-amber-bg);      color:var(--clr-amber); }
+.badgeGray  { background:var(--clr-border);         color:var(--clr-text-mid); }
+
+/* ── Action buttons ── */
+.actions { display:flex; flex-direction:column; gap:10px; width:100%; }
+.btn { border:none; border-radius:var(--radius-sm); padding:12px 20px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; width:100%; }
+.btnPrimary { background:var(--clr-primary); color:#fff; }
+.btnPrimary:hover { background:var(--clr-primary-dark); }
+.btnOutline { background:var(--clr-card); color:var(--clr-primary); border:1.5px solid var(--clr-primary); }
+.btnOutline:hover { background:var(--clr-primary-light); }
+.btnDanger  { background:var(--clr-red-bg); color:var(--clr-red); border:1px solid var(--clr-red-border); }
+.btnDanger:hover { background:var(--clr-red); color:#fff; }
+
+/* ───────────────────────────────────────────
+   @keyframes
+─────────────────────────────────────────── */
+@keyframes mlPulse {
+  0%,100% { opacity:1; }
+  50%     { opacity:0.4; }
+}
+
+@keyframes rippleOut {
+  0%   { transform:scale(1);   opacity:0.5; }
+  80%  { transform:scale(2.1); opacity:0;   }
+  100% { transform:scale(2.1); opacity:0;   }
+}
+
+@keyframes orbitSpin {
+  from { transform:rotate(0deg); }
+  to   { transform:rotate(360deg); }
+}
+
+@keyframes avatarBreathe {
+  0%,100% {
+    transform:scale(1);
+    box-shadow:0 0 0 0 rgba(43,82,212,0);
+  }
+  50% {
+    transform:scale(1.07);
+    box-shadow:0 0 0 10px rgba(43,82,212,0.18), 0 0 24px 4px rgba(43,82,212,0.12);
+  }
+}
+
+@keyframes avatarJoined {
+  0%   { transform:scale(0.85); box-shadow:0 0 0 0 rgba(34,197,94,0.5); }
+  60%  { transform:scale(1.15); box-shadow:0 0 0 16px rgba(34,197,94,0); }
+  100% { transform:scale(1);    box-shadow:0 0 0 0 rgba(34,197,94,0); }
+}
+
+@keyframes overlayIn {
+  0%   { opacity:0; transform:scale(0.94) translateY(10px); }
+  100% { opacity:1; transform:scale(1)    translateY(0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .topbar { padding:0 14px; gap:8px; }
+  .menuBtn { display:inline-flex; align-items:center; justify-content:center; }
+}
+@media (max-width: 680px) {
+  .backBtn { display:none; }
+  .timerText { margin-left:auto; }
+}

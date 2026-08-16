@@ -1,8 +1,10 @@
 // mood-backend/server.js
 
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
@@ -18,7 +20,92 @@ const doctorRoutes = require("./routes/doctorRoutes");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const MoodFixActivity = require("./models/moodFixActivity");
 
+const videoRoutes = require("./routes/videoRoutes");
+const prescriptionRoutes = require("./routes/prescriptionRoutes");
+const patientHistoryRoutes = require("./routes/patientHistoryRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+const journalRoutes = require("./routes/journalRoutes");
+
 const app = express();
+const server = http.createServer(app);
+
+/* ==================
+   SOCKET.IO (video calls, live chat)
+================== */
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+});
+
+// Attach io to app so controllers can emit events
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  // Doctor joins a session room to listen for patient events
+  socket.on("join-session-room", ({ sessionId }) => {
+    if (sessionId) {
+      socket.join(`session:${sessionId}`);
+      console.log(`🔌 Socket joined room: session:${sessionId}`);
+    }
+  });
+
+  // Patient notifies that they have joined — doctor's WaitingRoom picks this up
+  socket.on("patient-joined", ({ sessionId, patientName }) => {
+    console.log(`🔔 patient-joined → session:${sessionId}, patient: ${patientName}`);
+    io.to(`session:${sessionId}`).emit("patient-joined", { sessionId, patientName });
+  });
+
+  // Either side (doctor or patient) reports their own mic/cam on/off state
+  // so the other side's Participants panel can show it accurately.
+  socket.on("media-state", ({ sessionId, role, micOn, camOn }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit("media-state", { role, micOn, camOn });
+  });
+
+  // Doctor starting/stopping local recording — broadcast as a live banner
+  // event, not a chat message, so it doesn't pollute the conversation log.
+  socket.on("recording-status", ({ sessionId, recording }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit("recording-status", { recording });
+  });
+
+  // Doctor joins their own personal room once, on app load — so
+  // escalation-alert events reach them no matter which screen they're on.
+  socket.on("join-doctor-room", ({ doctorId }) => {
+    if (doctorId) {
+      socket.join(`doctor:${doctorId}`);
+      console.log(`🚨 Socket joined doctor room: doctor:${doctorId}`);
+    }
+  });
+
+  // Doctor or patient joins a conversation room for real-time messages
+  socket.on("join-chat-room", ({ conversationId }) => {
+    if (conversationId) {
+      socket.join(`chat:${conversationId}`);
+      console.log(`💬 Socket joined chat room: chat:${conversationId}`);
+    }
+  });
+
+  socket.on("leave-chat-room", ({ conversationId }) => {
+    if (conversationId) {
+      socket.leave(`chat:${conversationId}`);
+    }
+  });
+
+  socket.on("typing", ({ conversationId, role }) => {
+    socket.to(`chat:${conversationId}`).emit("typing", { conversationId, role });
+  });
+
+  socket.on("stop-typing", ({ conversationId, role }) => {
+    socket.to(`chat:${conversationId}`).emit("stop-typing", { conversationId, role });
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`🔌 Socket disconnected: ${socket.id}`);
+  });
+});
 
 /* ==================
    MIDDLEWARE
@@ -34,9 +121,9 @@ app.use("/uploads", express.static(path.resolve("uploads")));
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Mood backend is running.",
+    message: "MediLink backend is running.",
     docs:
-      "Use /api/moods, /api/mood-fix, /api/lab-reports, and /api/biomarkers endpoints for data.",
+      "Use /api/moods, /api/mood-fix, /api/lab-reports, /api/biomarkers, /api/video, /api/chat, and /api/journals endpoints for data.",
   });
 });
 
@@ -61,6 +148,18 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/appointments", require("./routes/appointmentRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/assessments", require("./routes/assessmentRoutes"));
+
+// Video call, chatbot, journals, patient history — dev-dilshari's features
+app.use("/api/video", videoRoutes);
+app.use("/api/prescriptions", prescriptionRoutes);
+app.use("/api/patient-history", patientHistoryRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/journals", journalRoutes);
+
+// 404 for anything unmatched under /api
+app.use("/api", (req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
 
 /* ==================
    ERROR HANDLER
@@ -159,8 +258,9 @@ const startServer = async () => {
     await seedMoodFixActivities();
     await seedBiomarkers();
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`   WebSocket:       ws://localhost:${PORT}`);
     });
   } catch (error) {
     console.error("❌ Server failed to start:", error);

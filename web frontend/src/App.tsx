@@ -1,6 +1,6 @@
 // App.tsx
 import React, { useEffect, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { PageLoadingSpinner } from "./components/ui";
 
 // Pages
@@ -20,6 +20,14 @@ const ReportDetailPage = React.lazy(() => import("./pages/ReportDetailPage"));
 const NotificationsPage = React.lazy(() => import("./pages/NotificationsPage"));
 const RemindersPage = React.lazy(() => import("./pages/RemindersPage"));
 
+// Doctor portal (video calls, chatbot, journals) — dev-dilshari's feature set
+const VideoCallScreen = React.lazy(() => import("./pages/VideoCall/VideoCallScreen"));
+const PatientVideoCallScreen = React.lazy(() => import("./pages/VideoCall/PatientVideoCallScreen"));
+const VideoCallSetting = React.lazy(() => import("./pages/VideoCall/VideoCallSetting"));
+const ChatbotPage = React.lazy(() => import("./pages/Chatbot/Chatbotpage"));
+const ComingSoonPage = React.lazy(() => import("./pages/Common/ComingSoonPage"));
+const JournalsRouter = React.lazy(() => import("./pages/Journals/JournalsRouter"));
+
 import "./App.css";
 import LandingPage from "./pages/landingpage";
 import LoginPage from "./pages/loginPage";
@@ -34,6 +42,14 @@ import WellnessMindfulness from "./pages/wellness/WellnessMindfulness";
 import WellnessSleep from "./pages/wellness/WellnessSleep";
 import WellnessEducation from "./pages/wellness/WellnessEducation";
 import WellnessSelfCare from "./pages/wellness/WellnessSelfCare";
+
+// Generate a stable session ID from a doctor's user ID.
+// Format: doc-<last 6 chars of userId> — unique per doctor, stable across refreshes.
+const buildSessionId = (userId?: string): string => {
+  if (!userId) return "";
+  const suffix = userId.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
+  return suffix.length >= 4 ? `doc-${suffix}` : "";
+};
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -86,6 +102,29 @@ const App: React.FC = () => {
     // Removed reminder/notification logic as requested
   }, []);
 
+  // Doctor portal (video calls, chatbot, journals) is gated on the
+  // medilink_* keys set by loginPage.tsx when a doctor-role account logs in.
+  const isDoctorLoggedIn = localStorage.getItem("medilink_logged_in") === "true";
+  const doctorInfo = (() => {
+    try {
+      const raw = localStorage.getItem("medilink_user_info");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const doctorUserRole: string = doctorInfo?.role ?? "doctor";
+  const doctorUserName: string = doctorInfo?.name ?? "";
+
+  const handleDoctorLogout = () => {
+    localStorage.removeItem("medilink_token");
+    localStorage.removeItem("medilink_logged_in");
+    localStorage.removeItem("medilink_user_info");
+    localStorage.removeItem("medilink_user");
+    localStorage.removeItem("user");
+    window.location.replace("/login");
+  };
+
   return (
     <Router>
       <RouteErrorBoundary>
@@ -134,6 +173,68 @@ const App: React.FC = () => {
           {/* Reports */}
           <Route path="/reports" element={<ReportAnalysisPage />} />
           <Route path="/reports/:reportId" element={<ReportDetailPage />} />
+
+          {/* Doctor portal — video calls, chatbot, journals (dev-dilshari) */}
+          <Route
+            path="/video-call/:sessionId"
+            element={
+              isDoctorLoggedIn
+                ? doctorUserRole === "patient"
+                  ? <PatientVideoCallScreen userName={doctorUserName} />
+                  : <VideoCallScreen onLogout={handleDoctorLogout} userName={doctorUserName} />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/patient-join/:sessionId"
+            element={isDoctorLoggedIn ? <PatientVideoCallScreen userName={doctorUserName} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/video-call"
+            element={
+              isDoctorLoggedIn
+                ? buildSessionId(doctorInfo?.id)
+                  ? <Navigate to={`/video-call/${buildSessionId(doctorInfo?.id)}`} />
+                  : <VideoCallScreen onLogout={handleDoctorLogout} userName={doctorUserName} />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/VideoCallSetting"
+            element={isDoctorLoggedIn ? <VideoCallSetting /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/journals/*"
+            element={isDoctorLoggedIn ? <JournalsRouter /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/chatbot"
+            element={isDoctorLoggedIn ? <ChatbotPage doctorName={doctorUserName} onLogout={handleDoctorLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/doctor-dashboard"
+            element={
+              isDoctorLoggedIn
+                ? <ComingSoonPage title="Dashboard" subtitle="Overview widgets and metrics are being prepared for you." activePath="/doctor-dashboard" />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/schedule"
+            element={
+              isDoctorLoggedIn
+                ? <ComingSoonPage title="Schedule" subtitle="Appointment scheduling and calendar tools are coming soon." activePath="/schedule" />
+                : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/patients"
+            element={
+              isDoctorLoggedIn
+                ? <ComingSoonPage title="Patient Management" subtitle="Patient records and management tools are under development." activePath="/patients" />
+                : <Navigate to="/login" />
+            }
+          />
 
           <Route
             path="/journal"

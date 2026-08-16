@@ -31,7 +31,21 @@ const LoginPage: React.FC = () => {
       if (response.ok) {
         localStorage.setItem("user", JSON.stringify(data));
 
-        navigate("/dashboard");
+        if (data.role === "doctor") {
+          // Doctor portal (video calls, chatbot, journals) runs on its own
+          // JWT-gated routes, so it needs its own localStorage keys set too.
+          localStorage.setItem("medilink_token", data.token || "");
+          localStorage.setItem("medilink_logged_in", "true");
+          localStorage.setItem(
+            "medilink_user_info",
+            JSON.stringify({ id: data._id, name: data.name, role: data.role, email: data.email })
+          );
+          // Full navigation (not React Router's navigate) so App.tsx remounts
+          // and picks up the freshly-written medilink_logged_in flag.
+          window.location.href = "/video-call";
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         setError(
           data.message || "Login failed. Please check your credentials."

@@ -1,5 +1,6 @@
-/* Google Font */
+/* Google Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
 /* Tailwind layers */
 @tailwind base;
@@ -30,3 +31,87 @@ html, body, #root {
   min-height: 100vh;
   overflow-x: hidden;
 }
+
+/* 
+  Video Call module (Dilshari's feature).
+*/   
+
+.medilink-app {
+  /* Brand colours */
+  --clr-primary        : #2B52D4;
+  --clr-primary-dark   : #1A3BAA;
+  --clr-primary-light  : #EEF2FF;
+  --clr-accent         : #DBEAFE;
+
+  /* Surface */
+  --clr-bg             : #F4F6FB;
+  --clr-card           : #FFFFFF;
+  --clr-border         : #E5E7EB;
+  --clr-border-light   : #F3F4F6;
+
+  /* Text */
+  --clr-text-dark      : #1A1A2E;
+  --clr-text-mid       : #6B7280;
+  --clr-text-light     : #9CA3AF;
+
+  /* Semantic */
+  --clr-green          : #22C55E;
+  --clr-green-bg       : #DCFCE7;
+  --clr-green-border   : #BBF7D0;
+  --clr-red            : #EF4444;
+  --clr-red-dark       : #DC2626;
+  --clr-red-bg         : #FEE2E2;
+  --clr-red-border     : #FECACA;
+  --clr-amber          : #F59E0B;
+  --clr-amber-bg       : #FEF3C7;
+  --clr-amber-border   : #FDE68A;
+  --clr-purple         : #7C3AED;
+  --clr-purple-bg      : #EDE9FE;
+
+  /* Elevation */
+  --shadow-card        : 0 2px 12px rgba(43,82,212,0.08);
+  --shadow-lg          : 0 8px 32px rgba(0,0,0,0.12);
+  --shadow-topbar      : 0 1px 4px rgba(0,0,0,0.04);
+
+  /* Shape */
+  --radius             : 12px;
+  --radius-sm          : 8px;
+  --radius-pill        : 20px;
+
+  /* Layout */
+  --sidebar-width      : 215px;
+
+  /* Fonts */
+  font-family          : 'Poppins', sans-serif;
+  background           : var(--clr-bg);
+  color                : var(--clr-text-dark);
+  font-size            : 14px;
+  line-height          : 1.5;
+  height               : 100%;
+  display              : block;
+  place-items          : unset;
+}
+
+.medilink-app *,
+.medilink-app *::before,
+.medilink-app *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.medilink-app a    { text-decoration: none; color: inherit; }
+.medilink-app button { font-family: 'Poppins', sans-serif; }
+.medilink-app img, .medilink-app svg { display: block; }
+
+.medilink-app ::-webkit-scrollbar       { width: 5px; height: 5px; }
+.medilink-app ::-webkit-scrollbar-track { background: transparent; }
+.medilink-app ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
+
+/* Shared animations */
+@keyframes ml-pulse  { 0%,100%{opacity:1} 50%{opacity:0.5} }
+@keyframes ml-spin   { to{transform:rotate(360deg)} }
+@keyframes ml-ripple { 0%{transform:scale(1);opacity:0.5} 100%{transform:scale(2.4);opacity:0} }
+@keyframes ml-blink  { 0%,100%{opacity:0.3} 50%{opacity:1} }
+@keyframes ml-mic-bar{ 0%,100%{height:30%} 50%{height:100%} }
+@keyframes ml-bounce-dot { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
