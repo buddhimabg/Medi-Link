@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import Sidebar from '../components/sidebar';
+import Sidebar from '../components/sidebar.tsx';
 import './viewlist.css';
 
 interface PatientRecord {

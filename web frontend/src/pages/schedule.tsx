@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 // Import Sidebar with explicit extension to help TS/IDE module resolution in some setups
 import Sidebar from '../components/sidebar.tsx';
-import CancelDialog from '../pages/cancel';
+import CancelDialog from '../pages/cancel.tsx';
 import './schedule.css';
 
 interface ScheduleItem {
@@ -177,7 +177,7 @@ const Schedule: React.FC = () => {
     return date.toDateString() === today.toDateString();
   };
 
-  const currentSlotCount = slots.length;
+  const currentSlotCount = slots.filter(slot => slot.status === 'Booked').length;
 
   return (
     <div className="schedule-page">
@@ -235,13 +235,13 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              {slots.length === 0 ? (
+              {currentSlotCount === 0 ? (
                 <div className="no-slots">
                   <p>No appointments scheduled for today</p>
                 </div>
               ) : (
                 <div className="slots-list">
-                  {slots.map((slot) => {
+                  {slots.filter(slot => slot.status === 'Booked').map((slot) => {
                     const { start, end } = parseTime(slot.time);
 
                     return (
