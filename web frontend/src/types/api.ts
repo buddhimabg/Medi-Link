@@ -134,11 +134,11 @@ export interface Medication {
 }
 
 export const videoApi = {
-  createRoom: (sessionId: string, patientId?: string) =>
-    request<CallData>('POST', '/video/create-room', { sessionId, patientId }),
+  createRoom: (sessionId: string, patientId?: string, doctorConsent?: boolean) =>
+    request<CallData>('POST', '/video/create-room', { sessionId, patientId, doctorConsent }),
 
-  joinRoom: (sessionId: string) =>
-    request<CallData>('POST', '/video/join-room', { sessionId }),
+  joinRoom: (sessionId: string, patientConsent?: boolean) =>
+    request<CallData>('POST', '/video/join-room', { sessionId, patientConsent }),
 
   sendInvitation: (sessionId: string) =>
     request<void>('POST', `/video/invite/${sessionId}`),
@@ -166,6 +166,7 @@ export const videoApi = {
       patientJoined: boolean
       patientId:     string | null
       patientName:   string | null
+      recordingStatus?: string
     }>('GET', `/video/call-info/${sessionId}`),
 
   getSessionSummary: (sessionId: string) =>
@@ -176,8 +177,31 @@ export const videoApi = {
 
   getPrescriptions: (sessionId: string) =>
     request<Prescription[]>('GET', `/prescriptions/${sessionId}`),
-}
 
+  getRecordingStatus: (sessionId: string) =>
+    request<{ status: string }>('GET', `/video/recording-status/${sessionId}`),
+
+  getRecording: (roundKey: string) =>
+    request<{ status: string; recordingUrl: string; duration: number }>(
+      'GET', `/video/recording/${roundKey}`
+    ),
+
+    uploadRecording: async (sessionId: string, blob: Blob): Promise<{ recordingUrl: string }> => {
+    const formData = new FormData()
+    formData.append('recording', blob, `${sessionId}.webm`)
+    const res = await fetch(`${BASE}/video/upload-recording/${sessionId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    })
+    const json = await res.json()
+    if (!json.success) throw new Error(json.message ?? 'Upload failed')
+    return json.data
+  },
+
+  saveTranscript: (sessionId: string, transcript: string) =>
+    request<void>('PATCH', `/video/save-transcript/${sessionId}`, { transcript }),
+}
 // ── Patient History API ────────────────────────────────────────────────────
 export interface PatientHistoryRecord {
   _id:         string
@@ -193,6 +217,8 @@ export interface PatientHistoryRecord {
   moodColor:   string
   createdAt:   string
   patientName?: string
+  recordingStatus?: string
+  recordingUrl?:    string
 }
 
 export const patientHistoryApi = {
@@ -309,7 +335,6 @@ export const faqApi = {
   toggle: (id: string) =>
     request<FAQRecord>('PATCH', `/chat/faqs/${id}/toggle`),
 }
-
 // ── Chat / Conversation API ────────────────────────────────────────────────
 export interface PatientRecord {
   _id:   string
@@ -459,6 +484,11 @@ export const chatApi = {
 
   getOrCreateConversation: (patientId: string) =>
     request<ConversationRecord>('GET', `/chat/conversations/with/${patientId}`),
+
+  // Patient side — get/create the conversation tied to a video session,
+  // since the patient doesn't know their doctor's user id directly.
+  getConversationBySession: (sessionId: string) =>
+    request<ConversationRecord>('GET', `/chat/conversations/session/${sessionId}`),
 
   getMessages: (conversationId: string, page = 1, limit = 30) =>
     request<{ messages: MessageRecord[]; total: number; page: number; totalPages: number }>(

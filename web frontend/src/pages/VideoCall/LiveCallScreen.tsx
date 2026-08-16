@@ -3,6 +3,7 @@ import type { CallData, ChatMessage, Medication, NewMedication } from '../../typ
 import type { Medication as ApiMedication, PatientHistoryRecord } from '../../types/api'
 import styles from './LiveCallScreen.module.css'
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt'
+import { videoApi } from '../../types/api'
 
 // Curated common-medicine list for the autocomplete. Not exhaustive —
 // this just speeds up the common cases and helps avoid typos; only exact
@@ -79,6 +80,10 @@ interface Props {
   setChatInput:    (v: string) => void
   patientTyping:   boolean
   sendChatMessage: () => void
+  notifyPatient?:   (text: string) => void
+  patientMicOn?:    boolean
+  patientCamOn?:    boolean
+  onRecordingChange?: (recording: boolean) => void
   onShare:         () => void
   onPrescribe:     () => void
   onEndConfirm:    () => void
@@ -117,6 +122,7 @@ const LiveCallScreen: React.FC<Props> = ({
   sessionNotes, setSessionNotes,
   messages, chatInput, setChatInput,
   patientTyping, sendChatMessage,
+  patientMicOn = true, patientCamOn = true, onRecordingChange,
   onShare, onPrescribe, onEndConfirm, onBack,
 
   // prescription overlay
@@ -151,12 +157,17 @@ const LiveCallScreen: React.FC<Props> = ({
 
   const [showParticipants, setShowParticipants] = useState(false)
   const [showChat,         setShowChat]         = useState(false)
+  const [unreadCount,      setUnreadCount]      = useState(0)
+  const prevMsgCountRef = useRef(messages.length)
   const [isRecording,      setIsRecording]      = useState(false)
   const [noteSaved,        setNoteSaved]        = useState(false)
   const [inviteCopied,     setInviteCopied]     = useState(false)
   const [toast,            setToast]            = useState<string | null>(null)
   const [showBackConfirm,  setShowBackConfirm]  = useState(false)
   const [noteSaving,       setNoteSaving]       = useState(false)
+  const [cloudRecStatus,   setCloudRecStatus]   = useState<string>('none')
+  const [transcriptText, setTranscriptText] = useState('')
+  const recognitionRef = useRef<any>(null)
 
   // ── Prescription form validation state ──────────────────────
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -223,12 +234,12 @@ const LiveCallScreen: React.FC<Props> = ({
       showLeaveRoomConfirmDialog: false,
       showUserList: false,
       maxUsers: 2,
-      showScreenSharingButton: false,
+      showScreenSharingButton: true,
       showTextChat: false,
       showUserName: false,
       showRoomTimer: false,
-      showMyCameraToggleButton: false,
-      showMyMicrophoneToggleButton: false,
+      showMyCameraToggleButton: true,
+      showMyMicrophoneToggleButton: true,
       showAudioVideoSettingsButton: false,
       showLayoutButton: false,
       onLeaveRoom: () => {},
@@ -246,6 +257,30 @@ const LiveCallScreen: React.FC<Props> = ({
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, patientTyping])
+
+  // Unread badge on the Chat button — count incoming patient messages that
+  // arrived while the chat panel was closed; clear once it's opened.
+  useEffect(() => {
+    if (messages.length > prevMsgCountRef.current) {
+      const newMsgs = messages.slice(prevMsgCountRef.current)
+      const incoming = newMsgs.filter(m => m.role === 'patient').length
+      if (incoming && !showChat) setUnreadCount(c => c + incoming)
+    }
+    prevMsgCountRef.current = messages.length
+  }, [messages, showChat])
+
+  useEffect(() => { if (showChat) setUnreadCount(0) }, [showChat])
+
+  // Poll cloud recording status while the call is live — purely additive,
+  // doesn't touch the existing local `isRecording` screen-record button.
+  useEffect(() => {
+    const sid = callData?.sessionId || sessionId
+    if (!sid) return
+    const poll = () => videoApi.getRecordingStatus(sid).then(r => setCloudRecStatus(r.status)).catch(() => {})
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => clearInterval(id)
+  }, [callData?.sessionId, sessionId])
 
   const handleMute = useCallback(() => {
     const willMute = !micMuted
@@ -280,26 +315,65 @@ const LiveCallScreen: React.FC<Props> = ({
     setShowParticipants(prev => { if (!prev) setShowChat(false); return !prev })
   }, [])
 
-  const handleScreenShare = useCallback(async () => {
-    try {
-      showToast('🖥️ Opening screen picker...')
-      await navigator.mediaDevices.getDisplayMedia({ video: true })
-      onShare()
-    } catch { showToast('❌ Screen share cancelled') }
-  }, [onShare, showToast])
-
   const handleChat = useCallback(() => {
     setShowChat(prev => { if (!prev) setShowParticipants(false); return !prev })
   }, [])
+
+  const startTranscription = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) { showToast('⚠️ Speech-to-text not supported in this browser'); return }
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+    recognition.onresult = (event: any) => {
+      let finalText = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript + ' '
+      }
+      if (finalText.trim()) {
+        setTranscriptText(prev => `${prev}\n[${new Date().toLocaleTimeString()}] ${finalText.trim()}`)
+      }
+    }
+    recognition.onerror = () => { /* silently ignore, keep call running */ }
+    recognition.start()
+    recognitionRef.current = recognition
+    showToast('📝 Live transcription started')
+  }, [showToast])
+
+const stopAndSaveTranscript = useCallback(async () => {
+    recognitionRef.current?.stop()
+    const sid = callData?.sessionId || sessionId
+    if (sid && transcriptText.trim()) {
+      try {
+        await videoApi.saveTranscript(sid, transcriptText.trim())
+      } catch { /* non-blocking */ }
+    }
+  }, [callData?.sessionId, sessionId, transcriptText])
+
+  // Auto-start transcription once the call is live
+  useEffect(() => {
+    if (callData?.appId) startTranscription()
+    return () => { recognitionRef.current?.stop() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callData?.appId])
 
   const handleRecord = useCallback(() => {
     if (isRecording) {
       mediaRecorderRef.current?.stop()
       setIsRecording(false)
       showToast('⏹ Recording stopped — downloading...')
+      onRecordingChange?.(false)
       return
     }
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+navigator.mediaDevices.getDisplayMedia({
+  video: {
+    displaySurface: 'browser', // "This Tab" option eka prefer karana widiyata browser ta hint ekak denawa
+  },
+  audio: true,
+  preferCurrentTab: true,     // Chrome eke, "This Tab" eka automatically pre-select karanawa
+  selfBrowserSurface: 'include',
+}as any)
       .then(stream => {
         recordedChunksRef.current = []
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm'
@@ -308,6 +382,14 @@ const LiveCallScreen: React.FC<Props> = ({
         recorder.ondataavailable = e => { if (e.data.size > 0) recordedChunksRef.current.push(e.data) }
         recorder.onstop = () => {
           const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+          const sid  = callData?.sessionId || sessionId
+          // Upload to backend — links to PatientHistory automatically
+          if (sid) {
+            videoApi.uploadRecording(sid, blob)
+              .then(() => showToast('✅ Recording saved to patient history!'))
+              .catch(() => showToast('❌ Recording upload failed'))
+          }
+          // Keep local download too, as a backup copy for the doctor
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
@@ -315,11 +397,17 @@ const LiveCallScreen: React.FC<Props> = ({
           document.body.appendChild(a); a.click(); document.body.removeChild(a)
           URL.revokeObjectURL(url); stream.getTracks().forEach(t => t.stop())
         }
-        stream.getVideoTracks()[0].onended = () => { setIsRecording(false); showToast('⏹ Recording stopped') }
+
+        stream.getVideoTracks()[0].onended = () => { setIsRecording(false); showToast('⏹ Recording stopped'); onRecordingChange?.(false) }
         recorder.start(1000); setIsRecording(true); showToast('⏺ Recording started')
+        // FIX: this used to go through notifyPatient (a real chat message
+        // saved to the conversation, cluttering the chat history). It now
+        // fires a dedicated 'recording-status' socket event instead — the
+        // patient shows it as a live top banner, not a chat bubble.
+        onRecordingChange?.(true)
       })
       .catch(() => showToast('❌ Recording permission denied'))
-  }, [isRecording, showToast])
+  }, [isRecording, showToast, onRecordingChange])
 
   // real DB API call
   const handleSaveNote = useCallback(async () => {
@@ -343,7 +431,6 @@ const LiveCallScreen: React.FC<Props> = ({
   // Patient initial letter for avatar
   const patientInitial = patientName ? patientName[0].toUpperCase() : 'P'
   const doctorInitial  = doctorName  ? doctorName[0].toUpperCase()  : 'D'
-
   return (
     <div className={styles.wrapper}>
       {toast && <div className={styles.toast}>{toast}</div>}
@@ -387,7 +474,12 @@ const LiveCallScreen: React.FC<Props> = ({
           {/* Real sessionId */}
           <span className={styles.badgeBlue}>#{callData?.sessionId || sessionId || 'SESSION'}</span>
           {isRecording&&<span className={styles.recPill}><span className={styles.recDot}/>REC</span>}
-          <button className={styles.endBtn} onClick={onEndConfirm}>↪ End Session</button>
+          {cloudRecStatus === 'recording' && (
+            <span className={styles.recPill} style={{ background: '#2B52D4' }}>
+              <span className={styles.recDot}/>☁️ Recording
+            </span>
+          )}
+          <button className={styles.endBtn} onClick={async () => { await stopAndSaveTranscript(); onEndConfirm(); }}>↪ End Session</button>
         </div>
       </header>
 
@@ -397,36 +489,42 @@ const LiveCallScreen: React.FC<Props> = ({
           {/* ZegoCloud video container */}
           <div ref={containerRef} className={styles.zegoContainer}/>
 
+          {/* FIX: this panel used to be nested inside the "no callData"
+              fallback block below, so it only rendered before the real
+              Zego call connected — once callData existed (i.e. during an
+              actual live call, the normal case), clicking Participate
+              toggled state but nothing ever showed. It's now a sibling
+              overlay so it renders regardless of call state. */}
+          {showParticipants&&(
+            <div className={styles.participantsPanel}>
+              <div className={styles.panelHeader}>
+                <span className={styles.panelTitle}>👥 Participants</span>
+                <button className={styles.panelClose} onClick={()=>setShowParticipants(false)}>✕</button>
+              </div>
+              {/* ✅ Real doctor + patient names */}
+              {[
+                {name: doctorName, role:'Doctor (You)', color:'#2B52D4', mic:!micMuted, cam:!camOff},
+                {name: patientName || 'Patient', role:'Patient', color:'#059669', mic:patientMicOn, cam:patientCamOn},
+              ].map((p,i)=>(
+                <div key={i} className={styles.participantRow}>
+                  <div className={styles.participantAvatar} style={{background:p.color}}>{p.name[0]}</div>
+                  <div className={styles.participantInfo}>
+                    <div className={styles.participantName}>{p.name}</div>
+                    <div className={styles.participantRole}>{p.role}</div>
+                  </div>
+                  <div className={styles.participantIcons}>
+                    <span>{p.mic?'🎤':'🔇'}</span><span>{p.cam?'📹':'🚫'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {(!callData||callData.appId===0)&&(
             <div className={styles.fallback}>
               <div className={styles.waitingBox}>
                 <div className={styles.waitingLabel}>WAITING</div>
               </div>
-
-              {showParticipants&&(
-                <div className={styles.participantsPanel}>
-                  <div className={styles.panelHeader}>
-                    <span className={styles.panelTitle}>👥 Participants</span>
-                    <button className={styles.panelClose} onClick={()=>setShowParticipants(false)}>✕</button>
-                  </div>
-                  {/* ✅ Real doctor + patient names */}
-                  {[
-                    {name: doctorName, role:'Doctor (You)', color:'#2B52D4', mic:!micMuted, cam:!camOff},
-                    {name: patientName || 'Patient', role:'Patient', color:'#059669', mic:true, cam:true},
-                  ].map((p,i)=>(
-                    <div key={i} className={styles.participantRow}>
-                      <div className={styles.participantAvatar} style={{background:p.color}}>{p.name[0]}</div>
-                      <div className={styles.participantInfo}>
-                        <div className={styles.participantName}>{p.name}</div>
-                        <div className={styles.participantRole}>{p.role}</div>
-                      </div>
-                      <div className={styles.participantIcons}>
-                        <span>{p.mic?'🎤':'🔇'}</span><span>{p.cam?'📹':'🚫'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/*Real patient name */}
               <div className={styles.patientCenter}>
@@ -446,32 +544,7 @@ const LiveCallScreen: React.FC<Props> = ({
               </div>
             </div>
           )}
-
           <div className={styles.controls}>
-            {/* MUTE */}
-            <button className={`${styles.ctrlItem} ${micMuted?styles.ctrlItemActive:''}`} onClick={handleMute} title={micMuted?'Unmute':'Mute'}>
-              <div className={`${styles.ctrlIcon} ${micMuted?styles.ctrlIconRed:''}`}>
-                {micMuted?(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6"/><path d="M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                ):(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
-                )}
-              </div>
-              <span className={`${styles.ctrlLabel} ${micMuted?styles.ctrlLabelRed:''}`}>{micMuted?'Unmute':'Mute'}</span>
-            </button>
-
-            {/* VIDEO */}
-            <button className={`${styles.ctrlItem} ${camOff?styles.ctrlItemActive:''}`} onClick={handleCamera} title={camOff?'Start Video':'Stop Video'}>
-              <div className={`${styles.ctrlIcon} ${camOff?styles.ctrlIconRed:''}`}>
-                {camOff?(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 16v1a2 2 0 01-2 2H3a2 2 0 01-2-2V7a2 2 0 012-2h2m5.66 0H14a2 2 0 012 2v3.34"/><path d="M23 7l-7 5 7 5V7z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ):(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                )}
-              </div>
-              <span className={`${styles.ctrlLabel} ${camOff?styles.ctrlLabelRed:''}`}>{camOff?'Start Cam':'Video'}</span>
-            </button>
-
             {/* INVITE */}
             <button className={`${styles.ctrlItem} ${inviteCopied?styles.ctrlItemGreen:''}`} onClick={handleInvite} title="Copy invite link">
               <div className={`${styles.ctrlIcon} ${inviteCopied?styles.ctrlIconGreen:''}`}>
@@ -488,18 +561,17 @@ const LiveCallScreen: React.FC<Props> = ({
               <span className={`${styles.ctrlLabel} ${showParticipants?styles.ctrlLabelGreen:''}`}>Participate</span>
             </button>
 
-            {/* SHARE */}
-            <button className={styles.ctrlItemShare} onClick={handleScreenShare} title="Share screen">
-              <div className={styles.ctrlIconShare}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-              </div>
-              <span className={styles.ctrlLabel}>Share</span>
-            </button>
-
             {/* CHAT */}
-            <button className={`${styles.ctrlItem} ${showChat?styles.ctrlItemGreen:''}`} onClick={handleChat} title="Chat">
+            <button className={`${styles.ctrlItem} ${showChat?styles.ctrlItemGreen:''}`} onClick={handleChat} title="Chat" style={{ position: 'relative' }}>
               <div className={`${styles.ctrlIcon} ${showChat?styles.ctrlIconGreen:''}`}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8,
+                    background: '#DC2626', color: '#fff', fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+                  }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+                )}
               </div>
               <span className={`${styles.ctrlLabel} ${showChat?styles.ctrlLabelGreen:''}`}>Chat</span>
             </button>
@@ -523,7 +595,6 @@ const LiveCallScreen: React.FC<Props> = ({
               <span className={styles.ctrlLabelLeave}>Leave</span>
             </button>
           </div>
-
           {/* PRESCRIPTION OVERLAY */}
           {showPrescription && (
             <div style={{
@@ -734,7 +805,6 @@ const LiveCallScreen: React.FC<Props> = ({
             </div>
           )}
         </div>
-
         {showChat ? (
           <div className={styles.chatPanel}>
             <div className={styles.chatHeader}>

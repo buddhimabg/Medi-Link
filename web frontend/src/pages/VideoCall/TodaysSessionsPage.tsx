@@ -11,6 +11,11 @@ import styles from './PreCallSetup.module.css'
 
 interface Props {
   onBack: () => void
+  onViewPatientHistory: (patientId: string, patientName?: string) => void
+}
+
+interface Props {
+  onBack: () => void
 }
 
 const fmtTime = (d: string) =>
@@ -21,7 +26,7 @@ const fmtDuration = (secs: number): string => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function TodaysSessionsPage({ onBack }: Props) {
+export default function TodaysSessionsPage({ onBack, onViewPatientHistory }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [data, setData]         = useState<TodaysSummary | null>(null)
   const [loading, setLoading]   = useState(true)
@@ -95,9 +100,20 @@ export default function TodaysSessionsPage({ onBack }: Props) {
                         <div style={{ fontSize: 14.5, fontWeight: 700, color: '#1A1A2E' }}>{s.patientName}</div>
                         <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>{fmtTime(s.date)} · {fmtDuration(s.duration)} duration</div>
                       </div>
-                      <span style={{ background: '#DCFCE7', color: '#16A34A', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>
-                        ✓ Completed
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                        <span style={{ background: '#DCFCE7', color: '#16A34A', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>
+                          ✓ Completed
+                        </span>
+                        <button
+                          onClick={() => onViewPatientHistory(s.patientId, s.patientName)}
+                          style={{
+                            background: '#EEF2FF', color: '#2B52D4', border: '1px solid #DBEAFE',
+                            borderRadius: 8, padding: '5px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                          }}
+                        >
+                          📋 View Full History
+                        </button>
+                      </div>
                     </div>
 
                     {s.notes && (

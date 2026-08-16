@@ -5,6 +5,7 @@ import styles from './PreCallSetup.module.css';
 import MainLayout from '../../components/layout/MainLayout'; 
 import { videoApi } from '../../types/api';
 import type { QueuePatient } from '../../types/api';
+import ConsentModal from './ConsentModal';
 
 interface Props {
   sessionId: string;
@@ -75,6 +76,7 @@ const PreCallSetup: React.FC<Props> = ({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [sessionDate,  setSessionDate]  = useState<string>('Loading…');
   const [sessionMode,  setSessionMode]  = useState<string>('Teleconsultation');
+  const [showConsent, setShowConsent] = useState(false);
 
   useEffect(() => {
     videoApi.getCallInfo(sessionId)
@@ -98,6 +100,11 @@ const PreCallSetup: React.FC<Props> = ({
   const nextQueue    = doctorQueue.slice(1, 3);
 
   const handleStartCall = () => {
+    setShowConsent(true);
+  };
+
+  const confirmStartCall = () => {
+    setShowConsent(false);
     streamRef.current?.getTracks().forEach(t => t.stop());
     cancelAnimationFrame(animFrameRef.current);
     audioCtxRef.current?.close();
@@ -218,7 +225,6 @@ const PreCallSetup: React.FC<Props> = ({
       default:     return styles.badgeGray;
     }
   };
-
   return (
     <MainLayout activePath="/video-call">
       <main className={styles.main}>
@@ -455,6 +461,14 @@ const PreCallSetup: React.FC<Props> = ({
           </div>
         </div>
       </main>
+
+      {showConsent && (
+        <ConsentModal
+          role="doctor"
+          onAgree={confirmStartCall}
+          onDecline={() => setShowConsent(false)}
+        />
+      )}
     </MainLayout>
   );
 };

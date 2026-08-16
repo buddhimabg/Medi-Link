@@ -48,6 +48,9 @@ const patientHistorySchema = new mongoose.Schema(
       type:    String,
       default: '#6B7280',
     },
+    // ── Cloud recording link ──────────────────────────────────
+    recordingStatus: { type: String, default: 'none' }, // none | recording | processing | completed | failed
+    recordingUrl:    { type: String, default: '' },
   },
   { timestamps: true },
 );

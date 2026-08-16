@@ -89,7 +89,11 @@
 
 /* CONTROLS */
 /* MODIFICATION: z-index:2 — zegoContainer (z-index:1) eke uda controls penenawa */
-.controls{background:#1f2937;padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;position:relative;z-index:2;}
+/* FIX: was position:relative, which (as the only normal-flow child of the
+   flex-column .videoWrap once callData exists) made it land at the TOP of
+   the video overlaying it. Now absolutely anchored to the bottom of
+   .videoWrap instead, near where Zego's own mic/camera controls sit. */
+.controls{background:rgba(31,41,55,0.94);backdrop-filter:blur(6px);padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;position:absolute;left:0;right:0;bottom:0;z-index:4;border-radius:0 0 16px 16px;}
 
 .ctrlItem{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:56px;padding:6px 4px;background:none;border:none;cursor:pointer;border-radius:10px;transition:background 0.18s;font-family:'Poppins',sans-serif;}
 .ctrlItem:hover{background:rgba(255,255,255,0.07);}

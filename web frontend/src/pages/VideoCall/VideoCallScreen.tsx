@@ -16,7 +16,6 @@ import EndSessionDialog   from './EndSessionDialog'
 import SummaryScreen      from './SummaryScreen'
 import PrescriptionMode from './PrescriptionMode'
 
-
 interface Props {
   onLogout?: () => void
   userName?:  string
@@ -32,6 +31,10 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
   // Back button in Patient History returns to the right place —
   // either Pre-Call Setup (before starting) or the Waiting Room.
   const [historyOrigin, setHistoryOrigin] = useState<Step>(S.PRE_CALL_SETUP)
+
+  // Overrides the current-patient default when "View Full History" is
+  // opened from Today's Sessions for a DIFFERENT (past) patient.
+  const [selectedHistoryPatient, setSelectedHistoryPatient] = useState<{ id: string; name?: string } | null>(null)
 
   // FIX: LiveCallScreen eke internal modal confirm wenama call wena callback.
   // "End Session" button click wenakota step change WENAWA NA —
@@ -101,18 +104,23 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
         return (
           <PatientHistoryPage
             sessionId={sessionId}
-            patientId={vc.patientId ?? queueFirstPatient?.patientId ?? null}
-            patientName={vc.patientName || queueFirstPatient?.patientName}
-            onBack={() => vc.setStep(historyOrigin)}
+            patientId={selectedHistoryPatient?.id ?? vc.patientId ?? queueFirstPatient?.patientId ?? null}
+            patientName={selectedHistoryPatient?.name ?? vc.patientName ?? queueFirstPatient?.patientName}
+            onBack={() => {
+              setSelectedHistoryPatient(null)
+              vc.setStep(historyOrigin)
+            }}
             onJoin={() => {
               if (historyOrigin === S.PRE_CALL_SETUP) {
                 // Room hasn't been created yet — go through the normal
                 // "Start Session" flow (creates the room, then Waiting Room).
                 vc.handleStartSession()
-              } else {
+              } else if (historyOrigin === S.WAITING_ROOM) {
                 vc.setStep(S.WAITING_ROOM)
                 vc.handleJoinCall()
               }
+              // TODAY_SESSIONS origin: joining a past patient mid-review
+              // doesn't make sense — onJoin simply won't render there.
             }}
           />
         )
@@ -143,6 +151,10 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
             setChatInput={vc.setChatInput}
             patientTyping={vc.patientTyping}
             sendChatMessage={vc.sendChatMessage}
+            notifyPatient={vc.sendSystemMessage}
+            patientMicOn={vc.patientMicOn}
+            patientCamOn={vc.patientCamOn}
+            onRecordingChange={vc.setRecordingStatus}
             onShare={() => vc.setStep(S.SCREEN_SHARE)}
             onPrescribe={() => vc.setStep(S.PRESCRIPTION)}
             // FIX: onEndConfirm — modal confirm wenakota matharama step change wenawa.
@@ -221,7 +233,16 @@ const VideoCallScreen: React.FC<Props> = ({ onLogout, userName }) => {
         )
 
       case S.TODAY_SESSIONS:
-        return <TodaysSessionsPage onBack={() => vc.setStep(S.PRE_CALL_SETUP)} />
+        return (
+          <TodaysSessionsPage
+            onBack={() => vc.setStep(S.PRE_CALL_SETUP)}
+            onViewPatientHistory={(patientId, patientName) => {
+              setSelectedHistoryPatient({ id: patientId, name: patientName })
+              setHistoryOrigin(S.TODAY_SESSIONS)
+              vc.setStep(S.PATIENT_HISTORY)
+            }}
+          />
+        )
 
       default:
         return null

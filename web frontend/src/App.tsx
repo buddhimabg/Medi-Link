@@ -4,6 +4,7 @@ import './App.css'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './component/loginPage'
 import VideoCallScreen from './pages/VideoCall/VideoCallScreen'
+import PatientVideoCallScreen from './pages/VideoCall/PatientVideoCallScreen'
 import VideoCallSetting from './pages/VideoCall/VideoCallSetting';
 import ChatbotPage from './pages/Chatbot/Chatbotpage'
 import ComingSoonPage from './pages/Common/ComingSoonPage'
@@ -102,8 +103,16 @@ function App() {
         <Route
           path="/video-call/:sessionId"
           element={isLoggedIn
-            ? <VideoCallScreen onLogout={handleLogout} userName={userName} />
+            ? (userRole === 'patient'
+                ? <PatientVideoCallScreen userName={userName} />
+                : <VideoCallScreen onLogout={handleLogout} userName={userName} />)
             : <Navigate to="/login" />}
+        />
+
+        {/* ── TEMP: direct patient-join route for testing/demo, bypasses role detection ── */}
+        <Route
+          path="/patient-join/:sessionId"
+          element={isLoggedIn ? <PatientVideoCallScreen userName={userName} /> : <Navigate to="/login" />}
         />
 
         <Route 

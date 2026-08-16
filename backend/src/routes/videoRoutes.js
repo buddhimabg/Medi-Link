@@ -33,4 +33,23 @@ router.get('/call-info/:sessionId', protect, ctrl.getCallInfo);
 // GET    /api/video/summary/:sessionId          — full session summary (notes + prescriptions)
 router.get('/summary/:sessionId', protect, ctrl.getSessionSummary);
 
+// ── Recording routes ────────────────────────────────────────────────────────
+// POST   /api/video/zego-recording-callback    — Zego webhook (no auth)
+router.post('/zego-recording-callback', ctrl.zegoRecordingCallback);
+
+// GET    /api/video/recording-status/:sessionId — live polling during a call
+router.get('/recording-status/:sessionId', protect, ctrl.getRecordingStatus);
+
+// GET    /api/video/recording/:roundKey         — fetch recording for download
+router.get('/recording/:roundKey', protect, ctrl.getRecording);
+
+// POST   /api/video/upload-recording/:sessionId  — browser-captured recording upload
+router.post('/upload-recording/:sessionId', protect, requireRole('doctor'), ctrl.uploadRecordingMiddleware, ctrl.uploadRecording);
+
+// PATCH  /api/video/save-transcript/:sessionId    — live speech-to-text transcript
+router.patch('/save-transcript/:sessionId', protect, requireRole('doctor'), ctrl.saveTranscript);
+
+// videoRoutes.js eke, existing recording routes tika langama add karanna:
+router.post('/upload-recording/:sessionId', protect, ctrl.uploadRecordingMiddleware, ctrl.uploadRecording);
+router.patch('/save-transcript/:sessionId', protect, ctrl.saveTranscript);
 module.exports = router;

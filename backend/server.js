@@ -49,6 +49,23 @@ io.on('connection', (socket) => {
     io.to(`session:${sessionId}`).emit('patient-joined', { sessionId, patientName });
   });
 
+  // ── Mic/camera state sync ────────────────────────────────────────────────
+  // Either side (doctor or patient) reports their own mic/cam on/off state
+  // so the other side's Participants panel can show it accurately, instead
+  // of assuming it's always on.
+  socket.on('media-state', ({ sessionId, role, micOn, camOn }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit('media-state', { role, micOn, camOn });
+  });
+
+  // ── Recording status ────────────────────────────────────────────────────
+  // Doctor starting/stopping local recording — broadcast as a live banner
+  // event, NOT a chat message, so it doesn't pollute the conversation log.
+  socket.on('recording-status', ({ sessionId, recording }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit('recording-status', { recording });
+  });
+
   // Doctor joins their own personal room once, on app load — so
   // 🚨 escalation-alert events reach them no matter which screen
   // they're on (not just inside the specific chat conversation)
@@ -135,6 +152,8 @@ app.use('/api/chat', chatRoutes);
 
 // Journal routes  →  /api/journals/*
 app.use('/api/journals', journalRoutes);
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/', (req, res) => res.json({ status: 'ok', service: 'MediLink Video API' }));

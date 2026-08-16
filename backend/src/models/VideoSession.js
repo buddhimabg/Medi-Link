@@ -56,6 +56,9 @@ const videoSessionSchema = new mongoose.Schema(
       doctorUserId: { type: String, default: '' },
       patientUserId: { type: String, default: '' },
     },
+    // ── Recording consent — reset every time the room is reused for a new round ──
+    doctorConsent:  { type: Boolean, default: false },
+    patientConsent: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

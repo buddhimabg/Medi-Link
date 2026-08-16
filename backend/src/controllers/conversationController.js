@@ -4,6 +4,7 @@ const Message         = require('../models/Message');
 const User             = require('../models/User');
 const PatientHistory   = require('../models/PatientHistory');
 const Broadcast        = require('../models/Broadcast');
+const VideoSession     = require('../models/VideoSession');
 const { triggerAutoReply, checkEscalation } = require('./botController');
 
 // ─────────────────────────────────────────────────────────────
@@ -213,6 +214,43 @@ exports.getOrCreateConversation = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ getOrCreateConversation error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/chat/conversations/session/:sessionId
+// Patient (or doctor) side — get or create the conversation tied to a
+// video call session, without needing to already know the other
+// party's user id. VideoSession already stores both doctorId and
+// patientId (patientId is set once the patient calls /video/join-room),
+// so we just look those up and reuse the same getOrCreate logic.
+// Available to both roles (not doctor-only like the /with/:patientId
+// route above), since the patient app has no other way to discover
+// their doctor's id.
+// ─────────────────────────────────────────────────────────────
+exports.getConversationBySession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await VideoSession.findOne({ sessionId }, 'doctorId patientId');
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Session not found.' });
+    }
+    if (!session.patientId) {
+      return res.status(400).json({ success: false, message: 'No patient has joined this session yet.' });
+    }
+
+    const { doctorId, patientId } = session;
+
+    let conversation = await Conversation.findOne({ doctorId, patientId });
+    if (!conversation) {
+      conversation = await Conversation.create({ doctorId, patientId });
+    }
+
+    return res.status(200).json({ success: true, data: conversation.toObject() });
+  } catch (error) {
+    console.error('❌ getConversationBySession error:', error);
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };

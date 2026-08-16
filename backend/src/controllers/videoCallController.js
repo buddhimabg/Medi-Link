@@ -4,29 +4,59 @@ const VideoSession   = require('../models/VideoSession');
 const Prescription   = require('../models/Prescription');
 const PatientHistory = require('../models/PatientHistory');
 const User           = require('../models/User');
+const CallRecording  = require('../models/CallRecording');
+const multer = require('multer');
+const path   = require('path');
+const fs     = require('fs');
 
-// ZegoCloud Token Generator (Token04 spec)
+// ── Recording file upload (browser-captured tab recording) ─────────────────
+const recordingsDir = path.join(__dirname, '../../uploads/recordings');
+if (!fs.existsSync(recordingsDir)) fs.mkdirSync(recordingsDir, { recursive: true });
+
+const recordingStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, recordingsDir),
+  filename: (req, file, cb) => {
+    const sessionId = req.params.sessionId || 'session';
+    cb(null, `${sessionId}-${Date.now()}.webm`);
+  },
+});
+exports.uploadRecordingMiddleware = multer({ storage: recordingStorage }).single('recording');
 const generateToken04 = (appId, userId, serverSecret, effectiveTimeInSeconds, payload = '') => {
   if (!appId || !userId || !serverSecret) return '';
+
   const createTime = Math.floor(Date.now() / 1000);
+  const expire     = createTime + effectiveTimeInSeconds;
   const tokenInfo  = {
     app_id:  appId,
     user_id: userId,
     nonce:   Math.floor(Math.random() * 2147483647),
     ctime:   createTime,
-    expire:  createTime + effectiveTimeInSeconds,
+    expire,
     payload,
   };
   const plaintext = JSON.stringify(tokenInfo);
-  const iv        = crypto.randomBytes(16);
-  const key       = Buffer.from(serverSecret, 'utf8').slice(0, 16);
-  const cipher    = crypto.createCipheriv('aes-128-cbc', key, iv);
-  let encrypted   = cipher.update(plaintext, 'utf8', 'binary');
-  encrypted      += cipher.final('binary');
-  const hash      = Buffer.concat([iv, Buffer.from(encrypted, 'binary')]);
-  return '04' + hash.toString('base64');
-};
 
+  // Encrypt with AES-256-CBC using the full 32-byte ServerSecret as the key
+  const iv         = crypto.randomBytes(16);
+  const key        = Buffer.from(serverSecret, 'utf8');
+  const cipher     = crypto.createCipheriv('aes-256-cbc', key, iv);
+  cipher.setAutoPadding(true);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+
+  // Pack per ZegoCloud's Token04 binary spec:
+  // expire_time(8 bytes BE) + iv.length(2 bytes BE) + iv + ciphertext.length(2 bytes BE) + ciphertext
+  const expireBuf     = Buffer.alloc(8);
+  expireBuf.writeBigInt64BE(BigInt(expire));
+
+  const ivLenBuf     = Buffer.alloc(2);
+  ivLenBuf.writeUInt16BE(iv.length);
+
+  const cipherLenBuf = Buffer.alloc(2);
+  cipherLenBuf.writeUInt16BE(ciphertext.length);
+
+  const buf = Buffer.concat([expireBuf, ivLenBuf, iv, cipherLenBuf, ciphertext]);
+  return '04' + buf.toString('base64');
+};
 const buildCallData = (session, token, userId, userName) => ({
   roomId:    session.roomId,
   token,
@@ -45,6 +75,85 @@ const makeRoundId = (sessionId, patientId) =>
 // Resolves the correct DB key for "this round"'s records — falls back to
 // the raw sessionId for legacy/seeded sessions that predate this fix.
 const resolveRoundKey = (session) => session.currentRoundId || session.sessionId;
+
+// ── ZegoCloud Cloud Recording (Server REST API) ─────────────────────────────
+// NOTE: verify field names / endpoint against your ZegoCloud console →
+// Server APIs → Cloud Recording docs before going live — Zego occasionally
+// tweaks response shapes (TaskId / FileList / State) between API versions.
+const zegoRecordingSignature = () => {
+  const appId     = process.env.ZEGO_APP_ID;
+  const secret    = process.env.ZEGO_SERVER_SECRET;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const nonce     = crypto.randomBytes(8).toString('hex');
+  const signStr   = `${appId}${secret}${nonce}${timestamp}`;
+  const signature = crypto.createHash('md5').update(signStr).digest('hex');
+  return { appId, timestamp, nonce, signature };
+};
+
+// Starts ZegoCloud's cloud recording for the room and logs a CallRecording
+// doc keyed by this round's roundKey, so it can later be linked to the
+// correct PatientHistory entry (rooms are reused across many patients).
+const startZegoCloudRecording = async (session) => {
+  const roundKey = session.currentRoundId || session.sessionId;
+
+  const recording = await CallRecording.create({
+    sessionId: session.sessionId,
+    roundKey,
+    patientId: session.patientId,
+    doctorId:  session.doctorId,
+    doctorConsent:  true,
+    patientConsent: true,
+    status: 'recording',
+  });
+
+  try {
+    const { appId, timestamp, nonce, signature } = zegoRecordingSignature();
+    const url = `https://cloudrecord-api.zego.im/?Action=StartRecord&AppId=${appId}&SignatureNonce=${nonce}&Timestamp=${timestamp}&Signature=${signature}&SignatureVersion=2.0`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        RoomId: session.roomId,
+        InputParams: { RecordType: 1 }, // mix all streams into a single file
+        OutputParams: { OutputTarget: 3, OutputFileFormat: [{ Format: 'mp4' }] },
+      }),
+    });
+    const data = await resp.json();
+    recording.taskId = data?.TaskId || '';
+    await recording.save();
+    console.log(`[recording] ▶️ started — session=${session.sessionId} taskId=${recording.taskId}`);
+  } catch (err) {
+    recording.status = 'failed';
+    await recording.save();
+    console.error('[recording] ❌ Zego StartRecord failed:', err.message);
+  }
+  return recording;
+};
+
+// Stops the active cloud recording for this round (called from endCall).
+const stopZegoCloudRecording = async (session) => {
+  const roundKey = session.currentRoundId || session.sessionId;
+  const recording = await CallRecording.findOne({ roundKey, status: 'recording' }).sort({ createdAt: -1 });
+  if (!recording) return null;
+
+  try {
+    const { appId, timestamp, nonce, signature } = zegoRecordingSignature();
+    const url = `https://cloudrecord-api.zego.im/?Action=StopRecord&AppId=${appId}&SignatureNonce=${nonce}&Timestamp=${timestamp}&Signature=${signature}&SignatureVersion=2.0`;
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ TaskId: recording.taskId, RoomId: session.roomId }),
+    });
+  } catch (err) {
+    console.error('[recording] ❌ Zego StopRecord failed:', err.message);
+  }
+
+  recording.status  = 'processing';   // Zego is still encoding/uploading the file
+  recording.endedAt = new Date();
+  await recording.save();
+  console.log(`[recording] ⏹ stopped, processing — roundKey=${roundKey}`);
+  return recording;
+};
 
 // --- අලුතින් එකතු කරන ලද ශ්‍රිතය ---
 // POST /api/video/invite/:sessionId
@@ -72,7 +181,7 @@ exports.sendInvitation = async (req, res) => {
 // POST /api/video/create-room
 exports.createRoom = async (req, res) => {
   try {
-    const { sessionId, patientId } = req.body;
+    const { sessionId, patientId, doctorConsent } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId is required.' });
 
     const appId        = parseInt(process.env.ZEGO_APP_ID);
@@ -90,6 +199,7 @@ exports.createRoom = async (req, res) => {
         currentRoundId: patientId ? makeRoundId(sessionId, patientId) : null,
         roomId:       sessionId,
         status:       'waiting',
+        doctorConsent: !!doctorConsent,
         callMetadata: {
           appId,
           doctorUserId:  userId,
@@ -106,6 +216,8 @@ exports.createRoom = async (req, res) => {
       session.duration       = 0;
       session.patientId      = patientId || null;
       session.currentRoundId = patientId ? makeRoundId(sessionId, patientId) : null;
+      session.doctorConsent  = !!doctorConsent;
+      session.patientConsent = false;
       session.callMetadata.patientUserId = patientId ? `patient_${patientId}` : '';
       await session.save();
     } else if (patientId && session.patientId !== patientId) {
@@ -132,7 +244,7 @@ exports.createRoom = async (req, res) => {
 // POST /api/video/join-room
 exports.joinRoom = async (req, res) => {
   try {
-    const { sessionId } = req.body;
+    const { sessionId, patientConsent } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId is required.' });
 
     const session = await VideoSession.findOne({ sessionId });
@@ -157,7 +269,15 @@ exports.joinRoom = async (req, res) => {
       session.currentRoundId = makeRoundId(sessionId, patientId);
     }
     session.callMetadata.patientUserId = userId;
+    session.patientConsent = !!patientConsent;
     await session.save();
+
+    // Both parties consented → start cloud recording for this round
+    if (session.doctorConsent && session.patientConsent) {
+      startZegoCloudRecording(session).catch(err =>
+        console.error('[recording] failed to start:', err.message)
+      );
+    }
 
     const token    = generateToken04(appId, userId, serverSecret, 3600);
     const callData = buildCallData(session, token, userId, patientName);
@@ -168,7 +288,6 @@ exports.joinRoom = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
   }
 };
-
 // GET /api/video/session-status/:sessionId  (no auth — polling)
 exports.getSessionStatus = async (req, res) => {
   try {
@@ -224,9 +343,27 @@ exports.endCall = async (req, res) => {
 
     if (session.patientId) {
       const roundKey = resolveRoundKey(session);
+      const cloudRecording = await stopZegoCloudRecording(session);
       try {
         const prescriptions = await Prescription.find({ sessionId: roundKey }).sort({ issuedAt: -1 });
         const medications   = prescriptions.flatMap(p => p.medications || []);
+
+        // FIX: don't blindly overwrite recordingStatus/recordingUrl with the
+        // ZegoCloud cloud-recording result. If cloud recording never started
+        // (add-on disabled on the ZegoCloud account), stopZegoCloudRecording
+        // returns null — but a browser-captured recording may already have
+        // been uploaded and saved via uploadRecording() during the call.
+        // Check the DB for the latest actual recording state for this round
+        // before deciding what to write, so we never stomp on good data.
+        const existingHistory = await PatientHistory.findOne({ sessionId: roundKey });
+        const finalRecordingStatus =
+          cloudRecording?.status ||
+          existingHistory?.recordingStatus ||
+          'none';
+        const finalRecordingUrl =
+          cloudRecording?.recordingUrl ||
+          existingHistory?.recordingUrl ||
+          '';
 
         await PatientHistory.findOneAndUpdate(
           { sessionId: roundKey },
@@ -239,6 +376,8 @@ exports.endCall = async (req, res) => {
             notes:          sessionNotes || session.sessionNotes || '',
             notesForPatient: prescriptions[0]?.notes || '',
             medications,
+            recordingStatus: finalRecordingStatus,
+            recordingUrl:    finalRecordingUrl,
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -327,6 +466,9 @@ exports.getCallInfo = async (req, res) => {
       } catch { /* non-blocking */ }
     }
 
+    const roundKey        = resolveRoundKey(session);
+    const activeRecording = await CallRecording.findOne({ roundKey }).sort({ createdAt: -1 });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -337,6 +479,7 @@ exports.getCallInfo = async (req, res) => {
         patientJoined: session.status === 'active' && !!session.patientId,
         patientId:     session.patientId || null,
         patientName,
+        recordingStatus: activeRecording?.status || 'none',
       },
     });
   } catch (error) {
@@ -465,5 +608,144 @@ exports.getVideoToken = async (req, res) => {
   } catch (error) {
     console.error('getVideoToken error:', error);
     return res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// POST /api/video/zego-recording-callback   (no auth — called by ZegoCloud itself)
+exports.zegoRecordingCallback = async (req, res) => {
+  try {
+    const { TaskId, FileList, State } = req.body;
+    const recording = await CallRecording.findOne({ taskId: TaskId });
+    if (!recording) return res.sendStatus(200);
+
+    if (State === 'success' || State === 1) {
+      recording.status       = 'completed';
+      recording.recordingUrl = FileList?.[0]?.FileUrl || '';
+      recording.duration     = FileList?.[0]?.Duration || recording.duration;
+    } else {
+      recording.status = 'failed';
+    }
+    await recording.save();
+
+    // Sync into PatientHistory — this is what powers PatientHistoryPage's
+    // download button, since by webhook time the file is actually ready.
+    await PatientHistory.findOneAndUpdate(
+      { sessionId: recording.roundKey },
+      { recordingStatus: recording.status, recordingUrl: recording.recordingUrl }
+    ).catch(() => {});
+
+    console.log(`[recording] webhook — taskId=${TaskId} status=${recording.status}`);
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('zegoRecordingCallback error:', error);
+    return res.sendStatus(200); // always 200 so Zego doesn't endlessly retry
+  }
+};
+
+// GET /api/video/recording-status/:sessionId  — lightweight polling during a live call
+exports.getRecordingStatus = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await VideoSession.findOne({ sessionId });
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    const roundKey  = resolveRoundKey(session);
+    const recording = await CallRecording.findOne({ roundKey }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, data: { status: recording?.status || 'none' } });
+  } catch (error) {
+    console.error('getRecordingStatus error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// GET /api/video/recording/:roundKey  — fetch + access-control before download
+// Only the doctor who ran the session or the patient it belongs to can access it.
+exports.getRecording = async (req, res) => {
+  try {
+    const { roundKey } = req.params;
+    const recording = await CallRecording.findOne({ roundKey });
+    if (!recording) {
+      return res.status(404).json({ success: false, message: 'No recording found for this session.' });
+    }
+
+    const userId    = req.user?.id;
+    const isDoctor  = userId === recording.doctorId;
+    const isPatient = userId === recording.patientId;
+    if (!isDoctor && !isPatient) {
+      return res.status(403).json({ success: false, message: 'Not authorized to access this recording.' });
+    }
+
+    return res.status(200).json({ success: true, data: recording });
+  } catch (error) {
+    console.error('getRecording error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+// POST /api/video/upload-recording/:sessionId  — browser-captured recording upload
+exports.uploadRecording = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!req.file) return res.status(400).json({ success: false, message: 'No recording file received.' });
+
+    const session = await VideoSession.findOne({ sessionId });
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    const roundKey     = resolveRoundKey(session);
+    const recordingUrl = `/uploads/recordings/${req.file.filename}`;
+
+    // Find (or create) this round's CallRecording doc and mark it completed
+    let recording = await CallRecording.findOne({ roundKey }).sort({ createdAt: -1 });
+    if (!recording) {
+      recording = await CallRecording.create({
+        sessionId: session.sessionId, roundKey,
+        patientId: session.patientId, doctorId: session.doctorId,
+        doctorConsent: true, patientConsent: true, status: 'completed',
+      });
+    }
+    recording.status       = 'completed';
+    recording.recordingUrl = recordingUrl;
+    await recording.save();
+
+    // Keep PatientHistory in sync so PatientHistoryPage's Download button works
+    await PatientHistory.findOneAndUpdate(
+      { sessionId: roundKey },
+      { recordingStatus: 'completed', recordingUrl }
+    ).catch(() => {});
+
+    console.log(`[recording] ✅ uploaded — roundKey=${roundKey} file=${req.file.filename}`);
+    return res.status(200).json({ success: true, data: { recordingUrl } });
+  } catch (error) {
+    console.error('uploadRecording error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// PATCH /api/video/save-transcript/:sessionId — live transcript, appended into sessionNotes
+exports.saveTranscript = async (req, res) => {
+  try {
+    const { sessionId }  = req.params;
+    const { transcript } = req.body;
+    if (typeof transcript !== 'string') {
+      return res.status(400).json({ success: false, message: 'transcript must be a string.' });
+    }
+
+    const session = await VideoSession.findOne({ sessionId });
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    const roundKey = resolveRoundKey(session);
+    const tagged    = `\n\n--- Session Transcript ---\n${transcript}`;
+    session.sessionNotes = (session.sessionNotes || '') + tagged;
+    await session.save();
+
+    await PatientHistory.findOneAndUpdate(
+      { sessionId: roundKey },
+      { $set: { notes: (session.sessionNotes || '') } }
+    ).catch(() => {});
+
+    console.log(`[transcript] ✅ saved — roundKey=${roundKey} length=${transcript.length}`);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('saveTranscript error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };

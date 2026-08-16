@@ -13,15 +13,11 @@ interface Props {
   onBack: () => void;
   onJoin: () => void;
 }
-
-// ── Duration seconds → "X min" format ─────────────────
 const formatDuration = (secs: number): string => {
   if (!secs) return '—'
   const m = Math.floor(secs / 60)
   return m > 0 ? `${m} min` : `${secs}s`
 }
-
-// ── Date string → "Feb 20, 2026" format ───────────────
 const formatDate = (dateStr: string): string => {
   if (!dateStr) return '—'
   try {
@@ -314,17 +310,41 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
                           </div>
                         </div>
 
-                        {/* Session Notes */}
-                        <div className={styles.notesCard}>
-                          <div className={styles.notesTitle}>📋 Session Notes</div>
-                          {selectedRecord.notes ? (
-                            <p className={styles.notesText}>{selectedRecord.notes}</p>
-                          ) : (
-                            <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
-                              මෙම session ට notes නැහැ.
-                            </p>
-                          )}
-                        </div>
+                        {/* Session Notes (excluding transcript) + Transcript, split apart */}
+                        {(() => {
+                          const rawNotes = selectedRecord.notes || ''
+                          const marker = '--- Session Transcript ---'
+                          const idx = rawNotes.indexOf(marker)
+                          const doctorNotes = idx >= 0 ? rawNotes.slice(0, idx).trim() : rawNotes.trim()
+                          const transcript  = idx >= 0 ? rawNotes.slice(idx + marker.length).trim() : ''
+                          return (
+                            <>
+                              <div className={styles.notesCard}>
+                                <div className={styles.notesTitle}>📋 Session Notes</div>
+                                {doctorNotes ? (
+                                  <p className={styles.notesText}>{doctorNotes}</p>
+                                ) : (
+                                  <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
+                                    No notes recorded for this session.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className={styles.notesCard}>
+                                <div className={styles.notesTitle}>📝 Session Transcript</div>
+                                {transcript ? (
+                                  <p className={styles.notesText} style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.7 }}>
+                                    {transcript}
+                                  </p>
+                                ) : (
+                                  <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
+                                    No transcript available for this session.
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          )
+                        })()}
 
                         {/* Medications */}
                         <div className={styles.rxCard}>
@@ -342,7 +362,39 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
                             ))
                           ) : (
                             <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
-                              මෙම session ට prescriptions නැහැ.
+                              No prescriptions issued for this session.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Session Recording */}
+                        <div className={styles.notesCard}>
+                          <div className={styles.notesTitle}>🎥 Session Recording</div>
+                          {selectedRecord.recordingStatus === 'completed' && selectedRecord.recordingUrl ? (
+                            <a
+                              href={selectedRecord.recordingUrl}
+                              download
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 8,
+                                background: '#2B52D4', color: '#fff', padding: '9px 16px',
+                                borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none',
+                              }}
+                            >
+                              ⬇️ Download Recording
+                            </a>
+                          ) : selectedRecord.recordingStatus === 'processing' ? (
+                            <p style={{ fontSize: 13, color: '#B45309', fontStyle: 'italic' }}>
+                              ⏳ Recording is still processing — check back shortly.
+                            </p>
+                          ) : selectedRecord.recordingStatus === 'failed' ? (
+                            <p style={{ fontSize: 13, color: '#DC2626', fontStyle: 'italic' }}>
+                              ⚠️ Recording failed for this session.
+                            </p>
+                          ) : (
+                            <p style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>
+                              No recording available for this session
                             </p>
                           )}
                         </div>

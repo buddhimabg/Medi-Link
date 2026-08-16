@@ -64,6 +64,8 @@ export function useVideoCall(sessionId: string) {
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [patientJoined, setPatientJoined] = useState(false)
+  const [patientMicOn, setPatientMicOn] = useState(true)
+  const [patientCamOn, setPatientCamOn] = useState(true)
   const [waitingStatus, setWaitingStatus] = useState<'waiting' | 'active' | 'ended' | 'cancelled'>('waiting')
   const [duration, setDuration] = useState(0)
 
@@ -177,7 +179,12 @@ const cancelSession = useCallback(async () => {
       reconnectionAttempts: 5,
     })
     socketRef.current = socket
-    socket.on('connect', () => setChatConnected(true))
+    socket.on('connect', () => {
+      setChatConnected(true)
+      // Join the session-wide room (not just the chat room) so we get
+      // live mic/cam state and recording-status events from the patient.
+      socket.emit('join-session-room', { sessionId })
+    })
     socket.on('disconnect', () => setChatConnected(false))
     socket.on('patient-joined', ({ patientName: pName }) => {
       setPatientJoined(true)
@@ -190,22 +197,53 @@ const cancelSession = useCallback(async () => {
     })
     socket.on('typing', () => setPatientTyping(true))
     socket.on('stop-typing', () => setPatientTyping(false))
-  }, [dbMsgToChatMsg])
+    // Patient reporting their own mic/cam state — Participants panel was
+    // previously hardcoded to always show the patient as mic:true, cam:true.
+    socket.on('media-state', ({ role, micOn, camOn }: { role: string; micOn: boolean; camOn: boolean }) => {
+      if (role !== 'patient') return
+      setPatientMicOn(micOn)
+      setPatientCamOn(camOn)
+    })
+  }, [dbMsgToChatMsg, sessionId])
+
+  // Broadcast the DOCTOR's own mic/cam state whenever it changes, so the
+  // patient side (if it ever shows a participants view) has accurate info too.
+  useEffect(() => {
+    socketRef.current?.emit('media-state', { sessionId, role: 'doctor', micOn: !micMuted, camOn: !camOff })
+  }, [micMuted, camOff, sessionId])
+
+  // Recording start/stop — sent as a dedicated live event, not a chat
+  // message, so the patient sees a banner instead of it cluttering the
+  // conversation history.
+  const setRecordingStatus = useCallback((recording: boolean) => {
+    socketRef.current?.emit('recording-status', { sessionId, recording })
+  }, [sessionId])
 
   const leaveChatRoom = useCallback((cid: string) => {
     socketRef.current?.emit('leave-chat-room', { conversationId: cid })
   }, [])
 
-  const loadConversation = useCallback(async (pid: string) => {
+  // FIX: loadConversation now keys off sessionId (via getConversationBySession)
+  // instead of the doctor-guessed patientId. Previously this used
+  // chatApi.getOrCreateConversation(patientId) where `patientId` could
+  // still be the QUEUE'S guess (set before the real patient joined) —
+  // the poll below only sets patientId if it wasn't already set
+  // (`!patientId` guard), so a stale queue guess never got corrected.
+  // That caused doctor and patient to resolve to two DIFFERENT
+  // Conversation documents (different socket rooms), so messages never
+  // crossed. getConversationBySession looks up VideoSession.patientId
+  // directly — the exact same value the patient side uses — so both
+  // parties always land in the same conversation/room.
+  const loadConversation = useCallback(async () => {
     try {
-      const conv = await chatApi.getOrCreateConversation(pid)
+      const conv = await chatApi.getConversationBySession(sessionId)
       setConversationId(conv._id)
       socketRef.current?.emit('join-chat-room', { conversationId: conv._id })
       chatApi.markAsRead(conv._id).catch(() => {})
       const result = await chatApi.getMessages(conv._id, 1, 30)
       setMessages(result.messages.map(dbMsgToChatMsg))
     } catch {}
-  }, [dbMsgToChatMsg])
+  }, [sessionId, dbMsgToChatMsg])
 
   const saveSessionNotes = useCallback(async () => {
     await videoApi.saveSessionNotes(sessionId, sessionNotes)
@@ -271,11 +309,24 @@ useEffect(() => {
     };
 }, [runDeviceCheck, fetchQueue]);
 
+  // FIX: chat conversation load now triggers off `patientJoined` (set
+  // true only once the real patient has called joinRoom — see
+  // 'patient-joined' socket event / status poll below), NOT off
+  // `patientId`, which could still hold a stale queue guess. This
+  // guarantees VideoSession.patientId is actually set in the DB by the
+  // time we look up the conversation, matching the patient side exactly.
+  useEffect(() => {
+    if (!patientJoined || conversationId) return
+    loadConversation()
+  }, [patientJoined, conversationId, loadConversation])
+
+  // Medical history / previous Rx lookup is lower-stakes than chat — a
+  // brief queue-guess mismatch here just means stale sidebar info, not
+  // a broken feature, so this can stay keyed off patientId as before.
   useEffect(() => {
     if (!patientId) return
-    loadConversation(patientId)
     fetchPatientData(patientId)
-  }, [patientId, loadConversation, fetchPatientData])
+  }, [patientId, fetchPatientData])
 
   const handleStartSession = useCallback(async () => {
     setLoading(true)
@@ -359,6 +410,16 @@ useEffect(() => {
     await chatApi.sendMessage(conversationId, chatInput)
   }, [chatInput, conversationId])
 
+  // Sends an automated message from the doctor's side (e.g. "recording
+  // started") — same delivery path as sendChatMessage, just not tied to
+  // the chat input box. Used to notify the patient of things like
+  // recording status without the doctor having to type it manually.
+  const sendSystemMessage = useCallback(async (text: string) => {
+    if (!conversationId) return
+    setMessages(prev => [...prev, { role: 'doctor', text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }])
+    try { await chatApi.sendMessage(conversationId, text) } catch { /* best-effort notification */ }
+  }, [conversationId])
+
   const addMedication = useCallback(() => {
     if (!newMed.name || !newMed.dose) return
     setMedications(prev => [...prev, { id: Date.now(), ...newMed }])
@@ -383,10 +444,11 @@ useEffect(() => {
     camOk, micOk, checking,
     callData, loading, apiError,
     patientJoined, waitingStatus, patientName, patientId, patientHistory, existingRx, existingRxNotes,
+    patientMicOn, patientCamOn, setRecordingStatus,
     doctorName, doctorQueue,
     duration, formatDuration,
     micMuted, setMicMuted, camOff, setCamOff,
-    messages, chatInput, setChatInput, patientTyping, sendChatMessage, chatConnected, conversationId,
+    messages, chatInput, setChatInput, patientTyping, sendChatMessage, sendSystemMessage, chatConnected, conversationId,
     medications, newMed, setNewMed, addMedication, removeMedication: (id: number) => setMedications(prev => prev.filter(m => m.id !== id)),
     rxNotes, setRxNotes, rxSaved, issuePrescription,
     sessionNotes, setSessionNotes: (v: string) => { setSessionNotes(v); setNotesSaved(false) }, notesSaved, saveSessionNotes,

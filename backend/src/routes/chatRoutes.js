@@ -56,6 +56,17 @@ router.get(
   convCtrl.getOrCreateConversation
 );
 
+// GET  /api/chat/conversations/session/:sessionId
+// Get or create the conversation tied to a video call session.
+// Open to BOTH doctor and patient — the patient side has no other way
+// to discover their doctor's user id, so it looks both up from the
+// VideoSession record itself.
+router.get(
+  '/conversations/session/:sessionId',
+  protect,
+  convCtrl.getConversationBySession
+);
+
 // GET  /api/chat/conversations/:id/messages?page=1&limit=30
 // Paginated message history for a conversation
 router.get(
