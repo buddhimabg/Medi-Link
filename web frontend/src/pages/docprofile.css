@@ -1,0 +1,714 @@
+/* ===== Google Fonts ===== */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+/* MAIN CONTAINER */
+.dp-container {
+  flex: 1;
+  margin-left: 250px;
+  padding: 30px;
+  background-color: #f0f4f8;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Centers content */
+.dp-content {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/*  LOADING STATE  */
+.dp-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  gap: 16px;
+  color: #888;
+}
+
+/* Spinner animation */
+.dp-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e0e7f0;
+  border-top-color: #0d47a1;
+  border-radius: 50%;
+  animation: dp-spin 0.8s linear infinite;
+}
+
+@keyframes dp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/*  POPUP TOAST NOTIFICATION */
+/* This is the green/blue popup that appears when profile is saved */
+/* It appears at the TOP-RIGHT corner of the screen */
+.dp-toast {
+  position: fixed;              /* Stays in fixed position while scrolling */
+  top: 24px;                   /* 24px from top of screen */
+  right: 24px;                 /* 24px from right edge */
+  background: #0d47a1;         /* Dark blue background */
+  color: white;                /* White text */
+  padding: 14px 22px;          /* Inner spacing */
+  border-radius: 10px;         /* Rounded corners */
+  display: flex;               /* Flex layout for icon + text */
+  align-items: center;
+  gap: 10px;                   /* Space between icon and text */
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(13, 71, 161, 0.35);  /* Shadow effect */
+  z-index: 9999;               /* Appears above everything else */
+  
+  /* Two animations: slideIn (0.3s) then fadeOut (0.4s after 2.6s delay) */
+  animation: dp-slideIn 0.3s ease, dp-fadeOut 0.4s ease 2.6s forwards;
+}
+
+/* Slide in from right animation */
+@keyframes dp-slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateX(30px);   /* Starts 30px to the right */
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0);      /* Ends at normal position */
+  }
+}
+
+/* Fade out animation - runs after 2.6 seconds */
+@keyframes dp-fadeOut {
+  to { 
+    opacity: 0;                    /* Becomes invisible */
+    transform: translateX(30px);   /* Slides out to the right */
+  }
+}
+/*  END OF POPUP TOAST NOTIFICATION  */
+
+/*  HERO SECTION (Top Card)  */
+.dp-hero {
+  position: relative;
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Blue gradient background in hero */
+.dp-hero-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 130px;
+  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #1976d2 100%);
+}
+
+/* Curved white overlay at bottom of blue area */
+.dp-hero-bg::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 0; right: 0;
+  height: 40px;
+  background: white;
+  clip-path: ellipse(55% 100% at 50% 100%);
+}
+
+/* Hero content container */
+.dp-hero-body {
+  position: relative;
+  padding: 20px 36px 36px;
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+/* AVATAR  */
+.dp-avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 40px;
+}
+
+/* Large circular avatar */
+.dp-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e3eaf7, #c5d4ef);
+  border: 4px solid white;
+  box-shadow: 0 4px 16px rgba(13, 71, 161, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 36px;
+  color: #0d47a1;
+  overflow: hidden;
+}
+
+.dp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Verified checkmark badge on avatar */
+.dp-verified-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d47a1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Edit photo button (appears in edit mode) */
+.dp-avatar-edit-btn {
+  position: absolute;
+  bottom: 30px;
+  right: -4px;
+  background: #0d47a1;
+  color: white;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(13,71,161,0.4);
+}
+
+.dp-hidden-input {
+  display: none;
+}
+
+/*  HERO INFO  */
+.dp-hero-info {
+  flex: 1;
+  padding-top: 80px;
+}
+
+/* Doctor name row with specialty chip */
+.dp-hero-name-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.dp-hero-name-row h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  color: #0d1b2a;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Specialty badge */
+.dp-specialty-chip {
+  background: linear-gradient(135deg, #0d47a1, #1976d2);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+/* License number text */
+.dp-license {
+  font-size: 13px;
+  color: #999;
+  margin: 0 0 10px 0;
+}
+
+/* Qualification chips */
+.dp-qualifications {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dp-qual-chip {
+  background: #eef2ff;
+  color: #3b5bdb;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 12px;
+}
+
+/*  ACTION BUTTONS  */
+.dp-hero-actions {
+  padding-top: 80px;
+}
+
+/* Edit Profile button */
+.dp-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: #0d47a1;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.dp-edit-btn:hover { 
+  background: #1565c0; 
+  transform: translateY(-1px); 
+}
+
+/* Edit mode buttons container */
+.dp-edit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Save Changes button (green) */
+.dp-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.dp-save-btn:hover:not(:disabled) { 
+  background: #388e3c; 
+}
+
+.dp-save-btn:disabled { 
+  opacity: 0.7; 
+  cursor: not-allowed; 
+}
+
+/* Cancel button (gray) */
+.dp-cancel-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.dp-cancel-btn:hover { 
+  background: #eeeeee; 
+}
+
+/* STATS ROW  */
+/* 4 stat cards in a row */
+.dp-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Individual stat card */
+.dp-stat-card {
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dp-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+/* Stat icon circle */
+.dp-stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Icon colors */
+.dp-stat-blue   { background: #e3f2fd; color: #0d47a1; }
+.dp-stat-green  { background: #e8f5e9; color: #2e7d32; }
+.dp-stat-orange { background: #fff3e0; color: #e65100; }
+.dp-stat-yellow { background: #fffde7; color: #f57f17; }
+
+/* Stat number (large) */
+.dp-stat-number {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0d1b2a;
+  line-height: 1;
+  font-family: 'DM Serif Display', serif;
+}
+
+/* Stat label below number */
+.dp-stat-label {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* MAIN GRID  */
+/* Two column layout for content */
+.dp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Left and right columns */
+.dp-col-left, .dp-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/*  CARDS  */
+.dp-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Card header with title and tag */
+.dp-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dp-card-header h3 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: #0d1b2a;
+  margin: 0;
+}
+
+/* Editable tag (green) */
+.dp-editable-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Locked tag (orange - admin only) */
+.dp-locked-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: #fff3e0;
+  color: #e65100;
+}
+
+/* Bio text */
+.dp-bio-text {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* Textarea for editing bio */
+.dp-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #e0e7f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #333;
+  font-family: 'DM Sans', sans-serif;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.dp-textarea:focus { 
+  border-color: #0d47a1; 
+}
+
+/*  CONTACT INFO  */
+.dp-contact-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 16px; 
+}
+
+.dp-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Contact icon circle */
+.dp-contact-icon {
+  width: 36px;
+  height: 36px;
+  background: #f0f4f8;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d47a1;
+  flex-shrink: 0;
+}
+
+.dp-contact-detail { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 3px; 
+}
+
+.dp-contact-label { 
+  font-size: 11px; 
+  color: #aaa; 
+  font-weight: 600; 
+  text-transform: uppercase; 
+  letter-spacing: 0.5px; 
+}
+
+.dp-contact-value { 
+  font-size: 14px; 
+  color: #333; 
+  font-weight: 500; 
+}
+
+/* Input field for editing */
+.dp-input {
+  padding: 9px 12px;
+  border: 1.5px solid #e0e7f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dp-input:focus { 
+  border-color: #0d47a1; 
+}
+
+.dp-input-full {  
+  width: 100%; 
+}
+
+/*  PROFESSIONAL DETAILS  */
+.dp-detail-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 14px; 
+}
+
+.dp-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f8f8f8;
+}
+
+.dp-detail-row:last-child { 
+  border-bottom: none; 
+  padding-bottom: 0; 
+}
+
+.dp-detail-label { 
+  font-size: 13px; 
+  color: #999; 
+  font-weight: 500; 
+}
+
+.dp-detail-value { 
+  font-size: 14px; 
+  color: #333; 
+  font-weight: 600; 
+}
+
+/* Gradient text for specialty */
+.dp-specialty-value {
+  background: linear-gradient(135deg, #0d47a1, #1976d2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* LANGUAGES  */
+.dp-lang-chips { 
+  display: flex; 
+  gap: 6px; 
+  flex-wrap: wrap; 
+}
+
+.dp-lang-chip {
+  background: #f0f4ff;
+  color: #3b5bdb;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+/*  QUALIFICATIONS  */
+.dp-qual-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+}
+
+.dp-qual-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8faff;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  border-left: 3px solid #0d47a1;
+}
+
+.dp-qual-icon { 
+  color: #0d47a1; 
+  flex-shrink: 0; 
+}
+
+/* AVAILABLE DAYS  */
+/* 7 column grid for days */
+.dp-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.dp-day-chip {
+  text-align: center;
+  padding: 10px 4px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Active day - blue background */
+.dp-day-active   { 
+  background: #0d47a1; 
+  color: white; 
+}
+
+/* Inactive day - gray background */
+.dp-day-inactive { 
+  background: #f0f4f8; 
+  color: #bbb; 
+}
+
+/*PHOTO EDIT PANEL  */
+.dp-photo-card { 
+  margin-top: 0; 
+}
+
+.dp-photo-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Preview of new photo */
+.dp-photo-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e0e7f0;
+  flex-shrink: 0;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+/* Tablet screens */
+@media (max-width: 1024px) {
+  .dp-stats-row { 
+    grid-template-columns: repeat(2, 1fr); 
+  }
+  .dp-grid { 
+    grid-template-columns: 1fr; 
+  }
+}
+
+/* Mobile screens */
+@media (max-width: 768px) {
+  .dp-container { 
+    margin-left: 0; 
+    padding: 15px; 
+  }
+  .dp-hero-body { 
+    flex-direction: column; 
+    align-items: flex-start; 
+  }
+  .dp-hero-info { 
+    padding-top: 0; 
+  }
+  .dp-hero-actions { 
+    padding-top: 0; 
+  }
+  .dp-stats-row { 
+    grid-template-columns: repeat(2, 1fr); 
+  }
+  .dp-days-grid { 
+    grid-template-columns: repeat(4, 1fr); 
+  }
+}

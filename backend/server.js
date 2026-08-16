@@ -1,30 +1,64 @@
-// server.js
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
-// Initialize the Express app
 const app = express();
+app.use(cors());
+app.use(express.json());
 
-// Middleware
-app.use(cors()); // Allows your React app to connect
-app.use(express.json()); // Allows your backend to understand JSON data from the frontend
+mongoose.set('strictQuery', false);
 
-// Database Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Successfully Connected!'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+const MONGODB_URI = process.env.MONGODB_URI;
 
-// A simple test route
-app.get('/', (req, res) => {
-  res.send('Welcome to the Medilink API!');
-});
+if (!MONGODB_URI) {
+    console.error('❌ ERROR: MONGODB_URI not found in .env file');
+    process.exit(1);
+}
 
-// Define the port (defaults to 5000 if not found in .env)
+const { connectToDatabase } = require('./db');
+
+// Models
+const Patient = require('./models/patient');
+const ChronicDisease = require('./models/chronicDisease');
+const Medication = require('./models/medication');
+const Visit = require('./models/visit');
+const Report = require('./models/report');
+const Script = require('./models/script');
+const Doctor = require('./models/doctor');
+const WeeklySlot = require('./models/weeklySlot');
+const TreatmentPlan = require('./models/treatmentPlan');
+
+// Routes
+app.use('/api/slots', require('./routes/slots'));
+app.use('/api/patients', require('./routes/patients'));
+app.use('/api/doctor', require('./routes/doctor'));
+app.use('/api/health', require('./routes/health'));
+app.use('/api/treatment-plans', require('./routes/treatmentPlan'));
+// Sessions (appointments)
+app.use('/api/sessions', require('./routes/session'));
+// Debug endpoints (do not expose in production)
+app.use('/api/debug', require('./routes/debug'));
+
 const PORT = process.env.PORT || 5000;
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+connectToDatabase().then((connected) => {
+    if (!connected) {
+        console.error('⚠️  Warning: Failed to connect to MongoDB. Starting server for debugging only.');
+        console.error(' - Check /api/debug/db for mongoose readyState.');
+        console.error(' - The sessions/slots routes will attempt DB operations and may return 500 errors.');
+    } else {
+        console.log('📡 Connected to MongoDB Atlas Cloud');
+    }
+
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+}).catch((err) => {
+    console.error('Unexpected error during DB connection:', err);
+    // Start server anyway to allow debugging endpoints to function
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT} (DB connection error)`);
+    });
 });
