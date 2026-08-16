@@ -43,6 +43,11 @@ const LoginPage: React.FC = () => {
           // Full navigation (not React Router's navigate) so App.tsx remounts
           // and picks up the freshly-written medilink_logged_in flag.
           window.location.href = "/video-call";
+        } else if (data.role === "admin") {
+          // Admin dashboard's own API layer (src/api/api.ts) reads this
+          // specific key for its Authorization header on every request.
+          localStorage.setItem("medilink_auth_token", data.token || "");
+          window.location.href = "/admin-dashboard";
         } else {
           navigate("/dashboard");
         }

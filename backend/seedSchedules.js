@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
-const Doctor = require('./models/Doctor');
+const Doctor = require('./models/doctor');
 const DoctorSchedule = require('./models/doctorSchedule');
 
 async function seed() {

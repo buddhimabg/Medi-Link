@@ -28,6 +28,14 @@ const ChatbotPage = React.lazy(() => import("./pages/Chatbot/Chatbotpage"));
 const ComingSoonPage = React.lazy(() => import("./pages/Common/ComingSoonPage"));
 const JournalsRouter = React.lazy(() => import("./pages/Journals/JournalsRouter"));
 
+// Admin dashboard — dev-pavindu's feature set
+const AdminDashboardPage = React.lazy(() => import("./pages/AdminDashboardPage"));
+const ManageDoctorsPage = React.lazy(() => import("./pages/ManageDoctorsPage"));
+const DoctorApprovalsPage = React.lazy(() => import("./pages/DoctorApprovalsPage"));
+const ManagePatientsPage = React.lazy(() => import("./pages/ManagePatientsPage"));
+const AdminReportsPage = React.lazy(() => import("./pages/ReportsPage"));
+const AdminSettingsPage = React.lazy(() => import("./pages/SettingsPage"));
+
 import "./App.css";
 import LandingPage from "./pages/landingpage";
 import LoginPage from "./pages/loginPage";
@@ -124,6 +132,11 @@ const App: React.FC = () => {
     localStorage.removeItem("user");
     window.location.replace("/login");
   };
+
+  // Admin dashboard is gated on medilink_auth_token, set by loginPage.tsx
+  // when an admin-role account logs in (its own api/api.ts reads this key
+  // for the Authorization header on every admin-dashboard request).
+  const isAdminLoggedIn = !!localStorage.getItem("medilink_auth_token");
 
   return (
     <Router>
@@ -234,6 +247,36 @@ const App: React.FC = () => {
                 ? <ComingSoonPage title="Patient Management" subtitle="Patient records and management tools are under development." activePath="/patients" />
                 : <Navigate to="/login" />
             }
+          />
+
+          {/* Admin dashboard (dev-pavindu) */}
+          <Route
+            path="/admin-dashboard"
+            element={isAdminLoggedIn ? <AdminDashboardPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/manage-doctors"
+            element={isAdminLoggedIn ? <ManageDoctorsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/doctor-approvals"
+            element={isAdminLoggedIn ? <DoctorApprovalsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/approvals"
+            element={isAdminLoggedIn ? <DoctorApprovalsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/manage-patients"
+            element={isAdminLoggedIn ? <ManagePatientsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/admin-reports"
+            element={isAdminLoggedIn ? <AdminReportsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/admin-settings"
+            element={isAdminLoggedIn ? <AdminSettingsPage /> : <Navigate to="/login" />}
           />
 
           <Route

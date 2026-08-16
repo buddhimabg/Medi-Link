@@ -26,6 +26,12 @@ const patientHistoryRoutes = require("./routes/patientHistoryRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const journalRoutes = require("./routes/journalRoutes");
 
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const adminDoctorRoutes = require("./routes/adminDoctorRoutes");
+const patientRoutes = require("./routes/patientRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const systemRoutes = require("./routes/systemRoutes");
+
 const app = express();
 const server = http.createServer(app);
 
@@ -155,6 +161,16 @@ app.use("/api/prescriptions", prescriptionRoutes);
 app.use("/api/patient-history", patientHistoryRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/journals", journalRoutes);
+
+// Admin dashboard — dev-pavindu's feature. Mounted under /api/admin/* (not
+// /api/doctors etc.) because /api/doctors is already the patient-facing
+// booking directory; the admin doctor-management endpoints are a different
+// contract (pagination, verification workflow) living in adminDoctorRoutes.
+app.use("/api/admin/dashboard", dashboardRoutes);
+app.use("/api/admin/doctors", adminDoctorRoutes);
+app.use("/api/admin/patients", patientRoutes);
+app.use("/api/admin/reports", reportRoutes);
+app.use("/api/admin/system", systemRoutes);
 
 // 404 for anything unmatched under /api
 app.use("/api", (req, res) => {

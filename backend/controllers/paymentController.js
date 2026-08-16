@@ -1,6 +1,6 @@
 const paymentService = require('../services/paymentService');
 const Appointment = require('../models/appointment');
-const Doctor = require('../models/Doctor');
+const Doctor = require('../models/doctor');
 const Payment = require('../models/payment');
 const DoctorSchedule = require('../models/doctorSchedule');
 

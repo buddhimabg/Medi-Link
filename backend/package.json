@@ -8,7 +8,8 @@
     "dev": "nodemon -e js,json,env server.js",
     "test:reminder-flow": "node scripts/testReminderFlow.js",
     "demo:workflow": "node scripts/seedDemoWorkflow.js",
-    "seed:biomarkers": "node scripts/seedBiomarkers.js"
+    "seed:biomarkers": "node scripts/seedBiomarkers.js",
+    "seed:admin": "node scripts/seedAdmin.js"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,7 @@
     "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-validator": "^7.2.1",
     "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.4.1",

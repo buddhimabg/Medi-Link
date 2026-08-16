@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -11,6 +15,25 @@ html, body, #root {
   min-height: 100vh;
   overflow-x: hidden;
 }
+
+button {
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
 /* 1. Lock the master wrapper to the exact height of the screen */
 .dashboard-layout {
   display: flex;
