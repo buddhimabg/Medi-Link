@@ -51,7 +51,8 @@ const DoctorProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);                     // Loading state
   const [editing, setEditing] = useState(false);                    // Edit mode on/off
   const [saving, setSaving] = useState(false);                      // Saving state
-  const [editForm, setEditForm] = useState({ phone: '', bio: '', photo: '' }); // Form data
+  const [editForm, setEditForm] = useState({ phone: '', bio: '', photo: '', email: '', specialty: '', licenseNumber: '', yearsOfExperience: 0 }); // Form data
+  const [validationErrors, setValidationErrors] = useState<{ phone?: string; email?: string; specialty?: string; licenseNumber?: string; yearsOfExperience?: string }>({});
   const [saveSuccess, setSaveSuccess] = useState(false);            // 👈 SUCCESS POPUP TRIGGER
   const [saveError, setSaveError] = useState<string | null>(null);  // Error message
 
@@ -62,15 +63,24 @@ const DoctorProfile: React.FC = () => {
         const data = await api.getDoctorProfile();
         if (!data) {
           setDoctor(mockDoctor);
-          setEditForm({ phone: mockDoctor.phone, bio: mockDoctor.bio, photo: mockDoctor.photo });
+          setEditForm({ phone: mockDoctor.phone, bio: mockDoctor.bio, photo: mockDoctor.photo, email: mockDoctor.email, specialty: mockDoctor.specialty, licenseNumber: mockDoctor.licenseNumber, yearsOfExperience: mockDoctor.yearsOfExperience });
         } else {
           setDoctor(data);
-          setEditForm({ phone: data.phone, bio: data.bio, photo: data.photo });
+          setEditForm({ phone: data.phone, bio: data.bio, photo: data.photo, email: data.email, specialty: data.specialty, licenseNumber: data.licenseNumber || '', yearsOfExperience: data.yearsOfExperience || 0 });
         }
       } catch (error) {
         console.error('Failed to fetch doctor profile:', error);
         setDoctor(mockDoctor);
-        setEditForm({ phone: mockDoctor.phone, bio: mockDoctor.bio, photo: mockDoctor.photo });
+        setEditForm(prev => ({
+          ...prev,
+          phone: mockDoctor.phone,
+          bio: mockDoctor.bio,
+          photo: mockDoctor.photo,
+          email: mockDoctor.email,
+          specialty: mockDoctor.specialty,
+          licenseNumber: mockDoctor.licenseNumber,
+          yearsOfExperience: mockDoctor.yearsOfExperience,
+        }));
       } finally {
         setLoading(false);
       }
@@ -81,7 +91,7 @@ const DoctorProfile: React.FC = () => {
   // EDIT MODE 
   const handleEdit = () => {
     if (doctor) {
-      setEditForm({ phone: doctor.phone, bio: doctor.bio, photo: doctor.photo });
+      setEditForm({ phone: doctor.phone, bio: doctor.bio, photo: doctor.photo, email: doctor.email, specialty: doctor.specialty, licenseNumber: doctor.licenseNumber, yearsOfExperience: doctor.yearsOfExperience });
       setEditing(true);  // Show input fields
     }
   };
@@ -98,8 +108,25 @@ const DoctorProfile: React.FC = () => {
     if (!doctor) return;
     setSaving(true);
     setSaveError(null);
+    // Validate before sending
+    const errs: { phone?: string; email?: string; specialty?: string; licenseNumber?: string; yearsOfExperience?: string } = {};
+    const cleanedPhone = (editForm.phone || '').replace(/\D/g, '');
+    // require exactly 10 digits
+    if (!/^\d{10}$/.test(cleanedPhone)) {
+      errs.phone = 'Please enter a valid phone number (exactly 10 digits).';
+    }
+    if (editForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
+      errs.email = 'Please enter a valid email address.';
+    }
+    if (Object.keys(errs).length) {
+      setValidationErrors(errs);
+      setSaveError('Please fix validation errors before saving.');
+      setSaving(false);
+      return;
+    }
+    setValidationErrors({});
     try {
-      const updated = await api.updateDoctorProfile(doctor.id, editForm);
+      const updated = await api.updateDoctorProfile(doctor.id, { phone: editForm.phone, bio: editForm.bio, photo: editForm.photo, email: editForm.email, specialty: editForm.specialty, licenseNumber: editForm.licenseNumber, yearsOfExperience: Number(editForm.yearsOfExperience) });
       if (updated) {
         setDoctor(updated);
       } else {
@@ -115,7 +142,27 @@ const DoctorProfile: React.FC = () => {
       
     } catch (error) {
       console.error('Failed to update profile:', error);
-      setSaveError('Unable to save changes. Please make sure the backend is running.');
+      const err = error as any;
+      const body = err?.body;
+      if (body && typeof body === 'object' && body.errors && typeof body.errors === 'object') {
+        // Merge server field errors into validationErrors
+        setValidationErrors(prev => ({ ...prev, ...body.errors }));
+        setSaveError(null);
+      } else {
+        const msg = err?.message || '';
+        if (/phone/i.test(msg)) {
+          setValidationErrors(prev => ({ ...prev, phone: msg }));
+          setSaveError(null);
+        } else if (/email/i.test(msg)) {
+          setValidationErrors(prev => ({ ...prev, email: msg }));
+          setSaveError(null);
+        } else if (/specialty/i.test(msg)) {
+          setValidationErrors(prev => ({ ...prev, specialty: msg }));
+          setSaveError(null);
+        } else {
+          setSaveError(msg || 'Unable to save changes. Please make sure the backend is running.');
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -137,18 +184,20 @@ const DoctorProfile: React.FC = () => {
     );
   }
 
+  // If loading finished but doctor data is still null, show fallback message
   if (!doctor) {
     return (
       <div className="dp-container">
-        <div className="dp-loading"><p>Profile not found.</p></div>
+        <div className="dp-loading">
+          <p>Profile data is unavailable.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="dp-container">
-      <div className="dp-content">
-
+      <div className="dp-container">
+        <div className="dp-content">
         {/*  SUCCESS POPUP TOAST NOTIFICATION  */}
         {/* This green popup appears in top-right corner when saveSuccess = true */}
         {/* It disappears automatically after 3 seconds */}
@@ -173,19 +222,6 @@ const DoctorProfile: React.FC = () => {
                   <span>{getInitials(doctor.name)}</span>
                 )}
               </div>
-              {/* Edit photo button (only visible in edit mode) */}
-              {editing && (
-                <label className="dp-avatar-edit-btn" title="Change photo">
-                  <Camera size={16} />
-                  <input
-                    type="text"
-                    placeholder="Paste image URL"
-                    value={editForm.photo}
-                    onChange={e => setEditForm({ ...editForm, photo: e.target.value })}
-                    className="dp-hidden-input"
-                  />
-                </label>
-              )}
               <div className="dp-verified-badge">
                 <BadgeCheck size={20} />
               </div>
@@ -299,11 +335,21 @@ const DoctorProfile: React.FC = () => {
                     <span className="dp-contact-label">Phone</span>
                     {editing ? (
                       <input
-                        type="text"
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className="dp-input"
                         value={editForm.phone}
-                        onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                        placeholder="+94 XX XXX XXXX"
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setEditForm(prev => ({ ...prev, phone: digits }));
+                          if (!/^\d{10}$/.test(digits)) {
+                            setValidationErrors(prev => ({ ...prev, phone: 'Phone must be exactly 10 digits' }));
+                          } else {
+                            setValidationErrors(prev => ({ ...prev, phone: undefined }));
+                          }
+                        }}
+                        placeholder="0771234567"
                       />
                     ) : (
                       <span className="dp-contact-value">{doctor.phone}</span>
@@ -317,10 +363,34 @@ const DoctorProfile: React.FC = () => {
                   <div className="dp-contact-icon"><Mail size={16} /></div>
                   <div className="dp-contact-detail">
                     <span className="dp-contact-label">Email</span>
-                    <span className="dp-contact-value">{doctor.email}</span>
+                    {editing ? (
+                      <input
+                        type="email"
+                        className="dp-input"
+                        value={editForm.email}
+                        onChange={e => {
+                          setEditForm({ ...editForm, email: e.target.value });
+                          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.target.value)) {
+                            setValidationErrors(prev => ({ ...prev, email: 'Invalid email address' }));
+                          } else {
+                            setValidationErrors(prev => ({ ...prev, email: undefined }));
+                          }
+                        }}
+                        placeholder="you@domain.com"
+                      />
+                    ) : (
+                      <span className="dp-contact-value">{doctor.email}</span>
+                    )}
                   </div>
-                  {editing && <span className="dp-locked-tag">Admin only</span>}
+                  {editing && <span className="dp-editable-tag">Editable</span>}
                 </div>
+                {/* Validation messages */}
+                {editing && (validationErrors.phone || validationErrors.email) && (
+                  <div className="dp-validation-errors">
+                    {validationErrors.phone && <div className="dp-error">{validationErrors.phone}</div>}
+                    {validationErrors.email && <div className="dp-error">{validationErrors.email}</div>}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -332,20 +402,78 @@ const DoctorProfile: React.FC = () => {
             <div className="dp-card">
               <div className="dp-card-header">
                 <h3>Professional Details</h3>
-                {editing && <span className="dp-locked-tag">Admin only</span>}
+                {editing && <span className="dp-editable-tag">Editable</span>}
               </div>
               <div className="dp-detail-list">
                 <div className="dp-detail-row">
                   <span className="dp-detail-label">Specialty</span>
-                  <span className="dp-detail-value dp-specialty-value">{doctor.specialty}</span>
+                  {editing ? (
+                    <input
+                      type="text"
+                      className="dp-input dp-input-inline"
+                      value={editForm.specialty}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setEditForm(prev => ({ ...prev, specialty: val }));
+                        if (!val || val.trim().length < 2) {
+                          setValidationErrors(prev => ({ ...prev, specialty: 'Specialty must be at least 2 characters' }));
+                        } else {
+                          setValidationErrors(prev => ({ ...prev, specialty: undefined }));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="dp-detail-value dp-specialty-value">{doctor.specialty}</span>
+                  )}
+                  {editing && validationErrors.specialty && (
+                    <div className="dp-error" style={{ marginTop: 6 }}>{validationErrors.specialty}</div>
+                  )}
                 </div>
                 <div className="dp-detail-row">
                   <span className="dp-detail-label">License Number</span>
-                  <span className="dp-detail-value">{doctor.licenseNumber}</span>
+                  {editing ? (
+                    <input
+                      type="text"
+                      className="dp-input dp-input-inline"
+                      value={editForm.licenseNumber}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setEditForm(prev => ({ ...prev, licenseNumber: val }));
+                        if (!val || val.trim().length < 3) {
+                          setValidationErrors(prev => ({ ...prev, licenseNumber: 'License number must be at least 3 characters' }));
+                        } else {
+                          setValidationErrors(prev => ({ ...prev, licenseNumber: undefined }));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="dp-detail-value">{doctor.licenseNumber}</span>
+                  )}
+                  {editing && validationErrors.licenseNumber && <div className="dp-error" style={{ marginTop: 6 }}>{validationErrors.licenseNumber}</div>}
                 </div>
                 <div className="dp-detail-row">
                   <span className="dp-detail-label">Experience</span>
-                  <span className="dp-detail-value">{doctor.yearsOfExperience} years</span>
+                  {editing ? (
+                    <input
+                      type="number"
+                      min={0}
+                      max={80}
+                      className="dp-input dp-input-inline"
+                      value={String(editForm.yearsOfExperience)}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditForm(prev => ({ ...prev, yearsOfExperience: val }));
+                        if (!Number.isInteger(val) || val < 0 || val > 80) {
+                          setValidationErrors(prev => ({ ...prev, yearsOfExperience: 'Enter a valid number of years (0-80)' }));
+                        } else {
+                          setValidationErrors(prev => ({ ...prev, yearsOfExperience: undefined }));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="dp-detail-value">{doctor.yearsOfExperience} years</span>
+                  )}
+                  {editing && validationErrors.yearsOfExperience && <div className="dp-error" style={{ marginTop: 6 }}>{validationErrors.yearsOfExperience}</div>}
                 </div>
                 <div className="dp-detail-row">
                   <span className="dp-detail-label">Languages</span>
@@ -393,28 +521,6 @@ const DoctorProfile: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* Photo URL edit panel (only visible in edit mode) */}
-        {editing && (
-          <div className="dp-card dp-photo-card">
-            <div className="dp-card-header">
-              <h3>Profile Photo</h3>
-              <span className="dp-editable-tag">Editable</span>
-            </div>
-            <div className="dp-photo-edit-row">
-              <input
-                type="text"
-                className="dp-input dp-input-full"
-                value={editForm.photo}
-                onChange={e => setEditForm({ ...editForm, photo: e.target.value })}
-                placeholder="Paste image URL here (e.g. https://...)"
-              />
-              {editForm.photo && (
-                <img src={editForm.photo} alt="Preview" className="dp-photo-preview" />
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

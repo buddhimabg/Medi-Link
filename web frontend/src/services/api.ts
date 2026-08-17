@@ -18,9 +18,13 @@ class ApiService {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Request failed: ${response.status}`);
+        const err = new Error(errorData.error || `Request failed: ${response.status}`);
+        // attach parsed body for structured errors
+        try { (err as any).body = errorData; } catch (e) {}
+        (err as any).status = response.status;
+        throw err;
       }
-      
+
       return response.json();
     } catch (error) {
       console.error(`API Error: ${endpoint}`, error);
@@ -122,7 +126,7 @@ class ApiService {
     return this.request('/doctor/profile');
   }
 
-  async updateDoctorProfile(id: number, data: { phone: string; bio: string; photo: string }): Promise<any> {
+  async updateDoctorProfile(id: number, data: { phone?: string; bio?: string; photo?: string; email?: string; specialty?: string; licenseNumber?: string; yearsOfExperience?: number }): Promise<any> {
     return this.request(`/doctor/profile/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
