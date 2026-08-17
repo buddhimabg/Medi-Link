@@ -30,6 +30,10 @@ const LoginPage: React.FC = () => {
 
       if (response.ok) {
         localStorage.setItem("user", JSON.stringify(data));
+        // Store the user's MongoDB _id so getCurrentUserId() uses the real logged-in user
+        if (data._id) {
+          sessionStorage.setItem("userId", data._id);
+        }
 
         navigate("/dashboard");
       } else {

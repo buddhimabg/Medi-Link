@@ -38,7 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const location = useLocation();
 
   const navItems = [
-    { name: "Dashboard", path: "/home", icon: <Home size={20} /> },
+    { name: "Dashboard", path: "/dashboard", icon: <Home size={20} /> },
     {
       name: "Book Appointment",
       path: "/bookAppointment",

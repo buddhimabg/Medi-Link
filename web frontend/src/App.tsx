@@ -91,83 +91,83 @@ const App: React.FC = () => {
       <RouteErrorBoundary>
         <Suspense fallback={<PageLoadingSpinner message="Loading…" />}>
           <Routes>
-          {/* Default / auth */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/dashboard" element={<Patientdashboard />} />
-          <Route path="/bookAppointment" element={<BookAppointment />} />
-          <Route path="/history" element={<AppointmentHistory />} />
-          <Route path="/Wellnesshub" element={<WellnessHub />} />
-          <Route path="/assessments" element={<Assessments />} />
+            {/* Default / auth */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/dashboard" element={<Patientdashboard />} />
+            <Route path="/bookAppointment" element={<BookAppointment />} />
+            <Route path="/history" element={<AppointmentHistory />} />
+            <Route path="/Wellnesshub" element={<WellnessHub />} />
+            <Route path="/assessments" element={<Assessments />} />
 
-          {/* Wellness Hub Categories */}
-          <Route path="/wellness/videos" element={<WellnessVideos />} />
-          <Route path="/wellness/mindfulness" element={<WellnessMindfulness />} />
-          <Route path="/wellness/sleep" element={<WellnessSleep />} />
-          <Route path="/wellness/education" element={<WellnessEducation />} />
-          <Route path="/wellness/self-care" element={<WellnessSelfCare />} />
+            {/* Wellness Hub Categories */}
+            <Route path="/wellness/videos" element={<WellnessVideos />} />
+            <Route path="/wellness/mindfulness" element={<WellnessMindfulness />} />
+            <Route path="/wellness/sleep" element={<WellnessSleep />} />
+            <Route path="/wellness/education" element={<WellnessEducation />} />
+            <Route path="/wellness/self-care" element={<WellnessSelfCare />} />
 
-          {/* Mood/wellness dashboard */}
-          <Route path="/home" element={<MoodDashboard />} />
-          <Route path="/mood-dashboard" element={<MoodDashboard />} />
+            {/* Mood/wellness dashboard */}
+            <Route path="/home" element={<MoodDashboard />} />
+            <Route path="/mood-dashboard" element={<MoodDashboard />} />
 
-          {/* Check-in flow */}
-          <Route path="/check-in" element={<CheckInPage1 />} />
-          <Route path="/check-in/details" element={<CheckInPage2 />} />
-          <Route path="/check-in/details/2" element={<CheckInPage3 />} />
-          <Route path="/check-in/summary" element={<CheckinSummary />} />
+            {/* Check-in flow */}
+            <Route path="/check-in" element={<CheckInPage1 />} />
+            <Route path="/check-in/details" element={<CheckInPage2 />} />
+            <Route path="/check-in/details/2" element={<CheckInPage3 />} />
+            <Route path="/check-in/summary" element={<CheckinSummary />} />
 
-          {/* Core mood features */}
-          <Route path="/mood-history" element={<MoodHistory />} />
-          <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
+            {/* Core mood features */}
+            <Route path="/mood-history" element={<MoodHistory />} />
+            <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/reminders" element={<RemindersPage />} />
 
-          {/* Mood fix */}
-          <Route path="/mood-fix" element={<MoodFixPage />} />
-          <Route
-            path="/mood-fix/activity/:activityId"
-            element={<MoodFixActivityDetail />}
-          />
+            {/* Mood fix */}
+            <Route path="/mood-fix" element={<MoodFixPage />} />
+            <Route
+              path="/mood-fix/activity/:activityId"
+              element={<MoodFixActivityDetail />}
+            />
 
-          {/* Reports */}
-          <Route path="/reports" element={<ReportAnalysisPage />} />
-          <Route path="/reports/:reportId" element={<ReportDetailPage />} />
+            {/* Reports */}
+            <Route path="/reports" element={<ReportAnalysisPage />} />
+            <Route path="/reports/:reportId" element={<ReportDetailPage />} />
 
-          <Route
-            path="/journal"
-            element={
-              <FeaturePage
-                activePage="Journal Reading"
-                title="Journal Reading"
-                description="Explore articles, notes, and recommended readings in your workspace."
-              />
-            }
-          />
+            <Route
+              path="/journal"
+              element={
+                <FeaturePage
+                  activePage="Journal Reading"
+                  title="Journal Reading"
+                  description="Explore articles, notes, and recommended readings in your workspace."
+                />
+              }
+            />
 
-          <Route
-            path="/settings"
-            element={
-              <FeaturePage
-                activePage="Settings"
-                title="Settings"
-                description="Customize your app preferences, notification behavior, and profile options."
-              />
-            }
-          />
+            <Route
+              path="/settings"
+              element={
+                <FeaturePage
+                  activePage="Settings"
+                  title="Settings"
+                  description="Customize your app preferences, notification behavior, and profile options."
+                />
+              }
+            />
 
-          <Route
-            path="/logout"
-            element={
-              <FeaturePage
-                activePage="Logout"
-                title="Logout"
-                description="Sign-out controls can be connected here to your authentication workflow."
-              />
-            }
-          />
-        </Routes>
+            <Route
+              path="/logout"
+              element={
+                <FeaturePage
+                  activePage="Logout"
+                  title="Logout"
+                  description="Sign-out controls can be connected here to your authentication workflow."
+                />
+              }
+            />
+          </Routes>
         </Suspense>
       </RouteErrorBoundary>
     </Router>

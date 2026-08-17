@@ -44,7 +44,7 @@ const Sidebar: React.FC = () => {
       path: "/reports",
       icon: <BarChart2 size={20} />,
     },
-    { name: "Mood Track", path: "/mood-track", icon: <User size={20} /> },
+    { name: "Mood Track", path: "/mood-dashboard", icon: <User size={20} /> },
     { name: "Mood Fix", path: "/mood-fix", icon: <User size={20} /> },
     {
       name: "Reminders",
