@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar from '../../components/layout/TopBar'
 import { journalApi } from '../../types/api'
 import styles from './DraftPreviewPage.module.css'
@@ -65,7 +65,7 @@ const DraftPreviewPage: React.FC = () => {
       <div className={`medilink-app ${styles.page}`}>
         <TopBar onMenuClick={() => setMenuOpen(true)} />
         <div className={styles.layout}>
-          <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+          <Sidebar />
           <main className={styles.main}>
             <div style={{ textAlign: 'center', padding: '80px 24px' }}>Loading draft...</div>
           </main>
@@ -79,7 +79,7 @@ const DraftPreviewPage: React.FC = () => {
       <div className={`medilink-app ${styles.page}`}>
         <TopBar onMenuClick={() => setMenuOpen(true)} />
         <div className={styles.layout}>
-          <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+          <Sidebar />
           <main className={styles.main}>
             <button type="button" className={styles.backLink} onClick={() => navigate('/journals')}>← Back to Journals</button>
             <div style={{ textAlign: 'center', padding: '80px 24px' }}>
@@ -105,7 +105,7 @@ const DraftPreviewPage: React.FC = () => {
         badge={<span className={styles.draftBadgeTop}>Draft — Not Published</span>}
       />
       <div className={styles.layout}>
-        <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
         <main className={styles.main}>
           <button type="button" className={styles.backLink} onClick={() => navigate('/journals')}>
             ← Back to Journals

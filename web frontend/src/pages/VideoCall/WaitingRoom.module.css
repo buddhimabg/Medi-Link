@@ -2,7 +2,7 @@
 .page { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 
 /* ── Topbar ── */
-.topbar { height:56px; background:var(--clr-card); border-bottom:1px solid var(--clr-border); display:flex; align-items:center; gap:12px; padding:0 24px; flex-shrink:0; }
+.topbar { height:56px; background:var(--clr-card); border-bottom:1px solid var(--clr-border); display:flex; align-items:center; gap:12px; padding:0 24px; margin-left:280px; flex-shrink:0; }
 .menuBtn { display:none; background:none; border:1px solid var(--clr-border); border-radius:8px; width:34px; height:34px; font-size:18px; cursor:pointer; color:var(--clr-text-dark); }
 .backBtn { background:none; border:none; color:var(--clr-primary); font-size:13px; font-weight:600; cursor:pointer; }
 .logo { font-size:18px; font-weight:700; }
@@ -14,7 +14,7 @@
 
 /* ── Layout ── */
 .layout { display:flex; flex:1; overflow:hidden; }
-.main { flex:1; overflow-y:auto; padding:32px 24px; background:var(--clr-bg); display:flex; justify-content:center; align-items:center; }
+.main { flex:1; margin-left:280px; overflow-y:auto; padding:32px 24px; background:var(--clr-bg); display:flex; justify-content:center; align-items:center; }
 .inner { width:100%; max-width:600px; display:flex; flex-direction:column; align-items:center; gap:20px; }
 
 /* ── Polling status row ── */

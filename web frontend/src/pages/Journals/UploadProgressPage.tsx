@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar from '../../components/layout/TopBar'
 import styles from './UploadProgressPage.module.css'
 
@@ -30,7 +30,7 @@ const UploadProgressPage: React.FC = () => {
     <div className={`medilink-app ${styles.page}`}>
       <TopBar onMenuClick={() => setMenuOpen(true)} />
       <div className={styles.layout}>
-        <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
         <main className={styles.main}>
           <h1 className={styles.pageTitle}>Upload Article</h1>
           <p className={styles.pageSub}>Uploading and processing your article</p>

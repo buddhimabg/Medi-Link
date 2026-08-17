@@ -3,7 +3,7 @@
 // video-call round today (from PatientHistory), with prescriptions and
 // notes, so the doctor can review the whole day at a glance.
 import { useEffect, useState } from 'react'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar  from '../../components/layout/TopBar'
 import { appointmentApi } from '../../types/api'
 import type { TodaysSummary } from '../../types/api'
@@ -43,9 +43,9 @@ export default function TodaysSessionsPage({ onBack, onViewPatientHistory }: Pro
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <TopBar onMenuClick={() => setMenuOpen(true)} />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar activePath="/video-call" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
 
-        <main className={styles.main}>
+        <main className={styles.main} style={{ marginLeft: 280 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <button className={styles.backBtn ?? ''} onClick={onBack}
               style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>

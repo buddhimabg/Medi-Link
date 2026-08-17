@@ -1,6 +1,6 @@
 // src/pages/VideoCall/PatientHistoryPage.tsx
 import React, { useState, useEffect } from 'react'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar  from '../../components/layout/TopBar'
 import styles  from './PatientHistoryPage.module.css'
 import { patientHistoryApi } from '../../types/api'
@@ -114,7 +114,7 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
     <div className={styles.page}>
       <TopBar onMenuClick={() => setMenuOpen(true)} />
       <div className={styles.layout}>
-        <Sidebar activePath="/video-call" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
         <main className={styles.main}>
 
           {/* ── Header ── */}

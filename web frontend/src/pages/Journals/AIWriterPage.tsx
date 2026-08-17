@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar from '../../components/layout/TopBar'
 import TagInput from './TagInput'
 import { journalApi } from '../../types/api'
@@ -116,7 +116,7 @@ const AIWriterPage: React.FC = () => {
         badge={<span className={styles.aiBadgeTop}>✨ AI Writer</span>}
       />
       <div className={styles.layout}>
-        <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
         <main className={styles.main}>
           <div className={styles.aiWriterLayout}>
             <div className={styles.aiSidebar}>

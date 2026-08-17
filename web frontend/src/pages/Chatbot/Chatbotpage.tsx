@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { io as socketIO } from 'socket.io-client';
-import Sidebar from '../../components/layout/Sidebar';
+import Sidebar from '../../components/DoctorPortalSidebar';
 import TopBar from '../../components/layout/TopBar';
 import ChatbotDashboard    from './Chatbotdashboard';
 import ChatbotAllChats     from './ChatbotAllChats';
@@ -105,11 +105,7 @@ export default function ChatbotPage({ doctorName, onLogout }: { doctorName?: str
       )}
 
       <div className="cb-shell">
-        <Sidebar
-          activePath={location.pathname}
-          isOpen={menuOpen}
-          onClose={() => setMenuOpen(false)}
-        />
+        <Sidebar />
 
         <div className="cb-content">
 

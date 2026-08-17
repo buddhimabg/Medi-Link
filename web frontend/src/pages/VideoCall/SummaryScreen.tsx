@@ -4,7 +4,7 @@
 // nothing here is editable. To change notes/prescriptions, the doctor
 // re-opens the patient's next session or the Chatbot Patient Profile.
 import React, { useState } from 'react'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar  from '../../components/layout/TopBar'
 import styles  from './SummaryScreen.module.css'
 import type { Medication } from '../../types/api'
@@ -40,7 +40,7 @@ const SummaryScreen: React.FC<Props> = ({
       />
 
       <div className={styles.layout}>
-        <Sidebar activePath="/video-call" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
 
         <main className={styles.main}>
 

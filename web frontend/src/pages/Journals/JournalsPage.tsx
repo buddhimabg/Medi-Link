@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Sidebar from '../../components/layout/Sidebar';
+import Sidebar from '../../components/DoctorPortalSidebar';
 import TopBar from '../../components/layout/TopBar';
 import { journalApi, type JournalRecord } from '../../types/api';
 import { JOURNAL_CATEGORIES } from './journalCategories';
@@ -86,7 +86,7 @@ const JournalsPage: React.FC = () => {
       <TopBar onMenuClick={() => {}} />
       <div className={styles.layout}>
         <div className={styles.sidebarContainer}>
-          <Sidebar activePath="/journals" isOpen={false} onClose={() => {}} />
+          <Sidebar />
         </div>
 
         <main className={styles.main}>

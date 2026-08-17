@@ -1,0 +1,429 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ==================== BACKGROUND ==================== */
+/* Main container with gradient background */
+.schedule-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8eef5 30%, #f5f7fc 100%);
+  background-attachment: fixed;
+}
+
+/* Animated gradient overlay - creates soft pulsing effect */
+.schedule-page::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(26, 91, 191, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 90% 70%, rgba(52, 168, 83, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 40% 90%, rgba(26, 91, 191, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: gentlePulse 8s ease infinite;
+}
+
+/* Gentle background pulse animation */
+@keyframes gentlePulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ==================== MAIN CONTENT ==================== */
+/* Content area - leaves space for sidebar */
+.schedule-main {
+  flex: 1;
+  margin-left: 280px;
+  padding: 32px 48px;
+  width: calc(100% - 280px);
+  max-width: calc(100% - 280px);
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ==================== GREETING SECTION ==================== */
+/* Welcome message area */
+.greeting-section {
+  margin-bottom: 20px;
+  padding: 0;
+  animation: fadeInUp 0.5s ease;
+}
+
+.greeting-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #5f6368;
+  margin-bottom: 4px;
+}
+
+.doctor-title {
+  font-size: 13px;
+  color: #6c7a8a;
+  font-weight: 400;
+}
+
+/* ==================== PAGE HEADER ==================== */
+/* Title and date section with blue underline */
+.page-header {
+  margin-bottom: 28px;
+  width: 100%;
+  border-bottom: 3px solid #1a5bbf;
+  padding-bottom: 12px;
+  display: inline-block;
+  animation: fadeInUp 0.5s ease 0.1s both;
+}
+
+.page-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a2a3a;
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+
+.page-header .date {
+  color: #6c7a8a;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* ==================== WEEK CALENDAR ==================== */
+/* 7-day calendar grid - glassmorphism effect */
+.week-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-bottom: 32px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  animation: fadeInUp 0.5s ease 0.2s both;
+}
+
+/* Individual calendar day */
+.calendar-day {
+  text-align: center;
+  padding: 14px 8px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(250, 251, 252, 0.8);
+  border: 1px solid transparent;
+}
+
+/* Hover effect - lifts up and shows shadow */
+.calendar-day:hover {
+  background: white;
+  border-color: #cbd5e1;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Active (selected) day - blue background */
+.calendar-day.active {
+  background: #1a5bbf !important;
+  border-color: #1a5bbf !important;
+  box-shadow: 0 6px 20px rgba(26, 91, 191, 0.25);
+  transform: translateY(-2px);
+}
+
+/* White text for active day */
+.calendar-day.active .calendar-day-name,
+.calendar-day.active .calendar-day-date,
+.calendar-day.active .calendar-day-slots {
+  color: white !important;
+}
+
+/* Today's date - blue border */
+.calendar-day.today {
+  border: 2px solid #1a5bbf;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* Day name (MON, TUE, etc.) */
+.calendar-day-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6c7a8a;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.8px;
+}
+
+/* Day number */
+.calendar-day-date {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a2a3a;
+  margin-bottom: 6px;
+}
+
+/* ==================== TODAY'S SCHEDULE SECTION ==================== */
+/* Main schedule container */
+.today-section {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  padding: 28px 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  animation: fadeInUp 0.5s ease 0.3s both;
+}
+
+/* Header with title and slot count */
+.today-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.today-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a2a3a;
+  margin: 0;
+}
+
+/* Total slots badge */
+.total-slots {
+  padding: 6px 18px;
+  background: linear-gradient(135deg, #1a5bbf, #0d3e7c);
+  color: white;
+  border-radius: 40px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(26, 91, 191, 0.2);
+}
+
+/* ==================== SLOTS LIST ==================== */
+/* Container for all slot cards */
+.slots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+/* Individual appointment card */
+.slot-card {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  padding: 18px 24px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-left: 5px solid #34a853;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  border-right: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* Available slot - green left border */
+.slot-card.available {
+  border-left-color: #34a853;
+}
+
+/* Booked slot - blue left border */
+.slot-card.booked {
+  border-left-color: #1a5bbf;
+}
+
+/* Hover effect - lifts card */
+.slot-card:hover {
+  background: white;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  transform: translateY(-3px);
+}
+
+/* Left section - time and status */
+.slot-left {
+  min-width: 160px;
+}
+
+/* Time display */
+.slot-time {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a2a3a;
+  margin-bottom: 6px;
+}
+
+/* Status badge (Available/Booked) */
+.slot-status {
+  display: inline-block;
+  padding: 5px 16px;
+  border-radius: 40px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* Available status - green */
+.slot-status.available {
+  background: linear-gradient(135deg, #e6f4ea, #d0ebd9);
+  color: #137333;
+}
+
+/* Booked status - blue */
+.slot-status.booked {
+  background: linear-gradient(135deg, #e8f0fe, #d0e0fc);
+  color: #1a5bbf;
+}
+
+/* Middle section - hospital and location */
+.slot-middle {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Hospital name */
+.slot-hospital {
+  font-weight: 700;
+  color: #1a2a3a;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+/* Location text */
+.slot-location {
+  font-size: 12px;
+  color: #6c7a8a;
+}
+
+/* Right section - action buttons */
+.slot-right {
+  display: flex;
+  gap: 12px;
+}
+
+/*  BUTTONS  */
+/* Common button styles */
+.btn-view, .btn-cancel {
+  padding: 8px 24px;
+  border: none;
+  border-radius: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 0.3px;
+}
+
+/* View button - blue gradient */
+.btn-view {
+  background: linear-gradient(135deg, #1a5bbf, #0d3e7c);
+  color: white;
+  box-shadow: 0 2px 6px rgba(26, 91, 191, 0.2);
+}
+
+.btn-view:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(26, 91, 191, 0.25);
+}
+
+/* Cancel button - red */
+.btn-cancel {
+  background: #fef2f2;
+  color: #dc3545;
+  border: 1px solid #fee2e2;
+}
+
+.btn-cancel:hover {
+  background: #fee2e2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.12);
+}
+
+/*  EMPTY STATES  */
+/* No slots message */
+.no-slots {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c7a8a;
+  width: 100%;
+}
+
+.no-slots p {
+  font-size: 14px;
+}
+
+/* Loading spinner area */
+.loading-state {
+  text-align: center;
+  padding: 80px 40px;
+  color: #6c7a8a;
+  font-size: 14px;
+}
+
+/* ANIMATIONS */
+/* Fade in with upward motion */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered animation for cards */
+.slot-card {
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+.slot-card:nth-child(1) { animation-delay: 0.05s; }
+.slot-card:nth-child(2) { animation-delay: 0.1s; }
+.slot-card:nth-child(3) { animation-delay: 0.15s; }
+.slot-card:nth-child(4) { animation-delay: 0.2s; }
+
+
+
+
+/* SCROLLBAR  */
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eef2f8;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

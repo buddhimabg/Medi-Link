@@ -8,6 +8,7 @@
   display: flex;
   align-items: center;
   padding: 0 28px;
+  margin-left: 280px;
   gap: 16px;
   flex-shrink: 0;
   box-shadow: 0 1px 6px rgba(0,0,0,0.04);
@@ -187,6 +188,7 @@
 @media (max-width: 1024px) {
   .topbar {
     padding: 0 14px;
+    margin-left: 0;
     gap: 10px;
   }
 

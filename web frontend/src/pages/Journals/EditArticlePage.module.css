@@ -21,6 +21,7 @@
 /* Scroll කළ හැකි ප්‍රධාන කොටස */
 .main {
   flex: 1;
+  margin-left: 280px;
   padding: 40px;
   overflow-y: auto;
   display: flex;

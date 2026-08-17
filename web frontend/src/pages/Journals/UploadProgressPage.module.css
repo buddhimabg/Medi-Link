@@ -1,7 +1,7 @@
 /* ── UploadProgressPage.module.css ── */
 .page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .layout { display: flex; flex: 1; overflow: hidden; }
-.main { flex: 1; padding: 28px; background: var(--clr-bg); overflow-y: auto; }
+.main { flex: 1; margin-left: 280px; padding: 28px; background: var(--clr-bg); overflow-y: auto; }
 
 .pageTitle { font-size: 22px; font-weight: 700; color: var(--clr-text-dark); margin-bottom: 6px; }
 .pageSub { font-size: 13px; color: var(--clr-text-mid); margin-bottom: 24px; }

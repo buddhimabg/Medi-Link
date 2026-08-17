@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { renderAsync } from 'docx-preview'; // docx පෙන්වීමට අවශ්‍ය කොටස
-import Sidebar from '../../components/layout/Sidebar';
+import Sidebar from '../../components/DoctorPortalSidebar';
 import TopBar from '../../components/layout/TopBar';
 import { journalApi } from '../../types/api';
 import styles from './ViewArticlePage.module.css';
@@ -39,7 +39,7 @@ const ViewArticlePage: React.FC = () => {
       <TopBar onMenuClick={() => {}} />
       <div className={styles.layout}>
         <div className={styles.sidebarContainer}>
-          <Sidebar activePath="/journals" isOpen={false} onClose={() => {}} />
+          <Sidebar />
         </div>
         <main className={styles.main}>
           <button className={styles.backLink} onClick={() => navigate('/journals')}>

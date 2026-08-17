@@ -1,6 +1,6 @@
 .page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .layout { display: flex; flex: 1; overflow: hidden; }
-.main { flex: 1; padding: 28px; background: #f8faff; overflow-y: auto; }
+.main { flex: 1; margin-left: 280px; padding: 28px; background: #f8faff; overflow-y: auto; }
 
 .backLink { border: none; background: none; color: #666; cursor: pointer; margin-bottom: 20px; font-weight: 600; }
 .pageTitle { font-size: 22px; font-weight: 700; margin-bottom: 20px; }

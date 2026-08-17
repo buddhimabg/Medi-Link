@@ -25,7 +25,6 @@ const VideoCallScreen = React.lazy(() => import("./pages/VideoCall/VideoCallScre
 const PatientVideoCallScreen = React.lazy(() => import("./pages/VideoCall/PatientVideoCallScreen"));
 const VideoCallSetting = React.lazy(() => import("./pages/VideoCall/VideoCallSetting"));
 const ChatbotPage = React.lazy(() => import("./pages/Chatbot/Chatbotpage"));
-const ComingSoonPage = React.lazy(() => import("./pages/Common/ComingSoonPage"));
 const JournalsRouter = React.lazy(() => import("./pages/Journals/JournalsRouter"));
 
 // Admin dashboard — dev-pavindu's feature set
@@ -35,6 +34,15 @@ const DoctorApprovalsPage = React.lazy(() => import("./pages/DoctorApprovalsPage
 const ManagePatientsPage = React.lazy(() => import("./pages/ManagePatientsPage"));
 const AdminReportsPage = React.lazy(() => import("./pages/ReportsPage"));
 const AdminSettingsPage = React.lazy(() => import("./pages/SettingsPage"));
+
+// Doctor-portal treatment scheduling — dev-nawodya's feature set
+const DoctorDashboardPage = React.lazy(() => import("./pages/doctorDashboard"));
+const DoctorSettingsPage = React.lazy(() => import("./pages/doctorSettings"));
+const DoctorSchedulePage = React.lazy(() => import("./pages/schedule"));
+const DoctorViewListPage = React.lazy(() => import("./pages/viewlist"));
+const DoctorPatientsPage = React.lazy(() => import("./pages/patients"));
+const DoctorPatientProfilePage = React.lazy(() => import("./pages/patientprofile"));
+const DoctorOwnProfilePage = React.lazy(() => import("./pages/docprofile"));
 
 import "./App.css";
 import LandingPage from "./pages/landingpage";
@@ -224,29 +232,39 @@ const App: React.FC = () => {
             path="/chatbot"
             element={isDoctorLoggedIn ? <ChatbotPage doctorName={doctorUserName} onLogout={handleDoctorLogout} /> : <Navigate to="/login" />}
           />
+          {/* Doctor-portal treatment scheduling (dev-nawodya) */}
           <Route
             path="/doctor-dashboard"
-            element={
-              isDoctorLoggedIn
-                ? <ComingSoonPage title="Dashboard" subtitle="Overview widgets and metrics are being prepared for you." activePath="/doctor-dashboard" />
-                : <Navigate to="/login" />
-            }
+            element={isDoctorLoggedIn ? <DoctorDashboardPage /> : <Navigate to="/login" />}
           />
+
           <Route
             path="/schedule"
-            element={
-              isDoctorLoggedIn
-                ? <ComingSoonPage title="Schedule" subtitle="Appointment scheduling and calendar tools are coming soon." activePath="/schedule" />
-                : <Navigate to="/login" />
-            }
+            element={isDoctorLoggedIn ? <DoctorSchedulePage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/view/:id"
+            element={isDoctorLoggedIn ? <DoctorViewListPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/viewlist"
+            element={isDoctorLoggedIn ? <DoctorViewListPage /> : <Navigate to="/login" />}
           />
           <Route
             path="/patients"
-            element={
-              isDoctorLoggedIn
-                ? <ComingSoonPage title="Patient Management" subtitle="Patient records and management tools are under development." activePath="/patients" />
-                : <Navigate to="/login" />
-            }
+            element={isDoctorLoggedIn ? <DoctorPatientsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/patients/:id/profile"
+            element={isDoctorLoggedIn ? <DoctorPatientProfilePage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/doctor-profile"
+            element={isDoctorLoggedIn ? <DoctorOwnProfilePage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/doctor-settings"
+            element={isDoctorLoggedIn ? <DoctorSettingsPage /> : <Navigate to="/login" />}
           />
 
           {/* Admin dashboard (dev-pavindu) */}

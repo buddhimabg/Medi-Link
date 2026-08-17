@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import * as mammoth from 'mammoth'; // Browser එකේ වැඩ කිරීමට මෙය වැදගත් වේ
-import Sidebar from '../../components/layout/Sidebar';
+import Sidebar from '../../components/DoctorPortalSidebar';
 import TopBar from '../../components/layout/TopBar';
 import TagInput from './TagInput';
 import { journalApi } from '../../types/api';
@@ -69,7 +69,7 @@ const EditArticlePage: React.FC = () => {
       <TopBar onMenuClick={() => {}} />
       <div className={styles.layout}>
         <div className={styles.sidebarContainer}>
-          <Sidebar activePath="/journals" isOpen={false} onClose={() => {}} />
+          <Sidebar />
         </div>
         <main className={styles.main}>
           <div className={styles.header}>

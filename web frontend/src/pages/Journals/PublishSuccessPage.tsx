@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar from '../../components/layout/TopBar'
 import styles from './PublishSuccessPage.module.css'
 
@@ -19,7 +19,7 @@ const PublishSuccessPage: React.FC = () => {
     <div className={`medilink-app ${styles.page}`}>
       <TopBar onMenuClick={() => setMenuOpen(true)} />
       <div className={styles.layout}>
-        <Sidebar activePath="/journals" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
         <main className={styles.main}>
           <div className={`${styles.successScreen} ${visible ? styles.visible : ''}`}>
             <div className={styles.successIcon}>🎉</div>

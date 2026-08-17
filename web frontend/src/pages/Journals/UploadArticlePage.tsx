@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Sidebar from '../../components/layout/Sidebar';
+import Sidebar from '../../components/DoctorPortalSidebar';
 import TopBar from '../../components/layout/TopBar';
 import TagInput from './TagInput';
 import { journalApi } from '../../types/api';
@@ -54,7 +54,7 @@ const UploadArticlePage: React.FC = () => {
     <div className={styles.page}>
       <TopBar onMenuClick={() => {}} />
       <div className={styles.layout}>
-        <Sidebar activePath="/journals" isOpen={false} onClose={() => {}} />
+        <Sidebar />
         <main className={styles.main}>
           <button className={styles.backLink} onClick={() => navigate('/journals')}>
             ← Back to Journals

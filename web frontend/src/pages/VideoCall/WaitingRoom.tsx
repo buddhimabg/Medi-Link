@@ -1,6 +1,6 @@
 // src/pages/VideoCall/WaitingRoom.tsx
 import React, { useState, useEffect, useRef } from 'react'
-import Sidebar from '../../components/layout/Sidebar'
+import Sidebar from '../../components/DoctorPortalSidebar'
 import styles from './WaitingRoom.module.css'
 import type { QueuePatient } from '../../types/api'
 
@@ -124,7 +124,7 @@ const WaitingRoom: React.FC<Props> = ({
       </header>
 
       <div className={styles.layout}>
-        <Sidebar activePath="/video-call" isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Sidebar />
 
         <main className={styles.main}>
           <div className={styles.inner}>

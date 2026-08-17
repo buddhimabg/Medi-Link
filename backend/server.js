@@ -32,6 +32,15 @@ const patientRoutes = require("./routes/patientRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const systemRoutes = require("./routes/systemRoutes");
 
+// Treatment-plan / doctor-portal scheduling — dev-nawodya's feature
+const treatmentSlotsRoutes = require("./routes/slots");
+const treatmentPatientsRoutes = require("./routes/patients");
+const treatmentDoctorRoutes = require("./routes/doctor");
+const treatmentHealthRoutes = require("./routes/health");
+const treatmentPlanRoutes = require("./routes/treatmentPlan");
+const treatmentSessionRoutes = require("./routes/session");
+const treatmentDebugRoutes = require("./routes/debug");
+
 const app = express();
 const server = http.createServer(app);
 
@@ -171,6 +180,19 @@ app.use("/api/admin/doctors", adminDoctorRoutes);
 app.use("/api/admin/patients", patientRoutes);
 app.use("/api/admin/reports", reportRoutes);
 app.use("/api/admin/system", systemRoutes);
+
+// Treatment-plan / doctor-portal scheduling — dev-nawodya's feature.
+// Mounted under distinct paths (slots/patients/doctor/treatment-plans/
+// sessions) so they don't collide with the existing patient-facing
+// /api/doctors directory or the /api/admin/* management endpoints.
+app.use("/api/slots", treatmentSlotsRoutes);
+app.use("/api/patients", treatmentPatientsRoutes);
+app.use("/api/doctor", treatmentDoctorRoutes);
+app.use("/api/health", treatmentHealthRoutes);
+app.use("/api/treatment-plans", treatmentPlanRoutes);
+app.use("/api/sessions", treatmentSessionRoutes);
+// Debug endpoints (do not expose in production)
+app.use("/api/debug", treatmentDebugRoutes);
 
 // 404 for anything unmatched under /api
 app.use("/api", (req, res) => {

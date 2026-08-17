@@ -21,9 +21,10 @@
 }
 
 /* Main content area - scrolls if content is long */
-.main { 
-  flex: 1; 
-  padding: 30px; 
+.main {
+  flex: 1;
+  margin-left: 280px;
+  padding: 30px;
   overflow-y: auto; /* Only the content scrolls, not the sidebar */
   height: 100%;
 }
