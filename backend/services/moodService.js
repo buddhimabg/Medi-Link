@@ -90,15 +90,26 @@ const createMoodEntry = async (data) => {
 const getDashboardStats = async (userId) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0); 
-  const last7Days = new Date(today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS);
+  const currentWeekStart = new Date(today.getTime() - (WEEK_DAYS - 1) * ONE_DAY_MS);
+  const currentWeekEnd = new Date(today.getTime() + ONE_DAY_MS - 1);
 
-  // Fetch only recent full moods for average/recovery, and only dates for streak
-  const [recentMoods, allMoodDates] = await Promise.all([
+  const prevWeekStart = new Date(today.getTime() - (2 * WEEK_DAYS - 1) * ONE_DAY_MS);
+  const prevWeekEnd = new Date(currentWeekStart.getTime() - 1);
+
+  // Fetch recent moods (this week), previous week moods, and all dates for streak
+  const [recentMoods, previousMoods, allMoodDates] = await Promise.all([
     Mood.find({
       userId,
       createdAt: {
-        $gte: last7Days,
-        $lte: new Date(today.getTime() + ONE_DAY_MS - 1)
+        $gte: currentWeekStart,
+        $lte: currentWeekEnd,
+      }
+    }).sort({ createdAt: -1 }).lean(),
+    Mood.find({
+      userId,
+      createdAt: {
+        $gte: prevWeekStart,
+        $lte: prevWeekEnd,
       }
     }).sort({ createdAt: -1 }).lean(),
     Mood.find({ userId })
@@ -119,7 +130,7 @@ const getDashboardStats = async (userId) => {
   return {
     sevenDayAverage: calculateSevenDayAverage(recentMoods),
     checkInStreak: calculateCheckInStreak(allMoodDates),
-    recoveryScore: calculateRecoveryScore(recentMoods),
+    recoveryScore: calculateRecoveryScore(recentMoods, previousMoods),
   };
 };
 

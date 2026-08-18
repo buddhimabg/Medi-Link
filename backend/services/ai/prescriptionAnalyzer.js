@@ -45,24 +45,56 @@ const extractTextFromFile = async (fileBuffer, mimeType = "", originalName = "")
     String(originalName).toLowerCase().endsWith(".pdf");
 
   if (isPdf) {
+    let parser;
     try {
-      const parser = new PDFParse({ data: fileBuffer });
+      parser = new PDFParse({ data: fileBuffer });
       const result = await parser.getText();
       const text = normalizeText(result?.text);
-      await parser.destroy();
       if (text && text.length >= 15) {
+        await parser.destroy();
         return text;
       }
+
+      // If direct text length < 15, it is a scanned PDF (image inside PDF).
+      // Render PDF pages into image buffers for Tesseract OCR.
+      const screenshot = await parser.getScreenshot({
+        scale: 1.8,
+        first: 4,
+        imageDataUrl: false,
+        imageBuffer: true,
+      });
+      await parser.destroy();
+
+      const pages = (screenshot?.pages || []).map((p) => p?.data).filter(Boolean);
+      const textParts = [];
+      for (const pageData of pages) {
+        try {
+          const { data } = await Tesseract.recognize(Buffer.from(pageData), "eng");
+          const pageText = normalizeText(data?.text);
+          if (pageText) textParts.push(pageText);
+        } catch (e) {
+          // ignore single page OCR error
+        }
+      }
+
+      const combinedText = normalizeText(textParts.join("\n"));
+      if (combinedText) {
+        return combinedText;
+      }
     } catch (err) {
-      // Fallback to OCR if PDF text extraction fails
+      if (parser) {
+        await parser.destroy().catch(() => {});
+      }
     }
+    throw new Error("Could not read or process the uploaded PDF file. Please ensure it is a clear, valid PDF.");
   }
 
+  // Handle standard image files (JPG, PNG, WEBP, etc.)
   try {
     const { data } = await Tesseract.recognize(fileBuffer, "eng");
     return normalizeText(data?.text);
   } catch (err) {
-    throw new Error("Could not read or process the uploaded image/file. Please ensure it is a valid, readable image or PDF.");
+    throw new Error("Could not read or process the uploaded image file. Please ensure it is a valid, readable image.");
   }
 };
 

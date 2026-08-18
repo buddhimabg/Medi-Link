@@ -117,6 +117,14 @@ const createLabReportAnalysis = async ({ userId, file }) => {
       throw err;
     }
 
+    const validAnalyzedCount = (markers || []).filter(m => m.status === "normal" || m.status === "low" || m.status === "high").length;
+    if (validAnalyzedCount === 0) {
+      const err = new Error("No valid biomarkers were detected in this report. Please upload a valid laboratory report.");
+      err.code = "NO_VALID_BIOMARKERS";
+      err.statusCode = 400;
+      throw err;
+    }
+
     const reportDoc = await LabReport.create({
       userId,
       filePath: file.path,

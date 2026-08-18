@@ -141,8 +141,21 @@ const ReportDetailPage: React.FC = () => {
   /* ── derived values ─────────────────────────────────────── */
   const visibleMarkers   = getVisibleReportMarkers(report);
   const unmatchedMarkers = getUnmatchedReportMarkers(report);
-  const score            = Math.min(100, Math.round(Number(report.overallScore || 0)));
   const validAnalyzedCount = visibleMarkers.filter((m: any) => m.status === "normal" || m.status === "low" || m.status === "high").length;
+
+  if (validAnalyzedCount === 0) {
+    return shell(
+      <div className="w-full h-full flex items-center justify-center">
+        <PageErrorState 
+          message="No valid biomarkers were detected in this report. Please upload a valid laboratory report." 
+          onRetry={() => navigate("/reports")} 
+          retryText="Back to Reports" 
+        />
+      </div>
+    );
+  }
+
+  const score            = Math.min(100, Math.round(Number(report.overallScore || 0)));
   const needAttention      = visibleMarkers.filter((m: any) => m.status === "low" || m.status === "high").length;
   const scoreLabel       = score >= 80 ? "Good" : score >= 60 ? "Fair" : "Needs Attention";
   const scoreLabelColor  = score >= 80 ? "text-green-500" : score >= 60 ? "text-amber-500" : "text-rose-500";

@@ -173,14 +173,44 @@ const calculateMoodRecoveryScore = (m = {}) => {
   return Number(finalScore.toFixed(1));
 };
 
-const calculateRecoveryScore = (moods) => {
-  if (!moods || !moods.length) return 0;
+const calculateRecoveryScore = (thisWeekMoods, prevWeekMoods = []) => {
+  if (!thisWeekMoods || !thisWeekMoods.length) return 0;
 
-  const scores = moods.map(calculateMoodRecoveryScore);
-  const avg =
-    scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  const factors = [
+    { key: "mood", weight: RECOVERY_WEIGHTS.mood },
+    { key: "sleepLevel", weight: RECOVERY_WEIGHTS.sleep },
+    { key: "anxietyLevel", weight: RECOVERY_WEIGHTS.anxiety },
+    { key: "stressLevel", weight: RECOVERY_WEIGHTS.stress },
+    { key: "energyLevel", weight: RECOVERY_WEIGHTS.energy },
+    { key: "motivationLevel", weight: RECOVERY_WEIGHTS.motivation },
+    { key: "focusLevel", weight: RECOVERY_WEIGHTS.focus },
+    { key: "socialInteraction", weight: RECOVERY_WEIGHTS.social },
+  ];
 
-  return Math.round(avg);
+  const hasPrevData = Array.isArray(prevWeekMoods) && prevWeekMoods.length > 0;
+  let totalWeightedScore = 0;
+
+  for (const factor of factors) {
+    // 1. Calculate this week's average (0–100 scale)
+    const thisWeekAvg = averageMetric100(thisWeekMoods, factor.key);
+
+    // 2. Previous baseline: Use real prior data if available, otherwise use 50% (neutral midpoint baseline)
+    const prevWeekAvg = hasPrevData
+      ? averageMetric100(prevWeekMoods, factor.key)
+      : 50;
+
+    // Difference (magnitude & direction):
+    // Note: averageMetric100 automatically normalizes inverted metrics (anxiety/stress)
+    // so a higher score always means better well-being.
+    const diff = thisWeekAvg - prevWeekAvg;
+
+    // Adjust factor recovery score based on current level + direction & magnitude of change
+    const factorScore = Math.max(0, Math.min(100, thisWeekAvg + 0.5 * diff));
+
+    totalWeightedScore += factorScore * factor.weight;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, totalWeightedScore)));
 };
 
 // ==========================================

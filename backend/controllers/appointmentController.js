@@ -2,6 +2,7 @@ const Appointment = require('../models/appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/user');
 const DoctorSchedule = require('../models/doctorSchedule');
+const { syncAppointmentReminder, removeAppointmentReminder } = require('../utils/appointmentReminderHelper');
 
 const parseSlotStringToDate = (slotStr) => {
   if (!slotStr) return new Date();
@@ -183,6 +184,12 @@ const cancelAppointment = async (req, res) => {
     appointment.paymentStatus = 'Canceled';
     await appointment.save();
 
+    try {
+      await removeAppointmentReminder(appointment);
+    } catch (remErr) {
+      console.warn("Could not remove appointment reminder:", remErr);
+    }
+
     if (wasPaid) {
       console.log(`[REFUND] Automatically refunded Rs. ${appointment.amount}.00 for appointment ${appointment._id} to user card`);
       
@@ -293,6 +300,12 @@ const rescheduleAppointment = async (req, res) => {
     appointment.paymentStatus = 'Paid'; // Ensure it's marked as active paid
     await appointment.save();
 
+    try {
+      await syncAppointmentReminder(appointment);
+    } catch (remErr) {
+      console.warn("Could not sync appointment reminder on reschedule:", remErr);
+    }
+
     res.status(200).json({
       success: true,
       message: "Appointment rescheduled successfully.",
@@ -315,6 +328,12 @@ const confirmPayment = async (req, res) => {
     if (appointment.paymentStatus !== 'Paid') {
       appointment.paymentStatus = 'Paid';
       await appointment.save();
+
+      try {
+        await syncAppointmentReminder(appointment);
+      } catch (remErr) {
+        console.warn("Could not sync appointment reminder on confirm:", remErr);
+      }
 
       // Update associated Payment transaction log to Success
       try {

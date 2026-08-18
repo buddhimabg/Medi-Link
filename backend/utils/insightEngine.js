@@ -2,6 +2,7 @@ const {
   formatDate,
   getMoodScore100,
   calculateMentalHealthScore,
+  calculateSevenDayAverage,
   normalizePositive1to10,
   normalizeInverted1to10,
   WELLBEING_WEIGHTS,
@@ -496,7 +497,7 @@ const buildMoodInsights = (entries = [], options = {}) => {
     dailyInsight,
     moodDistribution,
     weeklySummary: {
-      averageMoodScore: average(dailyTrend.filter((d) => d.entries > 0).map((d) => d.averageMoodScore)),
+      averageMoodScore: calculateSevenDayAverage(currentWeek),
       totalCheckIns: currentWeek.length,
       bestDay: bestDayRaw
         ? {
