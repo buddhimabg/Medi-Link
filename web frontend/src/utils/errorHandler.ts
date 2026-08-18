@@ -25,6 +25,9 @@ export const getErrorMessage = (err: unknown, customFallback: string = fallbackM
   }
 
   if (error.type === "ValidationError") {
+    const msg = typeof error.message === "string" && error.message !== "[object Object]" && error.message !== "Request failed" ? error.message : null;
+    if (msg) return msg;
+
     if (Array.isArray(error.details) && error.details.length > 0) {
       const firstDetail = error.details[0];
       if (typeof firstDetail === "string") return firstDetail;
@@ -35,8 +38,7 @@ export const getErrorMessage = (err: unknown, customFallback: string = fallbackM
       if (typeof first === "string") return first;
     }
 
-    const msg = typeof error.message === "string" && error.message !== "[object Object]" ? error.message : null;
-    return msg || "Please check your input and try again.";
+    return "Please check your input and try again.";
   }
 
   if (error.type === "ServerError") {

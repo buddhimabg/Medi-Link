@@ -13,6 +13,7 @@ interface ApiPayload {
 interface CustomError extends Error {
   type: string;
   status: number;
+  code?: string;
   details: unknown;
 }
 
@@ -33,6 +34,7 @@ client.interceptors.response.use(
         const error = new Error(payload.message || "Request failed") as CustomError;
         error.type = "ApiError";
         error.status = response.status;
+        error.code = (payload.code as string) || undefined;
         error.details = payload.details || null;
         throw error;
       }
@@ -55,6 +57,7 @@ client.interceptors.response.use(
       customError.type =
         error.response.status >= 500 ? "ServerError" : "ValidationError";
       customError.status = error.response.status;
+      customError.code = error.response?.data?.code || undefined;
       customError.details = error.response?.data?.details || null;
       throw customError;
     }

@@ -22,6 +22,7 @@ const statusClassMap = {
   normal: "bg-green-100 text-green-700",
   low: "bg-amber-100 text-amber-700",
   high: "bg-rose-100 text-rose-700",
+  unsupported: "bg-blue-100 text-blue-700",
   "not-found": "bg-gray-100 text-gray-600",
 };
 
@@ -128,7 +129,7 @@ const ReportAnalysisPage = () => {
 
       await loadHistory(allReportsLoaded);
     } catch (err: any) {
-      setError(getErrorMessage(err, "Upload failed. Please try a PDF or image file and try again."));
+      setError(getErrorMessage(err, "Upload failed. Please try again."));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -184,7 +185,7 @@ const ReportAnalysisPage = () => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+                accept="application/pdf"
                 className="hidden"
                 onChange={handleFileChange}
               />
@@ -384,6 +385,14 @@ const ReportAnalysisPage = () => {
                                   <div className="rounded-xl border border-[#BCD0F5] bg-white p-5 text-right">
                                     <p className="text-[11px] font-semibold text-gray-600">Health Score</p>
                                     <p className="text-2xl font-bold text-gray-900 leading-tight">{report.overallScore || 0}</p>
+                                    {(() => {
+                                      const validCount = getVisibleReportMarkers(report).filter((m) => m.status === "normal" || m.status === "low" || m.status === "high").length;
+                                      return (
+                                        <p className="text-[10px] text-gray-500 font-medium mt-0.5 whitespace-nowrap">
+                                          {validCount} analyzed biomarker{validCount === 1 ? "" : "s"}
+                                        </p>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
 

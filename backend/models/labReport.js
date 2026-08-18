@@ -7,7 +7,7 @@ const markerSchema = new mongoose.Schema(
     unit: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["low", "normal", "high", "not-found"],
+      enum: ["low", "normal", "high", "not-found", "unsupported"],
       default: "not-found",
     },
     score: { type: Number, default: null }, // Dynamic score based on distance from normal range
@@ -18,6 +18,11 @@ const markerSchema = new mongoose.Schema(
     },
     reviewNote: { type: String, default: "" },
     explanation: { type: String, default: "" },
+    mentalHealthRelevance: { type: String, default: "" },
+    normalMin: { type: Number, default: null },
+    normalMax: { type: Number, default: null },
+    normalRange: { type: String, default: "" },
+    rangeSource: { type: String, default: "" },
   },
   { _id: false }
 );

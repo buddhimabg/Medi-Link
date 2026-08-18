@@ -30,12 +30,16 @@ const normalizeBiomarkerKey = (value = "") =>
     .trim()
     .replace(/\s+/g, " ");
 
-const cleanLabel = (value = "") =>
-  String(value || "")
+const cleanLabel = (value = "") => {
+  let str = String(value || "").trim();
+  // Strip leading numbering or bullet prefix: e.g. "1.", "14)", "3-", "4:", "(5)", "1.1", "•", "*"
+  str = str.replace(/^(?:\(?\d+(?:\.\d+)?[\.\)\:\-]\s*|[\u2022\u25E6\u2023\u2043\*\-\•]\s*)/, "");
+  return str
     .replace(/[_*#|^~`]/g, " ")
     .replace(/\s+/g, " ")
     .replace(/^[\s:\-\.]+|[\s:\-\.]+$/g, "")
     .trim();
+};
 
 // ---------------------------------------------------------------------------
 // Common biomarker alias map for abbreviation expansion
@@ -47,9 +51,11 @@ const ALIAS_EXPANSION = {
   wbc: "White Blood Cells",
   "white blood count": "White Blood Cells",
   "white cell count": "White Blood Cells",
+  "white blood cell count": "White Blood Cells",
   rbc: "Red Blood Cells",
   "red blood count": "Red Blood Cells",
   "red cell count": "Red Blood Cells",
+  "red blood cell count": "Red Blood Cells",
   hct: "Hematocrit",
   haematocrit: "Hematocrit",
   "packed cell volume": "Hematocrit",
@@ -123,12 +129,14 @@ const NOISE_LINE_PATTERNS = [
   /^\s*phone[\s:]/i,
   /^\s*email[\s:]/i,
   /^\s*web(?:site)?[\s:]/i,
-  /^\s*(?:patient|pt)(?:\s+(?:name|id|no|number))?[\s:]/i,
+  /^\s*(?:patient|pt|name|patient\s+name)(?:\s+(?:name|id|no|number))?[\s.:]/i,
   /^\s*(?:doctor|dr|physician|consultant)[\s.:]/i,
   /^\s*(?:report|lab|test)[\s.:]?(?:date|no|number|id)[\s:]/i,
   /^\s*(?:date|dated|issued)[\s.:]/i,
+  /^\s*(?:collection|report|sample|test|printed)?\s*(?:date|time)[\s.:]/i,
   /^\s*(?:age|gender|sex|dob|date\s+of\s+birth)[\s.:]/i,
   /^\s*(?:ref|accession|sample|lab|barcode)\s*(?:no|num|number|id)?[\s.:]/i,
+  /^\s*(?:id|patient\s+id|report\s+id|sample\s+id|accession\s+id|accession|record|mrn)[\s.:]/i,
   /^\s*(?:specimen|collected|received|reported|validated)\b/i,
   /^\s*(?:signature|signed|validated\s+by|technician|pathologist|approved\s+by)\b/i,
   /^\s*(?:no\.|no\s+)\d+[,\s]/i, // address numbers like "No. 25, Main Road"
@@ -139,6 +147,13 @@ const NOISE_LINE_PATTERNS = [
   /^\s*[-=_*]{4,}\s*$/, // separator lines
   /\b(?:\d{3,}-\d{4,}|\+\d{2,}[\s\-]\d{4,})\b/, // phone numbers embedded in lines
   /^\s*(?:page\s+\d|print(?:ed)?|copy)\b/i,
+  /^\s*[\-\s]*page\s+\d+(?:\s*(?:of|\/)\s*\d+)?[\-\s]*$/i, // Page 1 of 7, -- Page 1 --
+  /^\s*[\-\s]*\d+\s+(?:of|\/)\s+\d+[\-\s]*$/i, // -- 1 of 7 --, 2/7
+  /^\s*[\-\s]*\d+[\-\s]*$/i, // standalone page numbers like "- 1 -"
+  // NOTE: reference-range lines are no longer rejected as noise; they are
+  // consumed by parseBiomarkerLine / tryParseMultiLineBlock for range extraction.
+  /^\s*(?:purpose|expected\s+internal\s+interpretation|expected|test\s+exact|test\s+wbc|test\s+greek|test\s+uppercase|test\s+low|test\s+high|test\s+value|intentionally\s+unsupported)\b/i,
+  /^\s*(?:status\s*=|score\s*=|no\s+automatic|no\s+range\s+indicator)\b/i,
 ];
 
 /**
@@ -147,6 +162,10 @@ const NOISE_LINE_PATTERNS = [
 const isNoiseLine = (line) => {
   const trimmed = line.trim();
   if (!trimmed || trimmed.length < 2) return true;
+
+  // Page dividers like "-- 1 of 7 --"
+  if (/^[\-\s]*\d+\s+(?:of|\/)\s+\d+[\-\s]*$/i.test(trimmed)) return true;
+  if (/^[\-\s]*page\s+\d+(?:\s*(?:of|\/)\s*\d+)?[\-\s]*$/i.test(trimmed)) return true;
 
   // All-caps short lines that are likely lab/clinic names (e.g. "MEDILINK CLINIC")
   if (/^[A-Z\s\-\.&]{5,}$/.test(trimmed) && trimmed.length < 50) return true;
@@ -165,9 +184,9 @@ const isNoiseLine = (line) => {
  * - Not a known noise keyword
  */
 const NOISE_LABEL_PATTERNS = [
-  /^(?:reference|range|result|unit|units|method|flag|status|value|normal|abnormal|remark|comment|interpretation)$/i,
-  /^(?:test\s+name|parameter|analyte|investigation)$/i,
-  /^(?:name|patient|age|gender|date|doctor|lab|report|sample|specimen|barcode|id|no)$/i,
+  /^(?:reference|range|reference\s+range|ref\s+range|normal\s+range|result|unit|units|method|flag|status|value|normal|abnormal|remark|comment|interpretation|purpose|expected|expected\s+internal\s+interpretation)$/i,
+  /^(?:test\s+name|parameter|analyte|investigation|laboratory\s+results|patient\s+information|important|synthetic\s+test\s+report)$/i,
+  /^(?:name|patient|age|gender|date|doctor|lab|report|sample|specimen|barcode|id|no|administrative|administrative\s+number|sample\s+administrative\s+number)$/i,
 ];
 
 const isLikelyBiomarkerLabel = (label = "") => {
@@ -176,13 +195,26 @@ const isLikelyBiomarkerLabel = (label = "") => {
   if (!/[a-zA-Z]/.test(trimmed)) return false;
   if (trimmed.length > 80) return false; // biomarker names are never 80+ chars
 
-  // Reject pure numbers or percentages
+  // Reject pure numbers, percentages, range expressions, and unit headers/strings
   if (/^\d+(?:\.\d+)?%?$/.test(trimmed)) return false;
+  if (/\d+\s*[\-\–\—\~]\s*\d+/.test(label)) return false;
+  if (/^\s*units?[\s:]/i.test(label)) return false;
+  if (/^(?:g\/dL|mg\/dL|mmol\/L|umol\/L|u\/L|iu\/L|ng\/mL|pg\/mL|fl|pg|\%|percent|million\/[uµμ]L|10[\^*0-9]+\/[uµμ]L|\/[uµμ]L|U\/L|mIU\/L)$/i.test(trimmed)) return false;
+  if (/^[a-zA-Z0-9\/\%µμ\.\-\*\^]+\/[a-zA-Z0-9\/\%µμ\.\-\*\^]+$/i.test(trimmed)) return false;
 
   const normalized = normalizeBiomarkerKey(trimmed);
 
   // Reject known noise labels
   if (NOISE_LABEL_PATTERNS.some((p) => p.test(normalized))) return false;
+
+  // A biomarker label should not contain 'reference range' or 'normal range'
+  if (/(?:reference|normal|ref\.?)\s*range/i.test(trimmed)) return false;
+
+  // A biomarker label should not contain a complete result + unit pattern
+  // (e.g. "Vitamin D 22 ng/mL" should be rejected as a single label)
+  if (/\d{1,5}(?:\.\d{1,3})?\s*(?:g\/dL|mg\/dL|mmol\/L|umol\/L|u\/L|iu\/L|ng\/mL|pg\/mL|fl|pg|\%|percent|million\/[uµμ]L|10[\^*0-9]+\/[uµμ]L|\/[uµμ]L|U\/L|mIU\/L)/i.test(trimmed)) {
+    return false;
+  }
 
   // Must have at least 2 alphabetic characters
   const alphaCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
@@ -227,10 +259,40 @@ const parseLineForValue = (line, label) => {
 
   // Extract unit if present right after the number
   const afterNum = afterLabel.slice(rawToken.length).trim();
-  const unitMatch = afterNum.match(/^([a-zA-Z/%µμ][a-zA-Z0-9/%µμ\.\-]{0,15})/);
+  const unitMatch = afterNum.match(/^((?:10[\^\*]\d|x10[\^\*]\d|[a-zA-Z/%µμ])[a-zA-Z0-9/%µμ\.\-\*\^]{0,15})/);
   const unit = unitMatch ? unitMatch[1] : "";
 
   return { value, unit, rawToken };
+};
+
+// ---------------------------------------------------------------------------
+// Reference range extraction helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Attempts to extract a numeric min–max reference range from a text string.
+ * Accepts formats like:
+ *   "4.0 - 20.0"        "4-20"         "4.0 – 20.0"
+ *   "Reference Range: 4.0 - 20.0"     "Normal Range: 0.4 - 4.0"
+ *   "Ref Range: 4.0 - 20.0 ng/mL"     "Ref. Range: 4.0-20.0"
+ *
+ * Returns { min, max, raw } or undefined if no valid range found.
+ */
+const extractRangeFromText = (text) => {
+  if (!text || typeof text !== "string") return undefined;
+
+  const rangeRe = /(?:(?:reference|normal|ref\.?)\s*range[\s:]*)?([<>]?\s*\d+(?:\.\d+)?)\s*[\-–—~]\s*(\d+(?:\.\d+)?)/i;
+  const match = text.match(rangeRe);
+  if (!match) return undefined;
+
+  const minVal = parseFloat(match[1].replace(/^[<>]\s*/, ""));
+  const maxVal = parseFloat(match[2]);
+
+  if (isNaN(minVal) || isNaN(maxVal)) return undefined;
+  if (minVal >= maxVal) return undefined;
+  if (minVal > 100000 || maxVal > 100000) return undefined; // reject dates/IDs
+
+  return { min: minVal, max: maxVal, raw: match[0].trim() };
 };
 
 // ---------------------------------------------------------------------------
@@ -245,6 +307,9 @@ const parseBiomarkerLine = (line) => {
   const trimmed = line.trim();
   if (!trimmed || trimmed.length < 4) return null;
   if (isNoiseLine(trimmed)) return null;
+
+  // Strip leading numbering or bullets for regex parsing (e.g., "1. Hemoglobin")
+  const parsingLine = trimmed.replace(/^(?:\(?\d+(?:\.\d+)?[\.\)\:\-]\s*|[\u2022\u25E6\u2023\u2043\*\-\•]\s*)/, "");
 
   // Patterns for label+value extraction:
   // 1. "Label : value"  or  "Label = value"
@@ -261,7 +326,7 @@ const parseBiomarkerLine = (line) => {
   ];
 
   for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
+    const match = parsingLine.match(pattern);
     if (!match) continue;
 
     const rawLabel = match[1].trim();
@@ -283,12 +348,16 @@ const parseBiomarkerLine = (line) => {
     }
 
     // Extract unit from remainder
-    const afterMatch = trimmed.slice(match[0].length).trim();
-    const unitMatch = afterMatch.match(/^([a-zA-Z/%µμ][a-zA-Z0-9/%µμ\.\-]{0,15})/);
+    const afterMatch = parsingLine.slice(match[0].length).trim();
+    const unitMatch = afterMatch.match(/^((?:10[\^\*]\d|x10[\^\*]\d|[a-zA-Z/%µμ])[a-zA-Z0-9/%µμ\.\-\*\^]{0,15})/);
     const unit = unitMatch ? unitMatch[1] : "";
 
-    log(`Parsed line: label="${label}" value=${value} unit="${unit}"`);
-    return { label, value, rawToken: rawValueStr, unit };
+    // Attempt to extract a reference range from the text after the unit
+    const afterUnit = unitMatch ? afterMatch.slice(unitMatch[0].length).trim() : afterMatch;
+    const extractedRange = extractRangeFromText(afterUnit);
+
+    log(`Parsed line: label="${label}" value=${value} unit="${unit}"${extractedRange ? ` range=${extractedRange.raw}` : ""}`);
+    return { label, value, rawToken: rawValueStr, unit, ...(extractedRange ? { extractedRange } : {}) };
   }
 
   return null;
@@ -389,14 +458,124 @@ const splitMergedLineWithNames = (line, knownNames) => {
   return parts.length > 1 ? parts : [trimmed];
 };
 
+// Helper for multi-line block parsing
+const tryParseMultiLineBlock = (lines, startIdx) => {
+  const labelLine = lines[startIdx];
+  const cleaned = cleanLabel(labelLine);
+  if (!isLikelyBiomarkerLabel(cleaned)) return null;
+
+  // Inspect the next 1 to 6 non-noise lines for value, unit, and reference range
+  let value = null;
+  let unit = "";
+  let rawToken = "";
+  let consumedLines = 0;
+  let extractedRange;
+
+  for (let offset = 1; offset <= 6 && startIdx + offset < lines.length; offset++) {
+    const nextLine = lines[startIdx + offset].trim();
+    if (!nextLine) continue;
+
+    // Check for reference range line (with explicit prefix) before noise rejection
+    // so that "Reference Range: 4.0 - 20.0" is captured, not skipped
+    if (value !== null && /^(?:reference|normal|ref\.?)\s*range[\s:]/i.test(nextLine)) {
+      const rangeResult = extractRangeFromText(nextLine);
+      if (rangeResult) {
+        extractedRange = rangeResult;
+        consumedLines = offset;
+      }
+      continue;
+    }
+
+    if (isNoiseLine(nextLine)) continue;
+
+    // Stop if nextLine looks like another biomarker label or single line row
+    const nextCleaned = cleanLabel(nextLine);
+    if (
+      parseBiomarkerLine(nextLine) ||
+      (offset > 1 && isLikelyBiomarkerLabel(nextCleaned) && !/^(?:result|value)\s*:/i.test(nextLine))
+    ) {
+      break;
+    }
+
+    // Check for Result: 13.0 or Value: 13.0 or raw numeric value
+    if (value === null) {
+      const valMatch =
+        nextLine.match(/^(?:result|value)[\s:]*([<>]?=?\s*\d+(?:\.\d+)?)/i) ||
+        nextLine.match(/^([<>]?=?\s*\d+(?:\.\d+)?)\b/);
+      if (valMatch) {
+        rawToken = valMatch[1].trim();
+        const numVal = parseFloat(rawToken.replace(/^[<>]?=?\s*/, ""));
+        if (!isNaN(numVal)) {
+          value = numVal;
+          consumedLines = offset;
+
+          // Check if unit is on the same line after the number
+          const remainder = nextLine.slice(valMatch[0].length).trim();
+          const unitMatch = remainder.match(/^(?:unit[\s:]*)?((?:10[\^*]\d|x10[\^*]\d|[a-zA-Z/%µμ])[a-zA-Z0-9/%µμ.*^-]{0,15})/i);
+          if (unitMatch) {
+            unit = unitMatch[1];
+
+            // Check for trailing range on the same line as value+unit
+            const afterUnitText = remainder.slice(unitMatch[0].length).trim();
+            if (afterUnitText) {
+              const rangeResult = extractRangeFromText(afterUnitText);
+              if (rangeResult) extractedRange = rangeResult;
+            }
+          }
+          continue;
+        }
+      }
+    }
+
+    // Check for Unit: g/dL line if value is already found but unit is missing
+    if (value !== null && !unit) {
+      if (/^(?:unit|units)[\s:]*/i.test(nextLine)) {
+        unit = nextLine.replace(/^(?:unit|units)[\s:]*/i, "").trim().split(/\s+/)[0];
+        consumedLines = offset;
+        continue; // don't break — keep scanning for range
+      }
+      const unitLineMatch = nextLine.match(/^([a-zA-Z/%µμ][a-zA-Z0-9/%µμ.*^-]{0,15})$/);
+      if (unitLineMatch) {
+        unit = unitLineMatch[1];
+        consumedLines = offset;
+        continue; // don't break — keep scanning for range
+      }
+    }
+
+    // If value and unit are found, try extracting a bare range from a subsequent line
+    if (value !== null && unit) {
+      const rangeResult = extractRangeFromText(nextLine);
+      if (rangeResult) {
+        extractedRange = rangeResult;
+        consumedLines = offset;
+        break; // range found, done with this block
+      }
+      // Line is neither range nor unit — stop scanning
+      break;
+    }
+  }
+
+  if (value !== null) {
+    return {
+      label: cleaned,
+      value,
+      unit,
+      rawToken,
+      consumedLines,
+      ...(extractedRange ? { extractedRange } : {}),
+    };
+  }
+
+  return null;
+};
 
 // ---------------------------------------------------------------------------
 // Extract biomarker rows from raw text
 // ---------------------------------------------------------------------------
 
 /**
- * Returns an array of { label, value, unit, rawToken } for every real biomarker
- * line found in the report text, stripping header/admin noise.
+ * Returns an array of { label, value, unit, rawToken, extractedRange? } for every
+ * real biomarker line found in the report text, stripping header/admin noise.
  * Accepts an optional knownNames Set to enable DB-aware merged-line splitting.
  */
 const extractBiomarkerRows = (rawText, knownNames = new Set()) => {
@@ -405,26 +584,75 @@ const extractBiomarkerRows = (rawText, knownNames = new Set()) => {
   const rows = [];
   const seenLabels = new Set();
 
-  for (let i = startIdx; i < rawLines.length; i++) {
+  let i = startIdx;
+  while (i < rawLines.length) {
+    const rawLine = rawLines[i];
+
+    if (!rawLine.trim() || isNoiseLine(rawLine)) {
+      i++;
+      continue;
+    }
+
     // Expand merged-column lines using DB-known names as anchors
     const subLines =
       knownNames.size > 0
-        ? splitMergedLineWithNames(rawLines[i], knownNames)
-        : [rawLines[i].trim()].filter(Boolean);
+        ? splitMergedLineWithNames(rawLine, knownNames)
+        : [rawLine.trim()].filter(Boolean);
 
+    let foundAny = false;
     for (const line of subLines) {
-      const parsed = parseBiomarkerLine(line);
-      if (!parsed) continue;
+      let parsedSingle = parseBiomarkerLine(line);
+      if (parsedSingle) {
+        // Look ahead for an explicit reference range on the immediate next line if missing
+        if (!parsedSingle.extractedRange && i + 1 < rawLines.length) {
+          const nextLine = rawLines[i + 1].trim();
+          if (/^(?:reference|normal|ref\.?)\s*range[\s:]/i.test(nextLine)) {
+            const range = extractRangeFromText(nextLine);
+            if (range) parsedSingle.extractedRange = range;
+          }
+        }
 
-      const key = normalizeBiomarkerKey(parsed.label);
-      if (seenLabels.has(key)) continue;
-      seenLabels.add(key);
-      rows.push(parsed);
+        const key = normalizeBiomarkerKey(parsedSingle.label);
+        if (!seenLabels.has(key)) {
+          seenLabels.add(key);
+          rows.push(parsedSingle);
+        }
+        foundAny = true;
+      }
     }
+
+    if (foundAny) {
+      i++;
+      continue;
+    }
+
+    // Try multi-line parsing for blocks like:
+    // 1. Hemoglobin
+    // Result: 13.0
+    // Unit: g/dL
+    const multiParsed = tryParseMultiLineBlock(rawLines, i);
+    if (multiParsed) {
+      const key = normalizeBiomarkerKey(multiParsed.label);
+      if (!seenLabels.has(key)) {
+        seenLabels.add(key);
+        rows.push({
+          label: multiParsed.label,
+          value: multiParsed.value,
+          unit: multiParsed.unit,
+          rawToken: multiParsed.rawToken,
+          ...(multiParsed.extractedRange ? { extractedRange: multiParsed.extractedRange } : {}),
+        });
+      }
+      i += Math.max(1, multiParsed.consumedLines + 1);
+      continue;
+    }
+
+    i++;
   }
 
   return rows;
 };
+
 
 // ---------------------------------------------------------------------------
 // Build biomarker lookup map from DB records (by name + aliases)
@@ -496,6 +724,56 @@ const resolveBiomarkerFromLabel = (label, dbLookup) => {
 };
 
 // ---------------------------------------------------------------------------
+// Unit Validation Helpers
+// ---------------------------------------------------------------------------
+
+const normalizeUnitString = (unit = "") =>
+  String(unit || "")
+    .replace(/[µμ]/g, "u")
+    .toLowerCase()
+    .replace(/[^a-z0-9/%^*]/g, "")
+    .trim();
+
+/**
+ * Compatible unit groups for validation.
+ */
+const EQUIVALENT_UNIT_GROUPS = [
+  ["g/dl", "g/dl.", "g/100ml"],
+  ["mg/dl", "mg/dl.", "mg/100ml"],
+  ["10^3/ul", "10*3/ul", "103/ul", "10^3/ul.", "k/ul", "k/mm3", "thou/ul", "/ul", "cells/ul"],
+  ["10^6/ul", "10*6/ul", "106/ul", "10^6/ul.", "m/ul", "m/mm3", "million/ul", "million/ul."],
+  ["u/l", "iu/l", "u/l.", "iu/l."],
+  ["ng/ml", "ng/ml.", "ug/l"],
+  ["pg/ml", "pg/ml."],
+  ["%", "percent"],
+  ["fl", "fl."],
+  ["pg", "pg."],
+  ["g/l", "g/l."],
+  ["mmol/l", "mmol/l."],
+  ["umol/l", "umol/l."],
+];
+
+/**
+ * Checks if an extracted unit is compatible with the expected DB biomarker unit.
+ * Returns true if extracted unit is empty (unspecified) or compatible.
+ */
+const validateBiomarkerUnit = (extractedUnit, expectedUnit) => {
+  if (!extractedUnit || !expectedUnit) return true; // Accept if report doesn't specify unit
+
+  const normExt = normalizeUnitString(extractedUnit);
+  const normExp = normalizeUnitString(expectedUnit);
+  if (!normExt || normExt === normExp) return true;
+
+  for (const group of EQUIVALENT_UNIT_GROUPS) {
+    if (group.includes(normExt) && group.includes(normExp)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// ---------------------------------------------------------------------------
 // Scoring helpers
 // ---------------------------------------------------------------------------
 
@@ -509,23 +787,47 @@ const resolveStatus = (value, biomarker) => {
   return "normal";
 };
 
+/**
+ * Calculates marker score based on percentage deviation from normal range:
+ * - Within normal range: 100
+ * - Deviation <= 10%: 75
+ * - Deviation <= 25%: 50
+ * - Deviation > 25%: 30
+ */
 const calculateMarkerScore = (value, biomarker) => {
   if (value === null || isNaN(value)) return null;
-  const { normalMin, normalMax } = biomarker.ranges;
-  const range = normalMax - normalMin;
 
-  if (range <= 0) return value >= normalMin && value <= normalMax ? 100 : 30;
+  const { normalMin, normalMax } = biomarker.ranges;
+  if (typeof normalMin !== "number" || typeof normalMax !== "number") return null;
+
+  const range = normalMax - normalMin;
+  if (range <= 0) {
+    return value >= normalMin && value <= normalMax ? 100 : 30;
+  }
+
   if (value >= normalMin && value <= normalMax) return 100;
 
   const distance = value < normalMin ? normalMin - value : value - normalMax;
   const percent = (distance / range) * 100;
+
   if (percent <= 10) return 75;
   if (percent <= 25) return 50;
+
   return 30;
 };
 
+/**
+ * Computes overall health score from valid, matched, scored markers.
+ * MISSING, UNSUPPORTED, OR LOW-OCR-CONFIDENCE MARKERS NEVER REDUCE OVERALL SCORE.
+ */
 const calculateOverallScore = (markers) => {
-  const valid = markers.filter((m) => m.status !== "not-found" && m.score !== null);
+  const valid = markers.filter(
+    (m) =>
+      m.status !== "not-found" &&
+      m.status !== "unsupported" &&
+      m.score !== null &&
+      m.confidence !== "low"
+  );
   if (!valid.length) return 0;
 
   let sum = 0;
@@ -539,14 +841,26 @@ const calculateOverallScore = (markers) => {
 };
 
 // ---------------------------------------------------------------------------
-// Explanation and recommendations helpers
+// Explanation and recommendations helpers (Rule-based wording)
 // ---------------------------------------------------------------------------
 
-const buildMarkerExplanation = (biomarker, status) => {
+const buildMarkerExplanation = (biomarker, status, value, normalMin, normalMax, unit) => {
   const ex = biomarker?.explanations || {};
-  if (status === "low") return ex.low || `${biomarker.name} is below the normal range.`;
-  if (status === "high") return ex.high || `${biomarker.name} is above the normal range.`;
-  if (status === "normal") return ex.normal || `${biomarker.name} is within the normal range.`;
+  const u = unit || biomarker?.unit || "";
+  const unitSuffix = u ? ` ${u}` : "";
+
+  if (status === "low") {
+    return ex.low || `Observed value (${value}${unitSuffix}) is below the configured reference range (${normalMin} - ${normalMax}${unitSuffix}).`;
+  }
+  if (status === "high") {
+    return ex.high || `Observed value (${value}${unitSuffix}) is above the configured reference range (${normalMin} - ${normalMax}${unitSuffix}).`;
+  }
+  if (status === "normal") {
+    return ex.normal || `Observed value (${value}${unitSuffix}) falls within the configured reference range (${normalMin} - ${normalMax}${unitSuffix}).`;
+  }
+  if (status === "unsupported") {
+    return `Unit could not be verified. This result was excluded from automatic scoring.`;
+  }
   return ex.notFound || "Value could not be determined from the report.";
 };
 
@@ -558,6 +872,7 @@ const buildRecommendations = (markers) => {
   const dailyPractices = [];
 
   for (const m of markers) {
+    if (m.confidence === "low" || m.status === "unsupported") continue; // Exclude invalid/unreliable markers from recs
     const recs = m?.recommendations || {};
     if (m.status === "low") {
       immediateActions.push(...(recs.low?.immediate || []));
@@ -578,29 +893,32 @@ const buildRecommendations = (markers) => {
 
 const buildSummary = ({ overallScore, matchedCount, unmatchedCount, totalDetected, keyIssues }) => {
   if (totalDetected === 0) {
-    return "No valid biomarkers were detected. Please upload a clear medical lab report.";
+    return "No valid biomarkers were detected in the uploaded document. Rule-based analysis requires a recognized lab report.";
   }
   const issueCount = keyIssues.length;
-  const base = `Analysis complete with an overall health score of ${overallScore}/100. ${matchedCount} biomarkers were matched against the database and analyzed${unmatchedCount > 0 ? `, and ${unmatchedCount} additional test(s) were detected but are not yet in the database` : ""}.`;
+  const base = `Rule-based evaluation complete with an overall score of ${overallScore}/100 based on configured reference ranges. ${matchedCount} biomarker(s) were evaluated against stored reference ranges${unmatchedCount > 0 ? `, and ${unmatchedCount} additional test(s) were detected without matching reference rules` : ""}.`;
   if (issueCount) {
-    return `${base} ${issueCount} marker${issueCount === 1 ? " needs" : "s need"} attention.`;
+    return `${base} ${issueCount} marker(s) fall outside configured normal ranges.`;
   }
-  return `${base} All matched markers were within the normal range.`;
+  return `${base} All evaluated markers fall within configured normal ranges.`;
 };
 
 // ---------------------------------------------------------------------------
 // Main analysis function
 // ---------------------------------------------------------------------------
 
-const parseAndAnalyzeMarkers = async (text) => {
+const parseAndAnalyzeMarkers = async (text, options = {}) => {
+  const { ocrConfidence = 100 } = typeof options === "number" ? { ocrConfidence: options } : options;
+  const isGlobalLowConfidence = typeof ocrConfidence === "number" && ocrConfidence < 70;
+
   const biomarkers = await Biomarker.find({ isActive: true })
-    .select("name aliases unit ranges thresholds weight recommendations explanations priority")
+    .select("name aliases unit ranges thresholds weight recommendations explanations priority mentalHealthRelevance")
     .lean();
 
   if (!biomarkers.length) {
     return {
       overallScore: 0,
-      summary: "No active biomarkers are configured for analysis.",
+      summary: "No active biomarkers are configured for rule-based analysis.",
       dataQuality: { detected: 0, total: 0, percentage: 0 },
       analysisCoverage: { analyzed: 0, available: 0, percentage: 0 },
       reportBiomarkers: [],
@@ -615,9 +933,7 @@ const parseAndAnalyzeMarkers = async (text) => {
   // 1. Build DB lookup map
   const dbLookup = buildBiomarkerLookup(biomarkers);
 
-  // Build flat sets for merged-line splitting:
-  //   knownNames     = lowercased  (for case-insensitive search in split function)
-  //   originalNames  = original-case DB names + aliases (for uppercase acronym detection)
+  // Build flat sets for merged-line splitting
   const knownNames = new Set();
   const originalNames = new Set();
   for (const bm of biomarkers) {
@@ -630,20 +946,19 @@ const parseAndAnalyzeMarkers = async (text) => {
       }
     }
   }
-  // Also add ALIAS_EXPANSION target names
   for (const fullName of Object.values(ALIAS_EXPANSION)) {
     knownNames.add(fullName.toLowerCase().trim());
     originalNames.add(fullName.trim());
   }
 
-  // 2. Extract biomarker rows from the raw OCR text (with DB-aware line splitting)
+  // 2. Extract biomarker rows from the raw OCR text
   const rawRows = extractBiomarkerRows(text, knownNames);
   log(`Extracted ${rawRows.length} biomarker rows from OCR text`);
 
   if (rawRows.length === 0) {
     return {
       overallScore: 0,
-      summary: "No valid biomarkers were detected. Please upload a clear medical lab report.",
+      summary: "No valid biomarkers were detected in the uploaded document. Please upload a clear medical lab report.",
       dataQuality: { detected: 0, total: 0, percentage: 0 },
       analysisCoverage: { analyzed: 0, available: 0, percentage: 0 },
       reportBiomarkers: [],
@@ -655,7 +970,7 @@ const parseAndAnalyzeMarkers = async (text) => {
     };
   }
 
-  // 3. Match each row to DB biomarker
+  // 3. Match each row to DB biomarker & validate
   const matchedMarkers = [];
   const unmatchedMarkers = [];
 
@@ -667,13 +982,34 @@ const parseAndAnalyzeMarkers = async (text) => {
       let normalMax = dbBiomarker.ranges.normalMax;
       let lowThresh = dbBiomarker.thresholds.low;
       let highThresh = dbBiomarker.thresholds.high;
+      let rangeSource = "Medi-Link configured range";
 
-      // Handle unit scaling: when WBC or Platelets are reported in thousands (e.g. WBC = 7.2 instead of 7200, Platelets = 240 instead of 240,000)
-      if ((dbBiomarker.name === "White Blood Cells" || dbBiomarker.name === "Platelet Count") && typeof row.value === "number" && row.value < 2000) {
-        normalMin = normalMin / 1000;
-        normalMax = normalMax / 1000;
-        lowThresh = lowThresh / 1000;
-        highThresh = highThresh / 1000;
+      // Report-specific reference range override
+      // If the report provides a valid range, use it instead of DB defaults
+      const rr = row.extractedRange;
+      if (
+        rr &&
+        typeof rr.min === "number" &&
+        typeof rr.max === "number" &&
+        isFinite(rr.min) &&
+        isFinite(rr.max) &&
+        rr.min < rr.max
+      ) {
+        normalMin = rr.min;
+        normalMax = rr.max;
+        lowThresh = rr.min;
+        highThresh = rr.max;
+        rangeSource = "Laboratory report";
+        log(`Using report-specific range for ${row.label}: ${rr.min} - ${rr.max} (raw: ${rr.raw})`);
+        // Skip WBC/Platelet 1000x scaling — report range is already in the report's value scale
+      } else {
+        // Fallback: Handle unit scaling with DB ranges: WBC / Platelet thousand scaling
+        if ((dbBiomarker.name === "White Blood Cells" || dbBiomarker.name === "Platelet Count") && typeof row.value === "number" && row.value < 2000) {
+          normalMin = normalMin / 1000;
+          normalMax = normalMax / 1000;
+          lowThresh = lowThresh / 1000;
+          highThresh = highThresh / 1000;
+        }
       }
 
       const scaledBiomarker = {
@@ -682,8 +1018,32 @@ const parseAndAnalyzeMarkers = async (text) => {
         thresholds: { low: lowThresh, high: highThresh },
       };
 
-      const status = resolveStatus(row.value, scaledBiomarker);
-      const score = calculateMarkerScore(row.value, scaledBiomarker);
+      // Unit Validation
+      const isUnitSupported = validateBiomarkerUnit(row.unit, dbBiomarker.unit);
+
+      let status;
+      let score;
+      let reviewNote = "";
+      let confidenceLevel = "high";
+
+      if (!isUnitSupported) {
+        status = "unsupported";
+        score = null; // NEVER reduces overall score
+        confidenceLevel = "low";
+        reviewNote = "Review recommended: unit is unsupported or incompatible with configured reference ranges.";
+      } else if (isGlobalLowConfidence || row.lowConfidence) {
+        status = resolveStatus(row.value, scaledBiomarker);
+        score = null; // OCR low confidence: set score null so it NEVER reduces overall score
+        confidenceLevel = "low";
+        reviewNote = "Review recommended: low OCR confidence extraction.";
+      } else {
+        status = resolveStatus(row.value, scaledBiomarker);
+        score = calculateMarkerScore(row.value, scaledBiomarker);
+        confidenceLevel = "high";
+        reviewNote = status === "not-found" ? "Marker was not detected in the report text." : "";
+      }
+
+      const explanation = buildMarkerExplanation(dbBiomarker, status, row.value, normalMin, normalMax, row.unit || dbBiomarker.unit);
 
       matchedMarkers.push({
         name: dbBiomarker.name,
@@ -691,33 +1051,40 @@ const parseAndAnalyzeMarkers = async (text) => {
         unit: row.unit || dbBiomarker.unit || "",
         status,
         score,
-        confidence: "high",
-        reviewNote: status === "not-found" ? "Marker was not detected in the report text." : "",
-        explanation: buildMarkerExplanation(dbBiomarker, status),
+        confidence: confidenceLevel,
+        reviewNote,
+        explanation,
         weight: typeof dbBiomarker.weight === "number" ? dbBiomarker.weight : 0.3,
         recommendations: dbBiomarker.recommendations || {},
         normalMin,
         normalMax,
         normalRange: `${normalMin} - ${normalMax}`,
+        rangeSource,
+        mentalHealthRelevance: dbBiomarker.mentalHealthRelevance || "",
       });
     } else {
-      // Real biomarker row found in the report but not in DB
-      unmatchedMarkers.push({
+      // Real biomarker row found in report but not configured in DB
+      matchedMarkers.push({
         name: row.label,
         value: row.value,
         unit: row.unit || "",
-        status: "not-found",
+        status: "unsupported",
         score: null,
         confidence: "medium",
-        reviewNote: "This biomarker is not yet configured in the database.",
-        explanation: "Not configured in biomarker database yet.",
+        reviewNote: "Review recommended: biomarker is not configured in the database.",
+        explanation: "Unit could not be verified. This result was excluded from automatic scoring.",
         weight: 0,
         recommendations: {},
+        normalMin: null,
+        normalMax: null,
+        normalRange: "Unknown",
+        rangeSource: "Medi-Link configured range",
+        mentalHealthRelevance: "",
       });
     }
   }
 
-  // 4. Compute overall score from matched DB biomarkers only
+  // 4. Compute overall score from valid, matched DB biomarkers only
   const overallScore = calculateOverallScore(matchedMarkers);
   const recommendations = buildRecommendations(matchedMarkers);
 
@@ -729,10 +1096,7 @@ const parseAndAnalyzeMarkers = async (text) => {
   const unmatchedCount = unmatchedMarkers.length;
   const totalDetected = matchedCount + unmatchedCount;
 
-  // reportBiomarkers = only the properly DB-matched names (drives UI card list)
   const reportBiomarkers = matchedMarkers.map((m) => m.name);
-
-  // markers includes both matched and unmatched for backward-compat with the DB record
   const allMarkers = [...matchedMarkers, ...unmatchedMarkers];
 
   const dataQualityPercentage = totalDetected
@@ -763,4 +1127,14 @@ const parseAndAnalyzeMarkers = async (text) => {
 
 module.exports = {
   parseAndAnalyzeMarkers,
+  validateBiomarkerUnit,
+  calculateMarkerScore,
+  calculateOverallScore,
+  extractBiomarkerRows,
+  cleanLabel,
+  parseBiomarkerLine,
+  resolveBiomarkerFromLabel,
+  buildBiomarkerLookup,
+  ALIAS_EXPANSION,
+  extractRangeFromText,
 };

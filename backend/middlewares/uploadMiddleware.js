@@ -19,18 +19,21 @@ const storage = multer.diskStorage({
 
 const allowedMimeTypes = new Set([
   "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/webp",
 ]);
 
 const fileFilter = (_req, file, cb) => {
-  if (allowedMimeTypes.has(file.mimetype)) {
+  const isPdf =
+    file.mimetype === "application/pdf" ||
+    /\.pdf$/i.test(file.originalname || "");
+
+  if (isPdf) {
     cb(null, true);
     return;
   }
-  cb(new Error("Only PDF, PNG, JPG, and WEBP files are allowed."));
+  const err = new Error("Unsupported file type. Please upload a PDF lab report.");
+  err.code = "UNSUPPORTED_FILE_TYPE";
+  err.statusCode = 400;
+  cb(err);
 };
 
 const upload = multer({

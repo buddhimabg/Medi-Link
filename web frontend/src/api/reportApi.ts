@@ -15,6 +15,7 @@ export const uploadAndAnalyzeReport = async ({ userId, file }: UploadReportParam
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    timeout: 60000, // Allow up to 60s for full OCR extraction and rule analysis
   });
 };
 

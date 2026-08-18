@@ -44,11 +44,15 @@ const apiSuccess = (data, message = "Success") => {
  * Response helper for error middleware
  * Usage: res.status(400).json(apiFail(message))
  */
-const apiFail = (message, details = null) => {
+const apiFail = (message, details = null, code = null) => {
   const response = {
     success: false,
     message
   };
+
+  if (code) {
+    response.code = code;
+  }
   
   if (details) {
     response.details = details;
