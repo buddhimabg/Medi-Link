@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/api';
+import AdminSidebar from '../components/AdminSidebar';
 import './ManagePatientsPage.css';
 
 interface Patient {
@@ -129,47 +130,7 @@ const ManagePatients: React.FC = () => {
 
   return (
     <div className="manage-patients-container">
-
-      <aside className="sidebar">
-        <div className="logo-section">
-          <h2 className="logo">MediLink</h2>
-        </div>
-
-        <nav className="navigation">
-          <ul className="nav-list">
-            <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon"><LayoutDashboard size={20} /></span>
-              <span className="nav-label">Dashboard</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon"><Stethoscope size={20} /></span>
-              <span className="nav-label">Manage Doctors</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/doctor-approvals')}>
-              <span className="nav-icon"><ShieldCheck size={20} /></span>
-              <span className="nav-label">Doctor Approvals</span>
-            </li>
-            <li className="nav-item nav-item-active" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon"><Users size={20} /></span>
-              <span className="nav-label">Manage Patients</span>
-              <span className="nav-arrow">›</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/reports')}>
-              <span className="nav-icon"><FileText size={20} /></span>
-              <span className="nav-label">Reports</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/settings')}>
-              <span className="nav-icon"><Settings size={20} /></span>
-              <span className="nav-label">Settings</span>
-            </li>
-          </ul>
-        </nav>
-
-        <button className="logout-btn" onClick={() => navigate('/login')}>
-          <span className="logout-icon"><LogOut size={20} /></span>
-          <span className="logout-text">Log Out</span>
-        </button>
-      </aside>
+      <AdminSidebar activeRoute="/manage-patients" />
 
       {/* Main Content */}
       <main className="main-content">

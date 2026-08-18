@@ -1,247 +1,293 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const path = require('path');
-const helmet = require('helmet');
+// mood-backend/server.js
 
-// Load environment variables
-dotenv.config();
+const http = require("http");
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const { Server } = require("socket.io");
+require("dotenv").config();
 
-// Import Configuration
-const { initializeDatabase, monitorDatabase } = require('./config/database');
-const { initializeEnvironment } = require('./config/environment');
-const corsOptions = require('./middleware/cors');
+const connectDB = require("./config/db");
 
-// Import Middleware
-const {
-  securityHeaders,
-  httpsRedirect,
-  removePoweredByHeader,
-  validateContentType
-} = require('./middleware/security');
-const { sanitizeRequest } = require('./middleware/sanitizer');
-const { apiLimiter } = require('./middleware/rateLimiter');
-const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
-const { httpRequestLogger } = require('./middleware/logger');
+const moodRoutes = require("./routes/moodRoutes");
+const authRoutes = require("./routes/authRoutes");
+const moodFixRoutes = require("./routes/moodFixRoutes");
+const labReportRoutes = require("./routes/labReportRoutes");
+const biomarkerRoutes = require("./routes/biomarkerRoutes");
+const reminderRoutes = require("./routes/reminderRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+const doctorRoutes = require("./routes/doctorRoutes");
+const { errorHandler } = require("./middlewares/errorMiddleware");
+const MoodFixActivity = require("./models/moodFixActivity");
+
+const videoRoutes = require("./routes/videoRoutes");
+const prescriptionRoutes = require("./routes/prescriptionRoutes");
+const patientHistoryRoutes = require("./routes/patientHistoryRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+const journalRoutes = require("./routes/journalRoutes");
+
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const adminDoctorRoutes = require("./routes/adminDoctorRoutes");
+const patientRoutes = require("./routes/patientRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const systemRoutes = require("./routes/systemRoutes");
+const adminNotificationRoutes = require("./routes/adminNotificationRoutes");
+const adminPaymentRoutes = require("./routes/adminPaymentRoutes");
+const adminSessionRoutes = require("./routes/adminSessionRoutes");
 
 const app = express();
+const server = http.createServer(app);
 
-// INITIALIZE ENVIRONMENT
+/* ==================
+   SOCKET.IO (video calls, live chat)
+================== */
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+});
 
-let config;
-try {
-  config = initializeEnvironment();
-} catch (error) {
-  console.error('Failed to initialize environment:', error.message);
-  process.exit(1);
-}
+// Attach io to app so controllers can emit events
+app.set("io", io);
 
-// MIDDLEWARE SETUP
+io.on("connection", (socket) => {
+  // Doctor joins a session room to listen for patient events
+  socket.on("join-session-room", ({ sessionId }) => {
+    if (sessionId) {
+      socket.join(`session:${sessionId}`);
+      console.log(`🔌 Socket joined room: session:${sessionId}`);
+    }
+  });
 
-// Security Middleware
-app.use(securityHeaders);
-app.use(httpsRedirect);
-app.use(removePoweredByHeader);
+  // Patient notifies that they have joined — doctor's WaitingRoom picks this up
+  socket.on("patient-joined", ({ sessionId, patientName }) => {
+    console.log(`🔔 patient-joined → session:${sessionId}, patient: ${patientName}`);
+    io.to(`session:${sessionId}`).emit("patient-joined", { sessionId, patientName });
+  });
 
-// CORS
-app.use(cors(corsOptions));
+  // Either side (doctor or patient) reports their own mic/cam on/off state
+  // so the other side's Participants panel can show it accurately.
+  socket.on("media-state", ({ sessionId, role, micOn, camOn }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit("media-state", { role, micOn, camOn });
+  });
 
-// Body Parser
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Doctor starting/stopping local recording — broadcast as a live banner
+  // event, not a chat message, so it doesn't pollute the conversation log.
+  socket.on("recording-status", ({ sessionId, recording }) => {
+    if (!sessionId) return;
+    socket.to(`session:${sessionId}`).emit("recording-status", { recording });
+  });
 
-// Static Files
-app.use(express.static(path.join(__dirname, 'public')));
+  // Doctor joins their own personal room once, on app load — so
+  // escalation-alert events reach them no matter which screen they're on.
+  socket.on("join-doctor-room", ({ doctorId }) => {
+    if (doctorId) {
+      socket.join(`doctor:${doctorId}`);
+      console.log(`🚨 Socket joined doctor room: doctor:${doctorId}`);
+    }
+  });
 
-// HTTP Request Logging
-app.use(httpRequestLogger);
+  // Doctor or patient joins a conversation room for real-time messages
+  socket.on("join-chat-room", ({ conversationId }) => {
+    if (conversationId) {
+      socket.join(`chat:${conversationId}`);
+      console.log(`💬 Socket joined chat room: chat:${conversationId}`);
+    }
+  });
 
-// Data Sanitization
-app.use(sanitizeRequest);
+  socket.on("leave-chat-room", ({ conversationId }) => {
+    if (conversationId) {
+      socket.leave(`chat:${conversationId}`);
+    }
+  });
 
-// Content Type Validation
-app.use(validateContentType);
+  socket.on("typing", ({ conversationId, role }) => {
+    socket.to(`chat:${conversationId}`).emit("typing", { conversationId, role });
+  });
 
-// Rate Limiting
-app.use(apiLimiter);
+  socket.on("stop-typing", ({ conversationId, role }) => {
+    socket.to(`chat:${conversationId}`).emit("stop-typing", { conversationId, role });
+  });
 
-// VIEW ENGINE SETUP
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+  socket.on("disconnect", () => {
+    console.log(`🔌 Socket disconnected: ${socket.id}`);
+  });
+});
 
-// DATABASE INITIALIZATION
+/* ==================
+   MIDDLEWARE
+================== */
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.resolve("uploads")));
 
-(async () => {
+/* ==================
+   ROUTES
+================== */
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "MediLink backend is running.",
+    docs:
+      "Use /api/moods, /api/mood-fix, /api/lab-reports, /api/biomarkers, /api/video, /api/chat, and /api/journals endpoints for data.",
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: "ok",
+  });
+});
+
+app.use("/api/moods", moodRoutes);
+app.use("/api/mood-fix", moodFixRoutes);
+app.use("/api/lab-reports", labReportRoutes);
+app.use("/api/biomarkers", biomarkerRoutes);
+app.use("/api/reminders", reminderRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/doctors", doctorRoutes);
+
+app.use("/api/wellness", require("./routes/WellnessRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/appointments", require("./routes/appointmentRoutes"));
+app.use("/api/payments", require("./routes/paymentRoutes"));
+app.use("/api/assessments", require("./routes/assessmentRoutes"));
+
+// Video call, chatbot, journals, patient history — dev-dilshari's features
+app.use("/api/video", videoRoutes);
+app.use("/api/prescriptions", prescriptionRoutes);
+app.use("/api/patient-history", patientHistoryRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/journals", journalRoutes);
+
+// Admin dashboard — dev-pavindu's feature. Mounted under /api/admin/* (not
+// /api/doctors etc.) because /api/doctors is already the patient-facing
+// booking directory; the admin doctor-management endpoints are a different
+// contract (pagination, verification workflow) living in adminDoctorRoutes.
+app.use("/api/admin/dashboard", dashboardRoutes);
+app.use("/api/admin/doctors", adminDoctorRoutes);
+app.use("/api/admin/patients", patientRoutes);
+app.use("/api/admin/reports", reportRoutes);
+app.use("/api/admin/system", systemRoutes);
+app.use("/api/admin/notifications", adminNotificationRoutes);
+app.use("/api/admin/payments", adminPaymentRoutes);
+app.use("/api/admin/sessions", adminSessionRoutes);
+
+// 404 for anything unmatched under /api
+app.use("/api", (req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+/* ==================
+   ERROR HANDLER
+================== */
+app.use(errorHandler);
+
+/* ==================
+   SERVER START
+================== */
+const PORT = process.env.PORT || 5000;
+
+const seedMoodFixActivities = async () => {
   try {
-    // Initialize Database
-    await initializeDatabase();
-
-    // Start Database Monitoring
-    monitorDatabase(config.dbMonitorInterval);
-
-    // IMPORT ROUTES
-
-    const apiRoutes = require('./routes/index');
-
-    // API ROUTES
-    app.use('/api', apiRoutes);
-
-    // VIEW ROUTES
-
-    // Dashboard
-    app.get('/', (req, res) => {
-      res.render('dashboard');
-    });
-
-    // Doctors Management
-    app.get('/manage-doctors', (req, res) => {
-      res.render('pages/doctors');
-    });
-
-    // Patients Management
-    app.get('/manage-patients', (req, res) => {
-      res.render('pages/patients');
-    });
-
-    // Reports & Analytics
-    app.get('/reports', (req, res) => {
-      res.render('pages/reports');
-    });
-
-    // Settings
-    app.get('/settings', (req, res) => {
-      res.render('pages/settings');
-    });
-
-    // ERROR HANDLING MIDDLEWARE
-
-    // 404 Not Found Handler
-    app.use(notFoundHandler);
-
-    // Global Error Handler
-    app.use(globalErrorHandler);
-
-    // START SERVER
-
-    const PORT = config.port;
-    const HOST = config.host;
-
-    const server = app.listen(PORT, HOST, () => {
-      console.log(`
-╔════════════════════════════════════════════════════════════════╗
-║                                                                ║
-║          MEDI-LINK MEDICAL MANAGEMENT SYSTEM                   ║
-║                      Server Started Successfully!              ║
-║                                                                ║
-╠════════════════════════════════════════════════════════════════╣
-║                                                                ║
-║  Server URL:     http://${HOST}:${PORT}                    
-║  API Docs:       http://${HOST}:${PORT}/api/docs            
-║  Health Check:   http://${HOST}:${PORT}/api/health         
-║  Database:       Connected ✅                             
-║  Environment:    ${config.nodeEnv}                          
-║  Started:        ${new Date().toLocaleString()}             
-║                                                                ║
-╠════════════════════════════════════════════════════════════════╣
-║                      API ENDPOINTS                              ║
-╠════════════════════════════════════════════════════════════════╣
-║                                                                ║
-║  Authentication:   /api/auth                               
-║  Dashboard:        /api/dashboard                           
-║  Doctors:          /api/doctors                            
-║  Patients:         /api/patients                            
-║  Appointments:     /api/appointments                        
-║  Reports:          /api/reports                            
-║  System:           /api/system                             
-║                                                                ║
-╚════════════════════════════════════════════════════════════════╝
-      `);
-
-      // Log startup information
-      console.log('\n Server Configuration:');
-      console.log('   Node Environment: ' + config.nodeEnv);
-      console.log('   Port: ' + PORT);
-      console.log('   API Version: ' + config.apiVersion);
-      console.log('   Max File Size: ' + (config.maxFileSize / 1024 / 1024) + 'MB');
-      console.log('   Log Level: ' + config.logLevel);
-      console.log('   Frontend URL: ' + config.frontendUrl);
-      console.log('\n Server is ready to accept requests!\n');
-    });
-
-    // GRACEFUL SHUTDOWN
-
-    // Handle SIGTERM signal
-    process.on('SIGTERM', async () => {
-      console.log('\n SIGTERM signal received: closing HTTP server');
-      
-      server.close(async () => {
-        console.log(' HTTP server closed');
-
-        try {
-          const { disconnectDB } = require('./config/database');
-          await disconnectDB();
-          console.log(' Database connection closed');
-        } catch (error) {
-          console.error(' Error disconnecting database:', error.message);
+    const count = await MoodFixActivity.estimatedDocumentCount();
+    if (count === 0) {
+      console.log("Seeding default mood-fix activities...");
+      const defaults = [
+        {
+          activityId: "breathing_1",
+          title: "Simple Breathing",
+          duration: "2 minutes",
+          difficulty: "easy",
+          focusTag: "breathing",
+          benefit: "Calm your nervous system",
+          description: "Follow a 4-4 breathing pattern to relax.",
+          moods: ["terrible", "sad", "okay", "good", "great"],
+          steps: [
+            "Find a comfortable seat",
+            "Inhale for 4 seconds",
+            "Hold for 4 seconds",
+            "Exhale for 4 seconds",
+            "Repeat for two minutes"
+          ],
+        },
+        {
+          activityId: "walk_1",
+          title: "Short Walk",
+          duration: "10 minutes",
+          difficulty: "easy",
+          focusTag: "movement",
+          benefit: "Increase circulation and shift perspective",
+          description: "Take a short mindful walk outdoors or inside.",
+          moods: ["sad", "okay", "good"],
+          steps: [
+            "Put on comfortable shoes",
+            "Walk at a relaxed pace",
+            "Notice your surroundings",
+            "Breathe deeply and return"
+          ],
+        },
+        {
+          activityId: "gratitude_1",
+          title: "Gratitude Pause",
+          duration: "3 minutes",
+          difficulty: "easy",
+          focusTag: "reflection",
+          benefit: "Shift attention to positive aspects",
+          description: "List three small things you're grateful for.",
+          moods: ["terrible", "sad", "okay"],
+          steps: ["Find a quiet moment", "List three things", "Reflect briefly on each"],
         }
+      ];
 
-        console.log(' Server shutdown complete\n');
-        process.exit(0);
-      });
+      await MoodFixActivity.insertMany(defaults, { ordered: false });
+      console.log("Default mood-fix activities seeded.");
+    } else {
+      console.log(`Mood-fix activities already present (${count} documents).`);
+    }
+  } catch (err) {
+    console.error("Failed to seed mood-fix activities:", err.message || err);
+  }
+};
 
-      // Force shutdown after 10 seconds
-      setTimeout(() => {
-        console.error('  Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000);
+const seedBiomarkers = async () => {
+  try {
+    const Biomarker = require("./models/biomarker");
+    const defaultBiomarkers = require("./utils/defaultBiomarkers");
+    console.log("Checking and seeding medical biomarkers...");
+    for (const bm of defaultBiomarkers) {
+      await Biomarker.findOneAndUpdate(
+        { name: bm.name },
+        { $set: bm },
+        { upsert: true, new: true }
+      );
+    }
+    console.log(`✅ Medical biomarkers seeded successfully (${defaultBiomarkers.length} documents).`);
+  } catch (err) {
+    console.error("Failed to seed biomarkers:", err.message || err);
+  }
+};
+
+const startServer = async () => {
+  try {
+    // Connect to DB first so we can seed data if necessary
+    await connectDB();
+    await seedMoodFixActivities();
+    await seedBiomarkers();
+
+    server.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`   WebSocket:       ws://localhost:${PORT}`);
     });
-
-    // Handle SIGINT signal (Ctrl+C)
-    process.on('SIGINT', async () => {
-      console.log('\n SIGINT signal received: closing HTTP server');
-
-      server.close(async () => {
-        console.log(' HTTP server closed');
-
-        try {
-          const { disconnectDB } = require('./config/database');
-          await disconnectDB();
-          console.log(' Database connection closed');
-        } catch (error) {
-          console.error(' Error disconnecting database:', error.message);
-        }
-
-        console.log(' Server shutdown complete\n');
-        process.exit(0);
-      });
-
-      // Force shutdown after 10 seconds
-      setTimeout(() => {
-        console.error('  Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000);
-    });
-
-    // Handle Uncaught Exceptions
-    process.on('uncaughtException', (error) => {
-      console.error(' Uncaught Exception:', error);
-      console.error('Stack:', error.stack);
-      process.exit(1);
-    });
-
-    // Handle Unhandled Promise Rejections
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error(' Unhandled Rejection at:', promise, 'reason:', reason);
-    });
-
-    // EXPORT APP FOR TESTING
-    module.exports = app;
-
   } catch (error) {
-    console.error('\n FATAL ERROR - Failed to start server:');
-    console.error('   Message:', error.message);
-    console.error('   Stack:', error.stack);
-    console.error('\n Server initialization failed\n');
+    console.error("❌ Server failed to start:", error);
     process.exit(1);
   }
-})();
+};
+
+startServer();

@@ -1,9 +1,9 @@
 const Report = require('../models/Report');
-const Appointment = require('../models/Appointment');
+const Appointment = require('../models/appointment');
 const Patient = require('../models/Patient');
-const Doctor = require('../models/Doctor');
+const Doctor = require('../models/doctor');
 const { NotFoundError, ValidationError } = require('../utils/errorHandler');
-const { logger } = require('../middleware/logger');
+const { logger } = require('../middlewares/logger');
 
 /**
  * Get all reports
@@ -160,7 +160,7 @@ exports.getAppointmentTrends = async (req, res, next) => {
 exports.getAppointmentStatus = async (req, res, next) => {
   try {
     const completed = await Appointment.countDocuments({ status: 'completed' });
-    const upcoming = await Appointment.countDocuments({ status: 'scheduled' });
+    const ongoing = await Appointment.countDocuments({ status: 'ongoing' });
     const cancelled = await Appointment.countDocuments({ status: 'cancelled' });
 
     logger.debug(`Appointment status retrieved`);
@@ -169,7 +169,7 @@ exports.getAppointmentStatus = async (req, res, next) => {
       success: true,
       data: {
         completed: completed,
-        upcoming: upcoming,
+        ongoing: ongoing,
         cancelled: cancelled
       }
     });

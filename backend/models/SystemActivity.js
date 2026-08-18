@@ -55,7 +55,7 @@ const activitySchema = new mongoose.Schema({
 
   resourceType: {
     type: String,
-    enum: ['User', 'Doctor', 'Patient', 'Appointment', 'Prescription', 'Report', 'System']
+    enum: ['User', 'Doctor', 'Patient', 'Appointment', 'Session', 'Prescription', 'Report', 'System']
   },
 
   resourceId: mongoose.Schema.Types.ObjectId,
