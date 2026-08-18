@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const Appointment = require('../models/appointment');
 const Payment = require('../models/payment');
-const Doctor = require('../models/Doctor');
+const Doctor = require('../models/doctor');
 const Notification = require('../models/notification');
 const DoctorSchedule = require('../models/doctorSchedule');
 

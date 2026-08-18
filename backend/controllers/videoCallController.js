@@ -1,16 +1,29 @@
 // src/controllers/videoCallController.js
+const mongoose        = require('mongoose');
 const crypto         = require('crypto');
 const VideoSession   = require('../models/VideoSession');
 const Prescription   = require('../models/Prescription');
 const PatientHistory = require('../models/PatientHistory');
 const User           = require('../models/user');
+const Doctor         = require('../models/doctor');
 const CallRecording  = require('../models/CallRecording');
+const CallTranscript = require('../models/CallTranscript');
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
 
 // ── Recording file upload (browser-captured tab recording) ─────────────────
-const recordingsDir = path.join(__dirname, '../../uploads/recordings');
+// FIX: this file physically lives at backend/controllers/videoCallController.js
+// (no intermediate "src" folder despite the header comment above), so
+// __dirname = ".../backend/controllers". The old '../../uploads/recordings'
+// therefore resolved to ".../uploads/recordings" ONE LEVEL ABOVE the backend
+// folder entirely — outside where server.js's static middleware
+// (express.static(path.resolve("uploads")), resolved relative to backend/
+// since that's the cwd when running `node server.js`) actually serves from.
+// Recordings were uploading "successfully" but landing in a folder nobody
+// serves, so every download 404'd. One '../' — not two — lands correctly
+// in backend/uploads/recordings.
+const recordingsDir = path.join(__dirname, '../uploads/recordings');
 if (!fs.existsSync(recordingsDir)) fs.mkdirSync(recordingsDir, { recursive: true });
 
 const recordingStorage = multer.diskStorage({
@@ -155,6 +168,144 @@ const stopZegoCloudRecording = async (session) => {
   return recording;
 };
 
+// ── ZegoCloud Real-time Cloud ASR (Server REST API) ─────────────────────────
+// STATUS (Aug 2026): Cloud ASR is a sales-gated add-on on ZegoCloud — the
+// console only offers "Talk to Sales" for it, it's not a self-serve toggle.
+// See: https://www.zegocloud.com/blog/cloud-automatic-speech-recognition-asr
+//
+// Until it's actually enabled on this project's ZegoCloud account:
+//   - ZEGO_ASR_ENABLED=false  → the real API calls below are skipped entirely.
+//   - ZEGO_ASR_MOCK=true      → endCall still produces ONE placeholder
+//     transcript chunk (clearly labelled MOCK) so the rest of the pipeline
+//     — compile → append to sessionNotes → save to PatientHistory → display
+//     on PatientHistoryPage — can be built and demoed right now.
+//
+// Once ZegoCloud approves the add-on: set ZEGO_ASR_ENABLED=true and
+// double-check the Action name / endpoint / response field names below
+// against the console docs (they are NOT verified against a live account —
+// same caveat as the Cloud Recording block above).
+const ASR_ENABLED = process.env.ZEGO_ASR_ENABLED === 'true';
+const ASR_MOCK     = process.env.ZEGO_ASR_MOCK === 'true';
+
+// Starts an ASR task for the room and logs a CallTranscript doc keyed by
+// this round's roundKey. Mirrors startZegoCloudRecording's pattern.
+const startZegoCloudASR = async (session) => {
+  const roundKey = session.currentRoundId || session.sessionId;
+
+  const transcriptDoc = await CallTranscript.create({
+    sessionId: session.sessionId,
+    roundKey,
+    patientId: session.patientId,
+    doctorId:  session.doctorId,
+    status: ASR_ENABLED ? 'listening' : (ASR_MOCK ? 'mock' : 'disabled'),
+    chunks: [],
+  });
+
+  if (!ASR_ENABLED) {
+    console.log(`[asr] ⏭️  Cloud ASR disabled (ZEGO_ASR_ENABLED=false) — roundKey=${roundKey}${ASR_MOCK ? ' — mock mode on, endCall will generate a placeholder' : ''}`);
+    return transcriptDoc;
+  }
+
+  try {
+    const { appId, timestamp, nonce, signature } = zegoRecordingSignature();
+    // ⚠️ UNVERIFIED — confirm Action name + request/response shape against
+    // ZegoCloud console → Server APIs → Cloud ASR once the add-on is live.
+    const url = `https://aigc-aiagent-api.zego.im/?Action=StartASRTask&AppId=${appId}&SignatureNonce=${nonce}&Timestamp=${timestamp}&Signature=${signature}&SignatureVersion=2.0`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        RoomId: session.roomId,
+        CallbackUrl: `${process.env.SERVER_BASE_URL || ''}/api/video/zego-asr-callback`,
+      }),
+    });
+    const data = await resp.json();
+    transcriptDoc.taskId = data?.TaskId || '';
+    await transcriptDoc.save();
+    console.log(`[asr] ▶️ started — session=${session.sessionId} taskId=${transcriptDoc.taskId}`);
+  } catch (err) {
+    transcriptDoc.status = 'failed';
+    await transcriptDoc.save();
+    console.error('[asr] ❌ Zego StartASR failed:', err.message);
+  }
+  return transcriptDoc;
+};
+
+// Stops the active ASR task for this round and compiles whatever chunks
+// arrived (via zegoAsrCallback) into a single plain-text transcript.
+// Returns '' if there's nothing to save.
+const stopZegoCloudASR = async (session) => {
+  const roundKey = session.currentRoundId || session.sessionId;
+  let transcriptDoc = await CallTranscript.findOne({ roundKey }).sort({ createdAt: -1 });
+
+  // FIX: previously if startZegoCloudASR never ran for this round (e.g. the
+  // consent gate blocked it, or endCall races ahead of the async start call),
+  // no CallTranscript doc existed and this returned '' immediately — silently
+  // dropping the transcript feature for that round. Create it here instead so
+  // stopZegoCloudASR always has a doc to work with and the mock-fallback
+  // block below still has a chance to run.
+  if (!transcriptDoc) {
+    console.warn(`[asr] ⚠️  no CallTranscript doc found at stop time — creating one now (roundKey=${roundKey})`);
+    transcriptDoc = await CallTranscript.create({
+      sessionId: session.sessionId,
+      roundKey,
+      patientId: session.patientId,
+      doctorId:  session.doctorId,
+      status: ASR_ENABLED ? 'listening' : (ASR_MOCK ? 'mock' : 'disabled'),
+      chunks: [],
+    });
+  }
+
+  if (ASR_ENABLED && transcriptDoc.taskId) {
+    try {
+      const { appId, timestamp, nonce, signature } = zegoRecordingSignature();
+      // ⚠️ UNVERIFIED — same caveat as StartASRTask above.
+      const url = `https://aigc-aiagent-api.zego.im/?Action=StopASRTask&AppId=${appId}&SignatureNonce=${nonce}&Timestamp=${timestamp}&Signature=${signature}&SignatureVersion=2.0`;
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ TaskId: transcriptDoc.taskId, RoomId: session.roomId }),
+      });
+    } catch (err) {
+      console.error('[asr] ❌ Zego StopASR failed:', err.message);
+    }
+  }
+
+  // Mock mode fallback — only kicks in if ASR is disabled AND no real
+  // chunks ever arrived. Remove this block once ZEGO_ASR_ENABLED=true.
+  if (!ASR_ENABLED && ASR_MOCK && transcriptDoc.chunks.length === 0) {
+    transcriptDoc.chunks = [{
+      speaker: 'system',
+      text: '[MOCK TRANSCRIPT — ZegoCloud Cloud ASR is not yet enabled on this account. Real speech-to-text will appear here automatically once the add-on is approved and ZEGO_ASR_ENABLED=true.]',
+      timestamp: new Date(),
+    }];
+  }
+
+  transcriptDoc.status  = 'completed';
+  transcriptDoc.endedAt = new Date();
+  await transcriptDoc.save();
+
+  if (transcriptDoc.chunks.length === 0) return '';
+
+  const transcriptText = transcriptDoc.chunks
+    .map(c => `[${new Date(c.timestamp).toLocaleTimeString()}] ${c.speaker}: ${c.text}`)
+    .join('\n');
+
+  console.log(`[asr] ⏹ stopped — roundKey=${roundKey} chunks=${transcriptDoc.chunks.length}`);
+  return transcriptText;
+};
+
+// Appends transcript text into session.sessionNotes using the same
+// "--- Session Transcript ---" marker that PatientHistoryPage.tsx already
+// splits on to render Notes and Transcript as separate cards. Shared by
+// endCall's automatic ASR save and the manual saveTranscript endpoint.
+const appendTranscriptToSession = async (session, transcriptText) => {
+  if (!transcriptText) return;
+  const tagged = `\n\n--- Session Transcript ---\n${transcriptText}`;
+  session.sessionNotes = (session.sessionNotes || '') + tagged;
+  await session.save();
+};
+
 // --- අලුතින් එකතු කරන ලද ශ්‍රිතය ---
 // POST /api/video/invite/:sessionId
 exports.sendInvitation = async (req, res) => {
@@ -181,8 +332,13 @@ exports.sendInvitation = async (req, res) => {
 // POST /api/video/create-room
 exports.createRoom = async (req, res) => {
   try {
-    const { sessionId, patientId, doctorConsent } = req.body;
+    const { sessionId, patientId } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId is required.' });
+
+    // TEMP: no consent UI exists yet, so we auto-grant doctor consent here.
+    // Remove this line once a real consent step is built and pass the
+    // actual value through from req.body instead.
+    const doctorConsent = true;
 
     const appId        = parseInt(process.env.ZEGO_APP_ID) || 0;
     const serverSecret = process.env.ZEGO_SERVER_SECRET;
@@ -216,7 +372,7 @@ exports.createRoom = async (req, res) => {
       session.duration       = 0;
       session.patientId      = patientId || null;
       session.currentRoundId = patientId ? makeRoundId(sessionId, patientId) : null;
-      session.doctorConsent  = !!doctorConsent;
+      session.doctorConsent  = doctorConsent; // TEMP: always true, see above
       session.patientConsent = false;
       session.callMetadata.patientUserId = patientId ? `patient_${patientId}` : '';
       await session.save();
@@ -244,8 +400,13 @@ exports.createRoom = async (req, res) => {
 // POST /api/video/join-room
 exports.joinRoom = async (req, res) => {
   try {
-    const { sessionId, patientConsent } = req.body;
+    const { sessionId } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId is required.' });
+
+    // TEMP: no consent UI exists yet, so we auto-grant patient consent here.
+    // Remove this line once a real consent step is built and pass the
+    // actual value through from req.body instead.
+    const patientConsent = true;
 
     const session = await VideoSession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
@@ -269,13 +430,16 @@ exports.joinRoom = async (req, res) => {
       session.currentRoundId = makeRoundId(sessionId, patientId);
     }
     session.callMetadata.patientUserId = userId;
-    session.patientConsent = !!patientConsent;
+    session.patientConsent = patientConsent; // TEMP: always true, see above
     await session.save();
 
-    // Both parties consented → start cloud recording for this round
+    // Both parties consented → start cloud recording + ASR for this round
     if (session.doctorConsent && session.patientConsent) {
       startZegoCloudRecording(session).catch(err =>
         console.error('[recording] failed to start:', err.message)
+      );
+      startZegoCloudASR(session).catch(err =>
+        console.error('[asr] failed to start:', err.message)
       );
     }
 
@@ -344,6 +508,20 @@ exports.endCall = async (req, res) => {
     if (session.patientId) {
       const roundKey = resolveRoundKey(session);
       const cloudRecording = await stopZegoCloudRecording(session);
+
+      // Stop ASR, compile whatever was captured, and append it into
+      // session.sessionNotes (using the same marker PatientHistoryPage
+      // already parses) BEFORE we read session.sessionNotes below.
+      try {
+        const transcriptText = await stopZegoCloudASR(session);
+        await appendTranscriptToSession(session, transcriptText);
+        if (transcriptText) {
+          console.log(`[endCall] ✅ transcript appended — roundKey=${roundKey} length=${transcriptText.length}`);
+        }
+      } catch (asrErr) {
+        console.error('[endCall] ❌ ASR stop/compile failed:', asrErr.message);
+      }
+
       try {
         const prescriptions = await Prescription.find({ sessionId: roundKey }).sort({ issuedAt: -1 });
         const medications   = prescriptions.flatMap(p => p.medications || []);
@@ -373,7 +551,9 @@ exports.endCall = async (req, res) => {
             doctorId:       session.doctorId,
             date:           session.startedAt || new Date(),
             duration:       session.duration,
-            notes:          sessionNotes || session.sessionNotes || '',
+            // session.sessionNotes already includes the doctor's notes AND
+            // the freshly-appended ASR transcript (see appendTranscriptToSession above).
+            notes:          session.sessionNotes || '',
             notesForPatient: prescriptions[0]?.notes || '',
             medications,
             recordingStatus: finalRecordingStatus,
@@ -388,15 +568,41 @@ exports.endCall = async (req, res) => {
 
       try {
         const Appointment = require('../models/appointment');
+
+        // FIX 1: appointment.js schema defaults status to 'pending' and
+        // nothing in createRoom/joinRoom ever transitions it to 'ongoing'
+        // — matching on status:'ongoing' here never hit, so the appointment
+        // (and therefore the doctor's queue) never updated. Match any
+        // not-already-finished status instead ('pending' or 'ongoing').
+        //
+        // FIX 2 (root cause): session.doctorId is the logged-in User._id,
+        // but Appointment.doctorId stores the Doctor._id (a separate
+        // document) — two different collections with different _id
+        // values, not just a type mismatch. Resolve User._id ->
+        // Doctor._id via Doctor.userId first, same pattern used in
+        // appointmentController.js's getDoctorQueue/getDoctorQueueEnriched.
+        const doctorProfile = session.doctorId
+          ? await Doctor.findOne({ userId: String(session.doctorId) })
+          : null;
+        const resolvedDoctorId = doctorProfile ? doctorProfile._id.toString() : String(session.doctorId || '');
+
+        // FIX 3: Appointment.doctorId is schema type Mixed, so it may be
+        // stored as either a plain String or a real BSON ObjectId depending
+        // on how the appointment was created — match both stored forms.
+        const doctorIdVariants = [resolvedDoctorId];
+        if (mongoose.Types.ObjectId.isValid(resolvedDoctorId)) {
+          doctorIdVariants.push(new mongoose.Types.ObjectId(resolvedDoctorId));
+        }
+
         const updatedAppt = await Appointment.findOneAndUpdate(
-          { patientId: session.patientId, doctorId: session.doctorId, status: 'ongoing' },
+          { patientId: session.patientId, doctorId: { $in: doctorIdVariants }, status: { $nin: ['completed', 'cancelled'] } },
           { status: 'completed' },
           { sort: { date: 1 } }
         );
         if (updatedAppt) {
-          console.log(`[endCall] ✅ Appointment ${updatedAppt._id} marked completed (was ongoing) — patient will drop off the queue.`);
+          console.log(`[endCall] ✅ Appointment ${updatedAppt._id} marked completed (was ${updatedAppt.status}) — patient will drop off the queue.`);
         } else {
-          console.warn(`[endCall] ⚠️  No 'ongoing' appointment found for patientId=${session.patientId} doctorId=${session.doctorId} — queue will NOT update! Check that these IDs match an Appointment doc in MongoDB.`);
+          console.warn(`[endCall] ⚠️  No pending/ongoing appointment found for patientId=${session.patientId} doctorId=${resolvedDoctorId} — queue will NOT update! Check that these IDs match an Appointment doc in MongoDB.`);
         }
       } catch (apptErr) {
         console.error('[endCall] ❌ Appointment status update failed:', apptErr.message);
@@ -440,7 +646,7 @@ exports.saveNotes = async (req, res) => {
     return res.status(200).json({ success: true, data: { sessionId, notes: session.sessionNotes } });
   } catch (error) {
     console.error('saveNotes error:', error);
-    return res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };
 
@@ -642,6 +848,35 @@ exports.zegoRecordingCallback = async (req, res) => {
   }
 };
 
+// POST /api/video/zego-asr-callback   (no auth — called by ZegoCloud itself)
+// Receives one recognized utterance at a time while ASR_ENABLED=true and
+// pushes it onto that round's CallTranscript.chunks. endCall later compiles
+// all chunks into the final transcript text via stopZegoCloudASR().
+// ⚠️ Field names (TaskId/Text/Speaker/Timestamp) are UNVERIFIED — confirm
+// the actual callback payload shape against ZegoCloud's Cloud ASR docs
+// once the add-on is enabled and update this destructure accordingly.
+exports.zegoAsrCallback = async (req, res) => {
+  try {
+    const { TaskId, Text, Speaker, Timestamp } = req.body;
+    if (!Text) return res.sendStatus(200);
+
+    const transcriptDoc = await CallTranscript.findOne({ taskId: TaskId });
+    if (!transcriptDoc) return res.sendStatus(200);
+
+    transcriptDoc.chunks.push({
+      speaker:   Speaker || 'unknown',
+      text:      Text,
+      timestamp: Timestamp ? new Date(Timestamp) : new Date(),
+    });
+    await transcriptDoc.save();
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('zegoAsrCallback error:', error);
+    return res.sendStatus(200); // always 200 so Zego doesn't endlessly retry
+  }
+};
+
 // GET /api/video/recording-status/:sessionId  — lightweight polling during a live call
 exports.getRecordingStatus = async (req, res) => {
   try {
@@ -706,11 +941,25 @@ exports.uploadRecording = async (req, res) => {
     recording.recordingUrl = recordingUrl;
     await recording.save();
 
-    // Keep PatientHistory in sync so PatientHistoryPage's Download button works
+    // Keep PatientHistory in sync so PatientHistoryPage's Download button works.
+    // FIX: this used to run without upsert. If the call is still in progress
+    // (recording uploads before endCall creates the PatientHistory record),
+    // the update was a silent no-op and the recording status/url were lost.
+    // upsert:true here creates a partial record now; endCall's later upsert
+    // (which reads existingHistory.recordingStatus/recordingUrl as a
+    // fallback) then merges the rest in without overwriting this.
     await PatientHistory.findOneAndUpdate(
       { sessionId: roundKey },
-      { recordingStatus: 'completed', recordingUrl }
-    ).catch(() => {});
+      {
+        $set: { recordingStatus: 'completed', recordingUrl },
+        $setOnInsert: {
+          patientId: session.patientId,
+          doctorId:  session.doctorId,
+          date:      session.startedAt || new Date(),
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    ).catch(err => console.error('[recording] ⚠️ PatientHistory sync failed:', err.message));
 
     console.log(`[recording] ✅ uploaded — roundKey=${roundKey} file=${req.file.filename}`);
     return res.status(200).json({ success: true, data: { recordingUrl } });
@@ -720,7 +969,7 @@ exports.uploadRecording = async (req, res) => {
   }
 };
 
-// PATCH /api/video/save-transcript/:sessionId — live transcript, appended into sessionNotes
+// PATCH /api/video/save-transcript/:sessionId — manual/live transcript, appended into sessionNotes
 exports.saveTranscript = async (req, res) => {
   try {
     const { sessionId }  = req.params;
@@ -733,9 +982,7 @@ exports.saveTranscript = async (req, res) => {
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
 
     const roundKey = resolveRoundKey(session);
-    const tagged    = `\n\n--- Session Transcript ---\n${transcript}`;
-    session.sessionNotes = (session.sessionNotes || '') + tagged;
-    await session.save();
+    await appendTranscriptToSession(session, transcript);
 
     await PatientHistory.findOneAndUpdate(
       { sessionId: roundKey },

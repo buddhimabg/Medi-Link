@@ -1,5 +1,6 @@
+const mongoose = require('mongoose');
 const Appointment = require('../models/appointment');
-const Doctor = require('../models/Doctor');
+const Doctor = require('../models/doctor');
 const User = require('../models/user');
 const DoctorSchedule = require('../models/doctorSchedule');
 
@@ -83,6 +84,7 @@ const createAppointment = async (req, res) => {
     // 4. Create appointment in 'Pending' state
     const appointment = await Appointment.create({
       userId,
+      patientId: userId,
       doctorId,
       doctorName: doctorName || doctor.name,
       specialty: specialty || doctor.specialty,
@@ -90,8 +92,10 @@ const createAppointment = async (req, res) => {
       type,
       imageUrl: imageUrl || doctor.photo || doctor.imageUrl,
       slot,
+      date: parseSlotStringToDate(slot), // FIX: was missing — caused "Invalid Date" in doctor's queue
       amount,
-      paymentStatus: 'Pending'
+      paymentStatus: 'Pending',
+      status: 'ongoing' 
     });
 
     // 5. Generate PayHere payload using service
@@ -356,10 +360,141 @@ const confirmPayment = async (req, res) => {
   }
 };
 
+// ── Doctor's video-call queue (used by VideoCall PreCallSetup / WaitingRoom) ──
+
+// GET /api/appointments/doctor  — raw ongoing appointments for this doctor
+const getDoctorQueue = async (req, res) => {
+  try {
+    // FIX 1: req.user.id is the logged-in User._id, but Appointment.doctorId
+    // stores the Doctor._id (a separate collection/document). Resolve
+    // User._id -> Doctor._id first via the Doctor.userId link.
+    const userId = req.user?.id?.toString();
+    const doctorProfile = await Doctor.findOne({ userId });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: 'Doctor profile not found for this account.' });
+    }
+    const doctorId = doctorProfile._id.toString();
+
+    // FIX 2: Appointment.doctorId is schema type Mixed, so it may be stored
+    // as either a plain String or a real BSON ObjectId depending on how the
+    // document was created. A string query only matches string-stored docs,
+    // so we match both stored forms with $or.
+    const doctorObjectId = new mongoose.Types.ObjectId(doctorId);
+    const appointments = await Appointment.find({
+      $or: [{ doctorId }, { doctorId: doctorObjectId }],
+      status: 'ongoing',
+    }).sort({ date: 1 });
+
+    return res.status(200).json({ success: true, data: appointments });
+  } catch (error) {
+    console.error('getDoctorQueue error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// GET /api/appointments/doctor/queue  — enriched queue with patient names
+// FIX: only resolves users whose role is 'patient'. An appointment whose
+// patientId points to a non-patient account (e.g. a doctor test account
+// used to test the booking flow) is skipped instead of showing up as a
+// waiting patient.
+const getDoctorQueueEnriched = async (req, res) => {
+  try {
+    // FIX 1: same User._id -> Doctor._id resolution as getDoctorQueue above.
+    const userId = req.user?.id?.toString();
+    const doctorProfile = await Doctor.findOne({ userId });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: 'Doctor profile not found for this account.' });
+    }
+    const doctorId = doctorProfile._id.toString();
+
+    // FIX 2: doctorId is stored as either String or ObjectId (schema type
+    // Mixed) depending on how the appointment was created, so match both.
+    const doctorObjectId = new mongoose.Types.ObjectId(doctorId);
+    const appointments = await Appointment.find({
+      $or: [{ doctorId }, { doctorId: doctorObjectId }],
+      status: 'ongoing',
+    }).sort({ date: 1 });
+
+    const patientIds = [...new Set(appointments.map(a => a.patientId))];
+    const users = await User.find({ _id: { $in: patientIds }, role: 'patient' }, 'name');
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u.name; });
+
+    const enriched = appointments
+      .filter(a => userMap[a.patientId])
+      .map(a => ({
+        _id:            a._id,
+        patientId:      a.patientId,
+        patientName:    userMap[a.patientId],
+        patientInitial: userMap[a.patientId].charAt(0).toUpperCase(),
+        sessionId:      null,
+        notes:          a.notes || '',
+        status:         a.status,
+        date:           a.date,
+      }));
+
+    return res.status(200).json({ success: true, data: enriched });
+  } catch (error) {
+    console.error('getDoctorQueueEnriched error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// GET /api/appointments/today-summary  — today's completed video-call sessions
+const getTodaysCompletedSessions = async (req, res) => {
+  try {
+    const doctorId = req.user?.id?.toString();
+    const PatientHistory = require('../models/PatientHistory');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const sessions = await PatientHistory.find({
+      doctorId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+    }).sort({ date: -1 });
+
+    const patientIds = [...new Set(sessions.map(s => s.patientId))];
+    const patients = await User.find({ _id: { $in: patientIds } }, 'name');
+    const nameMap = Object.fromEntries(patients.map(p => [p._id.toString(), p.name]));
+
+    const enriched = sessions.map(s => ({
+      id:              s._id,
+      patientId:       s.patientId,
+      patientName:     nameMap[s.patientId] || 'Unknown Patient',
+      date:            s.date,
+      duration:        s.duration,
+      notes:           s.notes,
+      notesForPatient: s.notesForPatient || '',
+      medications:     s.medications || [],
+      moodLabel:       s.moodLabel,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        date: startOfDay,
+        totalSessions: enriched.length,
+        totalDuration: enriched.reduce((sum, s) => sum + (s.duration || 0), 0),
+        totalPrescriptions: enriched.reduce((sum, s) => sum + (s.medications?.length || 0), 0),
+        sessions: enriched,
+      },
+    });
+  } catch (error) {
+    console.error('getTodaysCompletedSessions error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
   createAppointment,
   getAppointments,
   cancelAppointment,
   rescheduleAppointment,
-  confirmPayment
+  confirmPayment,
+  getDoctorQueue,
+  getDoctorQueueEnriched,
+  getTodaysCompletedSessions
 };

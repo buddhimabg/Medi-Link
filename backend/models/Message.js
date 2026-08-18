@@ -22,15 +22,31 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type:     String,
-      required: true,
+      required: function () { return !this.attachmentUrl; },
+      default:  '',
     },
     // normal = doctor typed manually
     // ai-auto = Claude API replied automatically
     // faq     = FAQ library keyword match replied
+    // attachment = file/photo upload
     type: {
       type:    String,
-      enum:    ['normal', 'ai-auto', 'faq', 'escalation'],
+      enum:    ['normal', 'ai-auto', 'faq', 'escalation', 'attachment'],
       default: 'normal',
+    },
+    // File/photo attachment (optional) — served from /uploads/<filename>
+    attachmentUrl: {
+      type:    String,
+      default: null,
+    },
+    attachmentName: {
+      type:    String,
+      default: null,
+    },
+    // Original mimetype, e.g. 'image/png', 'application/pdf'
+    attachmentType: {
+      type:    String,
+      default: null,
     },
     // Bot reply ලේ AI confidence percentage (0-100)
     aiConfidence: {

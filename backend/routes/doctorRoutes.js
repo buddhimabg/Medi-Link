@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const Doctor = require('../models/Doctor'); 
+const Doctor = require('../models/doctor'); 
 const DoctorSchedule = require('../models/doctorSchedule');
 
 // GET /api/doctors

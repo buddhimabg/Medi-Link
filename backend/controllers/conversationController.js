@@ -5,7 +5,11 @@ const User             = require('../models/user');
 const PatientHistory   = require('../models/PatientHistory');
 const Broadcast        = require('../models/Broadcast');
 const VideoSession     = require('../models/VideoSession');
+const Doctor           = require('../models/doctor');
+const Appointment      = require('../models/appointment');
 const { triggerAutoReply, checkEscalation } = require('./botController');
+
+const { getChanneledPatientIds } = require('../utils/channeledPatients');
 
 // ─────────────────────────────────────────────────────────────
 // Helper — enrich conversation list with patient user info
@@ -36,7 +40,16 @@ exports.getRecentMessages = async (req, res) => {
     const doctorId = req.user.id;
     const limit     = Math.min(50, parseInt(req.query.limit) || 10);
 
-    const conversations = await Conversation.find({ doctorId, isArchived: false })
+    const channeledIds = await getChanneledPatientIds(doctorId);
+    if (!channeledIds.length) {
+      return res.status(200).json({ success: true, messages: [] });
+    }
+
+    const conversations = await Conversation.find({
+      doctorId,
+      isArchived: false,
+      patientId: { $in: channeledIds.map(id => id.toString()) },
+    })
       .sort({ lastMessageAt: -1 })
       .limit(limit)
       .lean();
@@ -155,14 +168,43 @@ exports.getPatientProfile = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/chat/patients
-// System එකේ registered patients ok list — "New Message" screen එකේ
-// doctor ට patient කෙනෙක් සොයාගෙන අලුත් conversation ekක් පටන් ගන්න.
-// (existing conversation එකක් තිබුනත් නැතත් — every registered patient)
+// "New Message" screen එකේ doctor ට පෙන්නන්නේ — logged-in doctor
+// **channel කරගත්** (Paid appointment tibba) patients විතරයි.
+// System එකේ සියලුම registered patients නෙවෙයි — වෙන doctorලාගේ
+// patients මෙතන නොපෙන්වන්න මේ scoping එක essential.
+//
+// Side-effect: මේ channeled patient හැමෝටම දැනටමත් Conversation
+// thread එකක් නැත්නම් auto-create කරනවා — patient side chat eken
+// mulinma vත් doctor ta message send karanna kalin, patient ta
+// "e doctor ekka chat ekak thiyenawa" pennanna.
 // ─────────────────────────────────────────────────────────────
 exports.getAllPatients = async (req, res) => {
   try {
-    const patients = await User.find({ role: 'patient' }, 'name email phone')
-      .sort({ name: 1 });
+    const doctorUserId  = req.user.id;
+    const patientIds    = await getChanneledPatientIds(doctorUserId);
+
+    if (!patientIds.length) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const patients = await User.find(
+      { _id: { $in: patientIds }, role: 'patient' },
+      'name email phone'
+    ).sort({ name: 1 });
+
+    // Channeled patient hæmoṭama conversation thread ekk ensure karanawa
+    // (upsert — dæniṭamat thiyenawa nam duplicate hadanne næ, index eka
+    // { doctorId, patientId } unique nisa).
+    await Promise.all(
+      patients.map(p =>
+        Conversation.findOneAndUpdate(
+          { doctorId: doctorUserId, patientId: p._id.toString() },
+          { $setOnInsert: { doctorId: doctorUserId, patientId: p._id.toString() } },
+          { upsert: true }
+        ).catch(() => null) // race condition edge-case eka silently ignore
+      )
+    );
+
     return res.status(200).json({ success: true, data: patients });
   } catch (error) {
     console.error('❌ getAllPatients error:', error);
@@ -176,11 +218,17 @@ exports.getAllPatients = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.getConversations = async (req, res) => {
   try {
-    const doctorId = req.user.id;
+    const doctorId  = req.user.id;
+    const patientIds = await getChanneledPatientIds(doctorId);
+
+    if (!patientIds.length) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
     const conversations = await Conversation.find({
       doctorId,
       isArchived: false,
+      patientId: { $in: patientIds.map(id => id.toString()) },
     }).sort({ lastMessageAt: -1 });
 
     const enriched = await enrichConversations(conversations);
@@ -193,6 +241,96 @@ exports.getConversations = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// Helper — patient (User._id) kenekta channel wela (Paid appointment
+// tibba) doctor(la)ge User._id list eka hoyaganwa. Appointment.doctorId
+// eka Doctor(directory) collection ekee _id ekක් nisa, Doctor.userId
+// harahama bridge karanawa (getChanneledPatientIds ekee reverse eka).
+// ─────────────────────────────────────────────────────────────
+const getChanneledDoctorUserIds = async (patientId) => {
+  const appointments = await Appointment.find(
+    { userId: patientId, paymentStatus: 'Paid' },
+    'doctorId'
+  ).lean();
+  const doctorProfileIds = [...new Set(appointments.map(a => a.doctorId.toString()))];
+  if (!doctorProfileIds.length) return [];
+
+  const doctorProfiles = await Doctor.find(
+    { _id: { $in: doctorProfileIds } },
+    'userId'
+  ).lean();
+  return doctorProfiles.filter(d => d.userId).map(d => d.userId.toString());
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/chat/my-conversations
+// Patient side — mema patient ta connect wela thiyena conversations
+// okkoma (doctor(la) ekka), doctor name/specialty ekka enrich karala.
+// Channel wela (Paid appointment) ath doctor kenekta Conversation
+// record ekak thama nathnam, methanadi auto-create karanawa — ithin
+// doctor kenek chat eka mulinma nopathala unath, patient ta e doctor
+// ekka message ekak yawanna puluwan.
+// ─────────────────────────────────────────────────────────────
+exports.getMyConversations = async (req, res) => {
+  try {
+    const patientId = req.user.id;
+
+    const channeledDoctorIds = await getChanneledDoctorUserIds(patientId);
+    if (channeledDoctorIds.length) {
+      await Promise.all(
+        channeledDoctorIds.map(doctorId =>
+          Conversation.findOneAndUpdate(
+            { doctorId, patientId },
+            { $setOnInsert: { doctorId, patientId } },
+            { upsert: true }
+          ).catch(() => null)
+        )
+      );
+    }
+
+    const conversations = await Conversation.find({
+      patientId,
+      isArchived: false,
+      doctorId: { $in: channeledDoctorIds },
+    }).sort({ lastMessageAt: -1 });
+
+    const doctorIds = conversations.map(c => c.doctorId);
+    const doctors = await User.find(
+      { _id: { $in: doctorIds } },
+      'name email'
+    ).lean();
+    const doctorProfiles = await Doctor.find(
+      { userId: { $in: doctorIds } },
+      'userId specialty photo'
+    ).lean();
+
+    const doctorMap = Object.fromEntries(doctors.map(d => [d._id.toString(), d]));
+    const profileMap = Object.fromEntries(
+      doctorProfiles.map(p => [p.userId.toString(), p])
+    );
+
+    const enriched = conversations.map(c => {
+      const doc = doctorMap[c.doctorId] || { name: 'Unknown Doctor' };
+      const profile = profileMap[c.doctorId] || {};
+      return {
+        ...c.toObject(),
+        doctor: {
+          _id:       c.doctorId,
+          name:      doc.name,
+          email:     doc.email,
+          specialty: profile.specialty || '',
+          photo:     profile.photo || null,
+        },
+      };
+    });
+
+    return res.status(200).json({ success: true, data: enriched });
+  } catch (error) {
+    console.error('❌ getMyConversations error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
 // GET /api/chat/conversations/with/:patientId
 // Patient id දෙනවා — existing conversation හොයනවා, නැත්නම් හදනවා
 // ─────────────────────────────────────────────────────────────
@@ -200,6 +338,17 @@ exports.getOrCreateConversation = async (req, res) => {
   try {
     const doctorId  = req.user.id;
     const { patientId } = req.params;
+
+    // Doctor ta channel wela na patient kenekta conversation ekak
+    // create wenna denne na — direct API call ekakin try kalath.
+    const channeledIds = await getChanneledPatientIds(doctorId);
+    const isChanneled = channeledIds.map(id => id.toString()).includes(patientId.toString());
+    if (!isChanneled) {
+      return res.status(403).json({
+        success: false,
+        message: 'This patient has not booked an appointment with you.',
+      });
+    }
 
     let conversation = await Conversation.findOne({ doctorId, patientId });
 
@@ -266,6 +415,18 @@ exports.getMessages = async (req, res) => {
     const limit   = Math.min(100, parseInt(req.query.limit) || 30);
     const skip    = (page - 1) * limit;
 
+    // Mema conversation eke ekක් pakshaya (doctor hoi patient) witharayi
+    // messages balanna denne — anith kenekge conversation ekakata id ekk
+    // dala try kalath hariyanna epa.
+    const conversation = await Conversation.findById(id, 'doctorId patientId');
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation not found.' });
+    }
+    const userId = req.user.id.toString();
+    if (conversation.doctorId !== userId && conversation.patientId !== userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this conversation.' });
+    }
+
     const [messages, total] = await Promise.all([
       Message.find({ conversationId: id })
         .sort({ createdAt: -1 })
@@ -292,6 +453,62 @@ exports.getMessages = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// POST /api/chat/conversations/:id/attachment
+// Doctor hoi Patient — file/photo ekk chat ekata attach karanawa.
+// multer (uploadMiddleware) eken req.file eka set wela one — routes
+// eke wired karala thiyenne.
+// ─────────────────────────────────────────────────────────────
+exports.sendAttachment = async (req, res) => {
+  try {
+    const { id }      = req.params;
+    const { caption } = req.body;
+    const senderId    = req.user.id;
+    const senderRole  = req.user.role === 'doctor' ? 'doctor' : 'patient';
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation not found.' });
+    }
+    if (conversation.doctorId !== senderId.toString() && conversation.patientId !== senderId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to send messages in this conversation.' });
+    }
+
+    const message = await Message.create({
+      conversationId:  id,
+      senderId,
+      senderRole,
+      text:            (caption || '').trim(),
+      type:            'attachment',
+      attachmentUrl:   `/uploads/${req.file.filename}`,
+      attachmentName:  req.file.originalname,
+      attachmentType:  req.file.mimetype,
+    });
+
+    const previewText = req.file.mimetype.startsWith('image/') ? '📷 Photo' : `📎 ${req.file.originalname}`;
+    await Conversation.findByIdAndUpdate(id, {
+      lastMessage:    caption?.trim() || previewText,
+      lastMessageAt:  new Date(),
+      lastSenderRole: senderRole,
+      ...(senderRole === 'doctor' ? { unreadCount: 0 } : { $inc: { unreadCount: 1 } }),
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`chat:${id}`).emit('new-message', { conversationId: id, message });
+    }
+
+    return res.status(201).json({ success: true, data: message });
+  } catch (error) {
+    console.error('❌ sendAttachment error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/chat/conversations/:id/messages
 // Doctor හෝ Patient message send කරනවා
 // Body: { text, senderRole? }
@@ -310,6 +527,9 @@ exports.sendMessage = async (req, res) => {
     const conversation = await Conversation.findById(id);
     if (!conversation) {
       return res.status(404).json({ success: false, message: 'Conversation not found.' });
+    }
+    if (conversation.doctorId !== senderId.toString() && conversation.patientId !== senderId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to send messages in this conversation.' });
     }
 
     // Patient eken message ekක් ewoth — e kalinma doctor/bot ekaー unread

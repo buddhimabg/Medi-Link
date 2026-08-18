@@ -19,6 +19,8 @@ const ReportAnalysisPage = React.lazy(() => import("./pages/ReportAnalysisPage")
 const ReportDetailPage = React.lazy(() => import("./pages/ReportDetailPage"));
 const NotificationsPage = React.lazy(() => import("./pages/NotificationsPage"));
 const RemindersPage = React.lazy(() => import("./pages/RemindersPage"));
+const PatientJournalsPage = React.lazy(() => import("./pages/PatientJournalsPage"));
+const PatientJournalArticlePage = React.lazy(() => import("./pages/PatientJournalArticlePage"));
 
 // Doctor portal (video calls, chatbot, journals) — dev-dilshari's feature set
 const VideoCallScreen = React.lazy(() => import("./pages/VideoCall/VideoCallScreen"));
@@ -33,6 +35,7 @@ import LandingPage from "./pages/landingpage";
 import LoginPage from "./pages/loginPage";
 import RegisterPage from "./pages/registerpage";
 import Patientdashboard from "./pages/patientDashboard";
+import PatientChatPage from "./pages/PatientChat/PatientChatPage";
 import BookAppointment from "./pages/bookAppointment";
 import WellnessHub from "./pages/WellnessHub";
 import Assessments from "./pages/assessments"; // Added mental health assessments page
@@ -135,6 +138,7 @@ const App: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard" element={<Patientdashboard />} />
+          <Route path="/messages" element={<PatientChatPage />} />
           <Route path="/bookAppointment" element={<BookAppointment />} />
           <Route path="/history" element={<AppointmentHistory />} />
           <Route path="/Wellnesshub" element={<WellnessHub />} />
@@ -236,16 +240,9 @@ const App: React.FC = () => {
             }
           />
 
-          <Route
-            path="/journal"
-            element={
-              <FeaturePage
-                activePage="Journal Reading"
-                title="Journal Reading"
-                description="Explore articles, notes, and recommended readings in your workspace."
-              />
-            }
-          />
+          {/* Journal Reading — patient-side read-only view of doctor-published articles */}
+          <Route path="/journal" element={<PatientJournalsPage />} />
+          <Route path="/journal/:id" element={<PatientJournalArticlePage />} />
 
           <Route
             path="/settings"
