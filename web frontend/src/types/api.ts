@@ -5,6 +5,15 @@ export type { CallData }
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api'
 
+// FIX: recordingUrl (and any other /uploads/... path) is a relative path
+// served by the backend's static file middleware, NOT under /api. Pages
+// that render it in an <a href> need the bare server origin, not the
+// frontend's own origin (Vite dev server), or the browser resolves it
+// against localhost:5173 and gets Vite's SPA fallback HTML instead of
+// the actual file. Export this so any page can build a full download URL:
+// `${SERVER_ORIGIN}${recordingUrl}`
+export const SERVER_ORIGIN = BASE.replace(/\/api\/?$/, '')
+
 // ── Token helpers ──────────────────────────────────────────────────────────
 export const getToken = (): string =>
   localStorage.getItem('medilink_token') ?? ''
@@ -59,6 +68,36 @@ async function request<T>(
 
   const json = await res.json()
   if (!json.success) throw new Error(json.message ?? 'Request failed')
+  return json.data as T
+}
+
+// ── Multipart upload helper (for chat file/photo attachments) ──────────────
+async function requestUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  // NOTE: Content-Type ekak set karanne na — browser eka FormData ekakata
+  // boundary ekakma add karanne, dala nathnam multer eken parse wenne na.
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = '/login';
+    throw new Error('Unauthorized: Session expired or invalid token.');
+  }
+
+  const contentType = res.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Backend not reachable (HTTP ${res.status}).`)
+  }
+
+  const json = await res.json()
+  if (!json.success) throw new Error(json.message ?? 'Upload failed')
   return json.data as T
 }
 
@@ -368,11 +407,14 @@ export interface MessageRecord {
   senderId:       string
   senderRole:     'doctor' | 'patient' | 'bot'
   text:           string
-  type:           'normal' | 'ai-auto' | 'faq' | 'escalation'
+  type:           'normal' | 'ai-auto' | 'faq' | 'escalation' | 'attachment'
   aiConfidence?:  number
   isRead:         boolean
   isEscalated?:   boolean
   createdAt:      string
+  attachmentUrl?:  string
+  attachmentName?: string
+  attachmentType?: string
   faqId?: {
     question: string
     category: string
@@ -380,6 +422,26 @@ export interface MessageRecord {
 }
 
 export type ConversationMessage = MessageRecord
+
+// Patient side — a conversation thread enriched with the doctor's info
+// (mirror of ConversationRecord, which is enriched with `patient` instead)
+export interface PatientConversationRecord {
+  _id:            string
+  patientId:      string
+  doctorId:       string
+  lastMessage:    string
+  lastMessageAt:  string
+  lastSenderRole: 'doctor' | 'patient' | 'bot'
+  unreadCount:    number
+  isArchived:     boolean
+  doctor: {
+    _id:        string
+    name:       string
+    email:      string
+    specialty?: string
+    photo?:     string | null
+  }
+}
 
 export interface PatientProfileData {
   patient: {
@@ -472,6 +534,10 @@ export const chatApi = {
   getConversations: () =>
     request<ConversationRecord[]>('GET', '/chat/conversations'),
 
+  // Patient side — this patient's chat threads with their channeled doctor(s)
+  getMyConversations: () =>
+    request<PatientConversationRecord[]>('GET', '/chat/my-conversations'),
+
   // All registered patients — used by "New Message" to start a
   // brand-new conversation even if none exists yet.
   getPatients: () =>
@@ -497,6 +563,14 @@ export const chatApi = {
 
   sendMessage: (conversationId: string, text: string) =>
     request<MessageRecord>('POST', `/chat/conversations/${conversationId}/messages`, { text }),
+
+  // File/photo attachment — multipart upload, optional caption text
+  sendAttachment: (conversationId: string, file: File, caption?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (caption?.trim()) form.append('caption', caption.trim());
+    return requestUpload<MessageRecord>(`/chat/conversations/${conversationId}/attachment`, form);
+  },
 
   markAsRead: (conversationId: string) =>
     request<void>('PATCH', `/chat/conversations/${conversationId}/read`),

@@ -84,7 +84,19 @@ const SummaryScreen: React.FC<Props> = ({
             </div>
           )}
 
-          {!summaryLoading && (
+          {!summaryLoading && (() => {
+            // FIX: summaryNotes comes back from the backend with the ASR
+            // transcript appended after a marker (same format used in
+            // PatientHistoryPage) — split them apart so "Session Notes"
+            // only shows what the doctor actually typed, and the
+            // transcript gets its own dedicated section below.
+            const rawNotes   = summaryNotes || ''
+            const marker     = '--- Session Transcript ---'
+            const idx        = rawNotes.indexOf(marker)
+            const doctorNotes = idx >= 0 ? rawNotes.slice(0, idx).trim() : rawNotes.trim()
+            const transcript  = idx >= 0 ? rawNotes.slice(idx + marker.length).trim() : ''
+
+            return (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
 
               {/* Session Notes — read-only, doctor's private observations */}
@@ -93,10 +105,10 @@ const SummaryScreen: React.FC<Props> = ({
                 <div style={{
                   minHeight: '90px', padding: '10px 12px', borderRadius: '8px',
                   background: '#f9fafb', border: '1px solid #e5e7eb',
-                  fontSize: '13px', color: summaryNotes ? '#1f2937' : '#9ca3af',
+                  fontSize: '13px', color: doctorNotes ? '#1f2937' : '#9ca3af',
                   whiteSpace: 'pre-wrap',
                 }}>
-                  {summaryNotes || 'No session notes were recorded.'}
+                  {doctorNotes || 'No session notes were recorded.'}
                 </div>
 
                 <h3 style={{ fontWeight: 700, margin: '18px 0 12px', fontSize: '15px' }}>💬 Notes for Patient</h3>
@@ -133,8 +145,28 @@ const SummaryScreen: React.FC<Props> = ({
                 )}
               </div>
 
+              {/* Session Transcript — own section, spans both columns */}
+              <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb', gridColumn: '1 / -1' }}>
+                <h3 style={{ fontWeight: 700, marginBottom: '12px', fontSize: '15px' }}>📝 Session Transcript</h3>
+                {transcript ? (
+                  <div style={{
+                    padding: '10px 12px', borderRadius: '8px',
+                    background: '#f9fafb', border: '1px solid #e5e7eb',
+                    fontSize: '12px', color: '#1f2937', fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap', lineHeight: 1.7,
+                  }}>
+                    {transcript}
+                  </div>
+                ) : (
+                  <div style={{ color: '#9ca3af', fontSize: '13px', fontStyle: 'italic' }}>
+                    No transcript available for this session.
+                  </div>
+                )}
+              </div>
+
             </div>
-          )}
+            )
+          })()}
 
         </main>
       </div>

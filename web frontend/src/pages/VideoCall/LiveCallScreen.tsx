@@ -113,8 +113,6 @@ interface Props {
   chatConnected?:   boolean
 }
 
-const QUICK_REPLIES = ["That's great!", 'I understand.', "Let's discuss.", 'Please continue.']
-
 const LiveCallScreen: React.FC<Props> = ({
   callData, duration, formatDuration,
   micMuted, setMicMuted,
@@ -153,12 +151,7 @@ const LiveCallScreen: React.FC<Props> = ({
   const localStreamRef    = useRef<MediaStream | null>(null)
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null)
   const recordedChunksRef = useRef<Blob[]>([])
-  const chatBottomRef     = useRef<HTMLDivElement>(null)
 
-  const [showParticipants, setShowParticipants] = useState(false)
-  const [showChat,         setShowChat]         = useState(false)
-  const [unreadCount,      setUnreadCount]      = useState(0)
-  const prevMsgCountRef = useRef(messages.length)
   const [isRecording,      setIsRecording]      = useState(false)
   const [noteSaved,        setNoteSaved]        = useState(false)
   const [inviteCopied,     setInviteCopied]     = useState(false)
@@ -168,6 +161,7 @@ const LiveCallScreen: React.FC<Props> = ({
   const [cloudRecStatus,   setCloudRecStatus]   = useState<string>('none')
   const [transcriptText, setTranscriptText] = useState('')
   const recognitionRef = useRef<any>(null)
+  const transcriptRef  = useRef('') // mirrors transcriptText, read by stopAndSaveTranscript so it always has the latest text without needing to be re-created (and re-wired into onLeaveRoom) on every keystroke
 
   // ── Prescription form validation state ──────────────────────
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -232,19 +226,25 @@ const LiveCallScreen: React.FC<Props> = ({
       scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
       showPreJoinView: false,
       showLeaveRoomConfirmDialog: false,
-      showUserList: false,
+      showUserList: true,     // ✅ Zego native participants list (replaces custom panel)
       maxUsers: 2,
       showScreenSharingButton: true,
-      showTextChat: false,
+      showTextChat: true,     // ✅ Zego native chat (replaces custom chat panel)
       showUserName: false,
       showRoomTimer: false,
       showMyCameraToggleButton: true,
       showMyMicrophoneToggleButton: true,
       showAudioVideoSettingsButton: false,
       showLayoutButton: false,
-      onLeaveRoom: () => {},
+      // Save the transcript whenever the doctor actually leaves via
+      // ZegoCloud's own native hangup button. stopAndSaveTranscript reads
+      // from transcriptRef (a mutable ref, not the transcriptText state),
+      // so it's safe to call here even though it isn't in this effect's
+      // dependency array — it always has the latest transcript.
+      onLeaveRoom: () => { stopAndSaveTranscript() },
     })
     return () => { try { zego.destroy() } catch { /* ignore */ } }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callData])
 
   useEffect(() => {
@@ -253,23 +253,6 @@ const LiveCallScreen: React.FC<Props> = ({
       .catch(() => {})
     return () => { localStreamRef.current?.getTracks().forEach(t => t.stop()) }
   }, [])
-
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, patientTyping])
-
-  // Unread badge on the Chat button — count incoming patient messages that
-  // arrived while the chat panel was closed; clear once it's opened.
-  useEffect(() => {
-    if (messages.length > prevMsgCountRef.current) {
-      const newMsgs = messages.slice(prevMsgCountRef.current)
-      const incoming = newMsgs.filter(m => m.role === 'patient').length
-      if (incoming && !showChat) setUnreadCount(c => c + incoming)
-    }
-    prevMsgCountRef.current = messages.length
-  }, [messages, showChat])
-
-  useEffect(() => { if (showChat) setUnreadCount(0) }, [showChat])
 
   // Poll cloud recording status while the call is live — purely additive,
   // doesn't touch the existing local `isRecording` screen-record button.
@@ -311,14 +294,6 @@ const LiveCallScreen: React.FC<Props> = ({
       .catch(() => window.prompt('Copy this link:', link))
   }, [callData, sessionId, showToast])
 
-  const handleParticipate = useCallback(() => {
-    setShowParticipants(prev => { if (!prev) setShowChat(false); return !prev })
-  }, [])
-
-  const handleChat = useCallback(() => {
-    setShowChat(prev => { if (!prev) setShowParticipants(false); return !prev })
-  }, [])
-
   const startTranscription = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) { showToast('⚠️ Speech-to-text not supported in this browser'); return }
@@ -332,7 +307,11 @@ const LiveCallScreen: React.FC<Props> = ({
         if (event.results[i].isFinal) finalText += event.results[i][0].transcript + ' '
       }
       if (finalText.trim()) {
-        setTranscriptText(prev => `${prev}\n[${new Date().toLocaleTimeString()}] ${finalText.trim()}`)
+        setTranscriptText(prev => {
+          const next = `${prev}\n[${new Date().toLocaleTimeString()}] ${finalText.trim()}`
+          transcriptRef.current = next // keep the ref in sync so stopAndSaveTranscript always sees the latest text
+          return next
+        })
       }
     }
     recognition.onerror = () => { /* silently ignore, keep call running */ }
@@ -341,15 +320,22 @@ const LiveCallScreen: React.FC<Props> = ({
     showToast('📝 Live transcription started')
   }, [showToast])
 
+  // Reads from transcriptRef (not the transcriptText state) so this stays
+  // stable across the whole call — safe to reference from the joinRoom
+  // effect's onLeaveRoom closure below without re-joining the room every
+  // time new transcript text comes in.
 const stopAndSaveTranscript = useCallback(async () => {
-    recognitionRef.current?.stop()
-    const sid = callData?.sessionId || sessionId
-    if (sid && transcriptText.trim()) {
-      try {
-        await videoApi.saveTranscript(sid, transcriptText.trim())
-      } catch { /* non-blocking */ }
-    }
-  }, [callData?.sessionId, sessionId, transcriptText])
+  recognitionRef.current?.stop()
+  const sid  = callData?.sessionId || sessionId
+  const text = transcriptRef.current.trim()
+  if (sid && text) {
+    const cleaned = sessionNotes.replace(/\n*--- Session Transcript ---[\s\S]*$/, '').trimEnd()
+    setSessionNotes(`${cleaned}\n\n--- Session Transcript ---\n${text}`)
+    try {
+      await videoApi.saveTranscript(sid, text)
+    } catch { /* non-blocking */ }
+  }
+}, [callData?.sessionId, sessionId, sessionNotes, setSessionNotes])
 
   // Auto-start transcription once the call is live
   useEffect(() => {
@@ -424,10 +410,6 @@ navigator.mediaDevices.getDisplayMedia({
     setNoteSaving(false)
   }, [sessionNotes, onSaveNote, showToast])
 
-  const handleChatKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); sendChatMessage() }
-  }
-
   // Patient initial letter for avatar
   const patientInitial = patientName ? patientName[0].toUpperCase() : 'P'
   const doctorInitial  = doctorName  ? doctorName[0].toUpperCase()  : 'D'
@@ -446,7 +428,10 @@ navigator.mediaDevices.getDisplayMedia({
               <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => setShowBackConfirm(false)}>
                 Stay in Call
               </button>
-              <button className={`${styles.btn} ${styles.btnDanger}`} onClick={onBack}>
+              <button
+                className={`${styles.btn} ${styles.btnDanger}`}
+                onClick={() => { stopAndSaveTranscript(); onBack() }}
+              >
                 Leave Call
               </button>
             </div>
@@ -471,7 +456,17 @@ navigator.mediaDevices.getDisplayMedia({
         </div>
         <div className={styles.topbarRight}>
 
-          {/* Real sessionId */}
+<button
+  className={styles.endBtn}
+  onClick={() => {
+    if (isRecording) handleRecord()
+    stopAndSaveTranscript()
+    onEndConfirm()
+  }}
+  title="End Session"
+>
+  🔴 End Session
+</button>
           <span className={styles.badgeBlue}>#{callData?.sessionId || sessionId || 'SESSION'}</span>
           {isRecording&&<span className={styles.recPill}><span className={styles.recDot}/>REC</span>}
           {cloudRecStatus === 'recording' && (
@@ -479,46 +474,44 @@ navigator.mediaDevices.getDisplayMedia({
               <span className={styles.recDot}/>☁️ Recording
             </span>
           )}
-          <button className={styles.endBtn} onClick={async () => { await stopAndSaveTranscript(); onEndConfirm(); }}>↪ End Session</button>
+
+          <button className={styles.topIconBtn} onClick={handleInvite} title="Copy invite link">
+            {inviteCopied ? '✅' : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            )}
+          </button>
         </div>
       </header>
 
       <div className={styles.body}>
         <div className={styles.videoWrap}>
 
-          {/* ZegoCloud video container */}
+          {/* ZegoCloud video container — the ZegoCloud UIKit renders its
+              own native bottom toolbar (mic, camera, screen-share, leave)
+              inside this container automatically. */}
           <div ref={containerRef} className={styles.zegoContainer}/>
 
-          {/* FIX: this panel used to be nested inside the "no callData"
-              fallback block below, so it only rendered before the real
-              Zego call connected — once callData existed (i.e. during an
-              actual live call, the normal case), clicking Participate
-              toggled state but nothing ever showed. It's now a sibling
-              overlay so it renders regardless of call state. */}
-          {showParticipants&&(
-            <div className={styles.participantsPanel}>
-              <div className={styles.panelHeader}>
-                <span className={styles.panelTitle}>👥 Participants</span>
-                <button className={styles.panelClose} onClick={()=>setShowParticipants(false)}>✕</button>
-              </div>
-              {/* ✅ Real doctor + patient names */}
-              {[
-                {name: doctorName, role:'Doctor (You)', color:'#2B52D4', mic:!micMuted, cam:!camOff},
-                {name: patientName || 'Patient', role:'Patient', color:'#059669', mic:patientMicOn, cam:patientCamOn},
-              ].map((p,i)=>(
-                <div key={i} className={styles.participantRow}>
-                  <div className={styles.participantAvatar} style={{background:p.color}}>{p.name[0]}</div>
-                  <div className={styles.participantInfo}>
-                    <div className={styles.participantName}>{p.name}</div>
-                    <div className={styles.participantRole}>{p.role}</div>
-                  </div>
-                  <div className={styles.participantIcons}>
-                    <span>{p.mic?'🎤':'🔇'}</span><span>{p.cam?'📹':'🚫'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Custom Record button, docked next to ZegoCloud's own native
+              bottom toolbar (mic, camera, screen-share, chat, participants,
+              leave). Chat and Participants are Zego's own native buttons
+              (showTextChat / showUserList above) — Record has no native
+              Zego equivalent (it's a local screen capture that uploads to
+              our own backend), so it stays custom. Plain floating icon,
+              no button chip — matches the rest of Zego's own overlay
+              icons instead of a standalone pill. */}
+          <div className={styles.zegoExtraBar}>
+            <button
+              className={styles.zegoRecordIcon}
+              onClick={handleRecord}
+              title={isRecording ? 'Stop recording' : 'Record'}
+              style={isRecording ? { color: '#ef4444' } : undefined}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="12" cy="12" r="10"/>
+                {isRecording ? <rect x="9" y="9" width="6" height="6" fill="currentColor" stroke="none"/> : <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>}
+              </svg>
+            </button>
+          </div>
 
           {(!callData||callData.appId===0)&&(
             <div className={styles.fallback}>
@@ -544,57 +537,6 @@ navigator.mediaDevices.getDisplayMedia({
               </div>
             </div>
           )}
-          <div className={styles.controls}>
-            {/* INVITE */}
-            <button className={`${styles.ctrlItem} ${inviteCopied?styles.ctrlItemGreen:''}`} onClick={handleInvite} title="Copy invite link">
-              <div className={`${styles.ctrlIcon} ${inviteCopied?styles.ctrlIconGreen:''}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-              </div>
-              <span className={`${styles.ctrlLabel} ${inviteCopied?styles.ctrlLabelGreen:''}`}>{inviteCopied?'Copied!':'Invite'}</span>
-            </button>
-
-            {/* PARTICIPANTS */}
-            <button className={`${styles.ctrlItem} ${showParticipants?styles.ctrlItemGreen:''}`} onClick={handleParticipate} title="Participants">
-              <div className={`${styles.ctrlIcon} ${showParticipants?styles.ctrlIconGreen:''}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-              </div>
-              <span className={`${styles.ctrlLabel} ${showParticipants?styles.ctrlLabelGreen:''}`}>Participate</span>
-            </button>
-
-            {/* CHAT */}
-            <button className={`${styles.ctrlItem} ${showChat?styles.ctrlItemGreen:''}`} onClick={handleChat} title="Chat" style={{ position: 'relative' }}>
-              <div className={`${styles.ctrlIcon} ${showChat?styles.ctrlIconGreen:''}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8,
-                    background: '#DC2626', color: '#fff', fontSize: 10, fontWeight: 700,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-                  }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
-                )}
-              </div>
-              <span className={`${styles.ctrlLabel} ${showChat?styles.ctrlLabelGreen:''}`}>Chat</span>
-            </button>
-
-            {/* RECORD */}
-            <button className={`${styles.ctrlItem} ${isRecording?styles.ctrlItemActive:''}`} onClick={handleRecord} title={isRecording?'Stop':'Record'}>
-              <div className={`${styles.ctrlIcon} ${isRecording?styles.ctrlIconRed:''}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  {isRecording?<rect x="9" y="9" width="6" height="6" fill="currentColor" stroke="none"/>:<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>}
-                </svg>
-              </div>
-              <span className={`${styles.ctrlLabel} ${isRecording?styles.ctrlLabelRed:''}`}>{isRecording?'● Stop':'Record'}</span>
-            </button>
-
-            {/* LEAVE */}
-            <button className={styles.ctrlItemLeave} onClick={onEndConfirm} title="Leave">
-              <div className={styles.ctrlIconLeave}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7 2 2 0 011.72 2v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.42 19.42 0 013.43 9.19 19.79 19.79 0 01.36 1.56 2 2 0 012.35 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.33 7.91a16 16 0 006.35 5.4z"/></svg>
-              </div>
-              <span className={styles.ctrlLabelLeave}>Leave</span>
-            </button>
-          </div>
           {/* PRESCRIPTION OVERLAY */}
           {showPrescription && (
             <div style={{
@@ -805,48 +747,10 @@ navigator.mediaDevices.getDisplayMedia({
             </div>
           )}
         </div>
-        {showChat ? (
-          <div className={styles.chatPanel}>
-            <div className={styles.chatHeader}>
-              <div className={styles.chatHeaderLeft}>
-                <span className={styles.chatTitle}>💬 Session Chat</span>
-                <span className={styles.chatOnline}>
-                  {chatConnected
-                    ? `● ${patientName || 'Patient'} online`
-                    : '○ Connecting chat…'}
-                </span>
-              </div>
-              <button className={styles.chatCloseBtn} onClick={()=>setShowChat(false)}>✕</button>
-            </div>
-            <div className={styles.chatMessages}>
-              <div className={styles.chatTs}>Session started · {new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
-              {messages.map((m,i)=>(
-                <div key={i} className={`${styles.msgWrap} ${m.role==='patient'?styles.msgPatient:styles.msgDoctor}`}>
-                  {/* ✅ Real patient name */}
-                  {m.role==='patient'&&<div className={styles.msgSender}>{patientName || 'Patient'}</div>}
-                  <div className={`${styles.bubble} ${m.role==='patient'?styles.bubblePatient:styles.bubbleDoctor}`}>{m.text}</div>
-                  <div className={`${styles.msgTime} ${m.role==='doctor'?styles.msgTimeRight:''}`}>{m.time}{m.role==='doctor'?' ✓✓':''}</div>
-                </div>
-              ))}
-              {patientTyping&&(
-                <div className={`${styles.msgWrap} ${styles.msgPatient}`}>
-                  <div className={styles.msgSender}>{patientName || 'Patient'}</div>
-                  <div className={styles.typingBubble}>
-                    {[0,0.2,0.4].map((d,i)=><div key={i} className={styles.typingDot} style={{animationDelay:`${d}s`}}/>)}
-                  </div>
-                </div>
-              )}
-              <div ref={chatBottomRef}/>
-            </div>
-            <div className={styles.quickReplies}>
-              {QUICK_REPLIES.map((r,i)=><button key={i} className={styles.quickReply} onClick={()=>setChatInput(r)}>{r}</button>)}
-            </div>
-            <div className={styles.chatInputRow}>
-              <input className={styles.chatInput} type="text" placeholder="Type a message…" value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={handleChatKey}/>
-              <button className={styles.chatSendBtn} onClick={sendChatMessage} disabled={!chatInput.trim()}>➤</button>
-            </div>
-          </div>
-        ) : (
+        {/* Chat is now Zego's own native panel (showTextChat: true above),
+            so this sidebar — Patient Info / Previous Rx / Session Notes —
+            is always shown instead of toggling with a custom chat panel. */}
+        {(
           <div className={styles.sidebar}>
             {/* ✅ Patient Info — real data */}
             <div className={styles.card}>

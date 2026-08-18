@@ -78,13 +78,6 @@ const faqCatStyle: Record<string, string> = {
   GENERAL:        'GENERAL',
 };
 
-const getDoctorName = () => {
-  try {
-    const info = localStorage.getItem('medilink_user_info');
-    return info ? JSON.parse(info).name ?? 'Dr. Dilshari' : 'Dr. Dilshari';
-  } catch { return 'Dr. Dilshari'; }
-};
-
 const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://localhost:5000';
 
 export default function ChatbotMessages({
@@ -106,10 +99,11 @@ export default function ChatbotMessages({
   const [faqs, setFaqs]                 = useState<FAQRecord[]>([]);
   const [faqsLoading, setFaqsLoading]   = useState(false);
   const [faqSearch, setFaqSearch]       = useState('');
+  const [uploading, setUploading]       = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef    = useRef<HTMLDivElement>(null);
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const socketRef  = useRef<Socket | null>(null);
-  const doctorName = getDoctorName();
 
   // 1) Load conversations on mount
   useEffect(() => {
@@ -224,6 +218,31 @@ export default function ChatbotMessages({
       setSending(false);
     }
   }, [selectedConv, sending]);
+
+  // Send a file/photo attachment
+  const sendAttachmentFile = useCallback(async (file: File) => {
+    if (!selectedConv || uploading) return;
+    setUploading(true);
+    try {
+      const msg = await chatApi.sendAttachment(selectedConv._id, file);
+      setMessages(prev => prev.find(m => m._id === msg._id) ? prev : [...prev, msg]);
+      setConvs(prev => prev.map(c =>
+        c._id === selectedConv._id
+          ? {
+              ...c,
+              lastMessage: file.type.startsWith('image/') ? '📷 Photo' : `📎 ${file.name}`,
+              lastMessageAt: new Date().toISOString(),
+              lastSenderRole: 'doctor',
+            }
+          : c
+      ));
+    } catch (err) {
+      console.error('Attachment send error:', err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [selectedConv, uploading]);
 
   const handleMenuAction = (key: string) => {
     setMenuOpen(false);
@@ -406,53 +425,78 @@ export default function ChatbotMessages({
                     const isDoctor  = msg.senderRole === 'doctor';
                     const isBot     = msg.senderRole === 'bot';
                     const isPatient = msg.senderRole === 'patient';
+                    const isAttachment = msg.type === 'attachment';
+                    const isImage      = isAttachment && (msg.attachmentType?.startsWith('image/') ?? false);
 
                     const isEscalationMsg = msg.type === 'escalation';
 
                     return (
-                      <div key={msg._id}>
-                        {msg.isEscalated && (
-                          <div className="cb-m-name" style={{ color: '#DC2626', fontWeight: 700 }}>
-                            🚨 Flagged as urgent
+                      <div key={msg._id} className={`cb-mrow ${isDoctor ? 'own' : ''}`}>
+                        {!isDoctor && (
+                          <div
+                            className="cb-mrow-avatar"
+                            style={{ background: isBot ? '#7C3AED' : getColor(selectedConv?.patient?.name ?? '') }}
+                          >
+                            {isBot ? '🤖' : getInitial(selectedConv?.patient?.name ?? '')}
                           </div>
                         )}
-                        <div
-                          className={`cb-m ${isPatient ? 'sent' : isBot ? 'bot' : 'recv'}`}
-                          style={
-                            msg.isEscalated || isEscalationMsg
-                              ? { border: '1.5px solid #DC2626', background: '#FEF2F2' }
-                              : undefined
-                          }
-                        >
-                          {isBot && (
-                            <div className="cb-m-name">
-                              {isEscalationMsg
-                                ? '🚨 MediLink AI (Safety Notice)'
-                                : `🤖 MediLink AI ${msg.type === 'faq' ? '(FAQ Reply)' : '(Auto)'}`}
+                        <div style={{ maxWidth: '68%' }}>
+                          {msg.isEscalated && (
+                            <div className="cb-m-name" style={{ color: '#DC2626', fontWeight: 700 }}>
+                              🚨 Flagged as urgent
                             </div>
                           )}
-                          {isDoctor && (
-                            <div className="cb-m-name">🩺 {doctorName} (You)</div>
-                          )}
-                          <div className="cb-mb">{msg.text}</div>
-                          <div className="cb-mt">
-                            {fmtTime(msg.createdAt)}
-                            {isDoctor ? ' ✓✓' : ''}
-                          </div>
-                        </div>
+                          <div
+                            className={`cb-m ${isDoctor ? 'sent' : isBot ? 'bot' : 'recv'}`}
+                            style={
+                              msg.isEscalated || isEscalationMsg
+                                ? { border: '1.5px solid #DC2626', background: '#FEF2F2' }
+                                : undefined
+                            }
+                          >
+                            {isBot && (
+                              <div className="cb-m-name">
+                                {isEscalationMsg
+                                  ? '🚨 MediLink AI (Safety Notice)'
+                                  : `🤖 MediLink AI ${msg.type === 'faq' ? '(FAQ Reply)' : '(Auto)'}`}
+                              </div>
+                            )}
 
-                        {/* AI confidence badge */}
-                        {msg.aiConfidence && (
-                          <div className="cb-ai-confidence" style={{ marginTop: 6 }}>
-                            <span style={{ fontSize: 15 }}>✅</span>
-                            <div style={{ fontSize: 12, color: '#374151' }}>
-                              <strong>AI Confidence: {msg.aiConfidence}%</strong> — Auto-sent.{' '}
-                              <span style={{ color: '#2B52D4', cursor: 'pointer', fontWeight: 600 }}>
-                                Edit &amp; Resend
-                              </span>
+                            {isAttachment && isImage && (
+                              <a href={`${API_BASE}${msg.attachmentUrl}`} target="_blank" rel="noreferrer">
+                                <img src={`${API_BASE}${msg.attachmentUrl}`} alt={msg.attachmentName ?? 'attachment'} className="cb-m-img" />
+                              </a>
+                            )}
+                            {isAttachment && !isImage && (
+                              <a
+                                href={`${API_BASE}${msg.attachmentUrl}`}
+                                target="_blank" rel="noreferrer"
+                                className="cb-m-file"
+                              >
+                                <span style={{ fontSize: 18 }}>📎</span>
+                                <span className="cb-m-file-name">{msg.attachmentName ?? 'File'}</span>
+                              </a>
+                            )}
+                            {msg.text && <div className="cb-mb">{msg.text}</div>}
+                            <div className="cb-mt">
+                              {fmtTime(msg.createdAt)}
+                              {isDoctor ? ' ✓✓' : ''}
                             </div>
                           </div>
-                        )}
+
+                          {/* AI confidence badge */}
+                          {msg.aiConfidence && (
+                            <div className="cb-ai-confidence" style={{ marginTop: 6 }}>
+                              <span style={{ fontSize: 15 }}>✅</span>
+                              <div style={{ fontSize: 12, color: '#374151' }}>
+                                <strong>AI Confidence: {msg.aiConfidence}%</strong> — Auto-sent.{' '}
+                                <span style={{ color: '#2B52D4', cursor: 'pointer', fontWeight: 600 }}>
+                                  Edit &amp; Resend
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -473,7 +517,23 @@ export default function ChatbotMessages({
 
             {/* Message input */}
             <div className="cb-cinput-row">
-              <span style={{ fontSize: 19, cursor: 'pointer' }}>📎</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) sendAttachmentFile(file);
+                }}
+              />
+              <span
+                style={{ fontSize: 19, cursor: uploading ? 'default' : 'pointer', opacity: uploading ? 0.5 : 1 }}
+                onClick={() => !uploading && fileInputRef.current?.click()}
+                title="Attach a file or photo"
+              >
+                {uploading ? '⏳' : '📎'}
+              </span>
               <input
                 className="cb-cinput"
                 type="text"

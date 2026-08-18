@@ -6,8 +6,22 @@ const {
   cancelAppointment,
   getInvoice,
   rescheduleAppointment,
-  confirmPayment
+  confirmPayment,
+  getDoctorQueue,
+  getDoctorQueueEnriched,
+  getTodaysCompletedSessions
 } = require('../controllers/appointmentController');
+const { protect, requireRole } = require('../middlewares/auth');
+
+// GET /api/appointments/doctor/queue — enriched queue with patient names
+// Must be defined BEFORE '/' and any other GET routes below it.
+router.get('/doctor/queue', protect, requireRole('doctor'), getDoctorQueueEnriched);
+
+// GET /api/appointments/doctor — raw appointments list for the doctor
+router.get('/doctor', protect, requireRole('doctor'), getDoctorQueue);
+
+// GET /api/appointments/today-summary — today's completed video-call sessions
+router.get('/today-summary', protect, requireRole('doctor'), getTodaysCompletedSessions);
 
 router.post('/', createAppointment);
 router.get('/', getAppointments);

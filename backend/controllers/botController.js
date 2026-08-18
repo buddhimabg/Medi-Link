@@ -7,6 +7,7 @@ const Message      = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const Broadcast    = require('../models/Broadcast');
 const User         = require('../models/user');
+const { getChanneledPatientIds } = require('../utils/channeledPatients');
 
 // ─────────────────────────────────────────────────────────────
 // LAYER 1: FAQ Keyword Match
@@ -481,8 +482,16 @@ exports.getAnalytics = async (req, res) => {
   try {
     const doctorId = req.user.id;
 
-    // Doctor ගේ conversations
-    const conversations = await Conversation.find({ doctorId }, '_id');
+    // Channeled (Paid appointment) patients witharayi count karanne —
+    // junk/seed conversations (real appointment ekk nathi ewa) ganata
+    // ekathu wenne na.
+    const channeledPatientIds = await getChanneledPatientIds(doctorId);
+    const conversations = channeledPatientIds.length
+      ? await Conversation.find(
+          { doctorId, patientId: { $in: channeledPatientIds.map(id => id.toString()) } },
+          '_id'
+        )
+      : [];
     const convIds = conversations.map(c => c._id);
 
     const sevenDaysAgo = new Date();
@@ -501,10 +510,12 @@ exports.getAnalytics = async (req, res) => {
       dailyVolumeRaw,
     ] = await Promise.all([
       Message.countDocuments({ conversationId: { $in: convIds } }),
-      Conversation.aggregate([
-        { $match: { doctorId } },
-        { $group: { _id: null, total: { $sum: '$unreadCount' } } },
-      ]),
+      convIds.length
+        ? Conversation.aggregate([
+            { $match: { doctorId, patientId: { $in: channeledPatientIds.map(id => id.toString()) } } },
+            { $group: { _id: null, total: { $sum: '$unreadCount' } } },
+          ])
+        : [],
       Message.countDocuments({ conversationId: { $in: convIds }, type: 'ai-auto' }),
       Message.countDocuments({ conversationId: { $in: convIds }, type: 'faq'     }),
       Message.countDocuments({ conversationId: { $in: convIds }, senderRole: 'doctor'  }),

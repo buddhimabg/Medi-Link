@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import Sidebar from '../../components/DoctorPortalSidebar'
 import TopBar  from '../../components/layout/TopBar'
 import styles  from './PatientHistoryPage.module.css'
-import { patientHistoryApi } from '../../types/api'
+import { patientHistoryApi, SERVER_ORIGIN } from '../../types/api'
 import type { PatientHistoryRecord } from '../../types/api'
 
 interface Props {
@@ -167,10 +167,10 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
               background: '#FEE2E2', border: '1.5px solid #FECACA',
               borderRadius: 10, padding: '14px 18px', color: '#DC2626', fontSize: 13,
             }}>
-              <strong>History load කිරීමේ error:</strong> {error}
+              <strong>Error loading history:</strong> {error}
               <br />
               <span style={{ fontSize: 12, color: '#EF4444' }}>
-                Backend running ද? Token valid ද?
+                Is the backend running? Is the token valid?
               </span>
             </div>
           )}
@@ -226,7 +226,7 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
                     New Patient — {displayName}
                   </div>
                   <div style={{ fontSize: 13, color: '#16A34A' }}>
-                    මෙම patient ට previous sessions නැහැ. මෙය ඔවුන්ගේ first session.
+                    This patient has no previous sessions. This is their first session.
                   </div>
                 </div>
               )}
@@ -372,7 +372,7 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
                           <div className={styles.notesTitle}>🎥 Session Recording</div>
                           {selectedRecord.recordingStatus === 'completed' && selectedRecord.recordingUrl ? (
                             <a
-                              href={selectedRecord.recordingUrl}
+                              href={`${SERVER_ORIGIN}${selectedRecord.recordingUrl}`}
                               download
                               target="_blank"
                               rel="noreferrer"
@@ -403,7 +403,7 @@ const PatientHistoryPage: React.FC<Props> = ({ sessionId, patientId, onBack, onJ
                       <div className={styles.selectPrompt}>
                         <div className={styles.selectIcon}>📋</div>
                         <div className={styles.selectText}>
-                          Session එකක් select කරන්න details බලන්න
+                          Select a session to view details
                         </div>
                       </div>
                     )}

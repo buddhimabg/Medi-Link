@@ -143,4 +143,6 @@ doctorSchema.index({ status: 1 });
 doctorSchema.index({ isVerified: 1 });
 doctorSchema.index({ rating: -1 });
 
-module.exports = mongoose.model('Doctor', doctorSchema);
+// Guard against "OverwriteModelError" when this file is required more than
+// once (e.g. nodemon hot-reload or multiple entry points).
+module.exports = mongoose.models.Doctor || mongoose.model('Doctor', doctorSchema);

@@ -8,11 +8,13 @@ const { protect, requireRole } = require('../middlewares/auth');
 const convCtrl = require('../controllers/conversationController');
 const botCtrl  = require('../controllers/botController');
 const faqCtrl  = require('../controllers/faqController');
+const upload   = require('../middlewares/uploadMiddleware');
 
 // ── Conversation Routes ────────────────────────────────────────────────────
 
 // GET  /api/chat/patients
-// System එකේ සියලු registered patients — "New Message" search සඳහා
+// Logged-in doctor ට channel wela (Paid appointment tibba) patients
+// witharai — "New Message" search sadaha
 router.get(
   '/patients',
   protect,
@@ -45,6 +47,16 @@ router.get(
   protect,
   requireRole('doctor'),
   convCtrl.getConversations
+);
+
+// GET  /api/chat/my-conversations
+// Patient side — mema patient ta connect wela thiyena conversations
+// okkoma (doctor(la) ekka)
+router.get(
+  '/my-conversations',
+  protect,
+  requireRole('patient'),
+  convCtrl.getMyConversations
 );
 
 // GET  /api/chat/conversations/with/:patientId
@@ -81,6 +93,16 @@ router.post(
   '/conversations/:id/messages',
   protect,
   convCtrl.sendMessage
+);
+
+// POST /api/chat/conversations/:id/attachment
+// Send a file/photo attachment (doctor or patient). multipart/form-data,
+// field name "file" (+ optional "caption" text field).
+router.post(
+  '/conversations/:id/attachment',
+  protect,
+  upload.single('file'),
+  convCtrl.sendAttachment
 );
 
 // PATCH /api/chat/conversations/:id/read

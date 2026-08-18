@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './Chatbot.css';
 import { chatApi } from '../../types/api';
-import type { ConversationRecord } from '../../types/api';
+import type { ConversationRecord, PatientRecord } from '../../types/api';
 
 interface Props {
   onBack:             () => void;
@@ -26,10 +26,13 @@ export default function ChatbotCompose({
   onOpenBroadcast, onOpenAISettings, onOpenAnalytics,
 }: Props) {
   const [menuOpen,  setMenuOpen]  = useState(false);
-  const [convs,     setConvs]     = useState<ConversationRecord[]>([]);
+  // channeled (booked/paid) patients for THIS doctor — not every conversation,
+  // so a patient shows up here even before their first chat message exists
+  const [patients,  setPatients]  = useState<PatientRecord[]>([]);
   const [search,    setSearch]    = useState('');
-  const [filtered,  setFiltered]  = useState<ConversationRecord[]>([]);
+  const [filtered,  setFiltered]  = useState<PatientRecord[]>([]);
   const [selected,  setSelected]  = useState<ConversationRecord | null>(null);
+  const [resolving, setResolving] = useState(false);
   const [message,   setMessage]   = useState('');
   const [sending,   setSending]   = useState(false);
   const [loading,   setLoading]   = useState(true);
@@ -50,15 +53,15 @@ export default function ChatbotCompose({
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  // Load all conversations once (used for patient search)
+  // Load this doctor's channeled patients once (used for patient search)
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await chatApi.getConversations();
-        setConvs(Array.isArray(data) ? data : []);
+        const data = await chatApi.getPatients();
+        setPatients(Array.isArray(data) ? data : []);
       } catch {
-        setConvs([]);
+        setPatients([]);
       } finally {
         setLoading(false);
       }
@@ -66,17 +69,17 @@ export default function ChatbotCompose({
     load();
   }, []);
 
-  // Filter conversations by search query
+  // Filter patients by search query
   useEffect(() => {
     if (!search.trim()) { setFiltered([]); setDropOpen(false); return; }
     const q = search.toLowerCase();
-    const results = convs.filter(c =>
-      c.patient?.name?.toLowerCase().includes(q) ||
-      c.patient?.email?.toLowerCase().includes(q)
+    const results = patients.filter(p =>
+      p.name?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q)
     );
     setFiltered(results);
     setDropOpen(true);
-  }, [search, convs]);
+  }, [search, patients]);
 
   const handleMenuAction = (key: string) => {
     setMenuOpen(false);
@@ -85,10 +88,24 @@ export default function ChatbotCompose({
     if (key === 'analytics'   && onOpenAnalytics)  onOpenAnalytics();
   };
 
-  const handleSelectConv = (conv: ConversationRecord) => {
-    setSelected(conv);
-    setSearch(conv.patient?.name ?? '');
+  // Patient kenෙක් select kalama, e patient ta already conversation ekk
+  // niathnam create karanawa (backend eken auto-handled) — eeka ganna
+  // kalin patient object eka pennanna optimistic ekk widihata dropdown eken
+  // æthæri gannawa, real conversation _id eka load wena thuru.
+  const handleSelectPatient = async (patient: PatientRecord) => {
+    setSearch(patient.name ?? '');
     setDropOpen(false);
+    setSelected(null);
+    setResolving(true);
+    setError(null);
+    try {
+      const conv = await chatApi.getOrCreateConversation(patient._id);
+      setSelected(conv);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open conversation with this patient.');
+    } finally {
+      setResolving(false);
+    }
   };
 
   const handleSend = async () => {
@@ -197,10 +214,10 @@ export default function ChatbotCompose({
                   boxShadow: '0 4px 16px rgba(0,0,0,0.10)', marginTop: 4,
                   maxHeight: 200, overflowY: 'auto',
                 }}>
-                  {filtered.map(conv => (
+                  {filtered.map(patient => (
                     <div
-                      key={conv._id}
-                      onClick={() => handleSelectConv(conv)}
+                      key={patient._id}
+                      onClick={() => handleSelectPatient(patient)}
                       style={{
                         padding: '10px 14px', cursor: 'pointer', fontSize: 13,
                         color: '#111827', display: 'flex', alignItems: 'center', gap: 10,
@@ -213,11 +230,11 @@ export default function ChatbotCompose({
                         color: '#2B52D4', fontWeight: 700, fontSize: 12, flexShrink: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        {conv.patient?.name?.[0]?.toUpperCase() ?? '?'}
+                        {patient.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{conv.patient?.name ?? 'Unknown'}</div>
-                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>{conv.patient?.email ?? ''}</div>
+                        <div style={{ fontWeight: 600 }}>{patient.name ?? 'Unknown'}</div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>{patient.email ?? ''}</div>
                       </div>
                     </div>
                   ))}
@@ -236,7 +253,12 @@ export default function ChatbotCompose({
               )}
             </div>
 
-            {selected && (
+            {resolving && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#6B7280' }}>
+                Opening conversation…
+              </div>
+            )}
+            {selected && !resolving && (
               <div style={{ marginTop: 6, fontSize: 12, color: '#059669' }}>
                 ✓ Selected: <strong>{patientName}</strong>
               </div>
@@ -269,7 +291,7 @@ export default function ChatbotCompose({
             <button
               className="cb-btn cb-btn-primary"
               onClick={handleSend}
-              disabled={sending || !selected || !message.trim()}
+              disabled={sending || resolving || !selected || !message.trim()}
             >
               {sending ? 'Sending…' : 'Send Message'}
             </button>

@@ -140,7 +140,28 @@
 }
 
 /* Message bubbles */
-.cb-m { max-width: 70%; }
+.cb-mrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  justify-content: flex-start;
+}
+.cb-mrow.own { justify-content: flex-end; }
+.cb-mrow-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.cb-m { max-width: 100%; }
 .cb-m.sent { align-self: flex-end; }
 .cb-m.recv { align-self: flex-start; }
 .cb-m.bot  { align-self: flex-start; }
@@ -152,11 +173,43 @@
   font-size: 13px;
   line-height: 1.6;
 }
-.cb-m.recv .cb-mb { background: #F4F6FB; border: 1px solid #E5E7EB; border-radius: 14px 14px 14px 4px; color: #1A1A2E; }
-.cb-m.sent .cb-mb { background: #2B52D4; color: #fff; border-radius: 14px 14px 4px 14px; }
-.cb-m.bot  .cb-mb { background: #EEF2FF; border: 1.5px solid #DBEAFE; border-radius: 14px 14px 14px 4px; color: #1A1A2E; }
-.cb-mt { font-size: 10px; color: #9CA3AF; margin-top: 4px; }
-.cb-m.sent .cb-mt { text-align: right; }
+.cb-m.recv .cb-mb { background: #F4F6FB; border: 1px solid #E5E7EB; border-radius: 4px 18px 18px 18px; color: #1A1A2E; }
+.cb-m.sent .cb-mb { background: #2B52D4; color: #fff; border-radius: 18px 4px 18px 18px; }
+.cb-m.bot  .cb-mb { background: #EEF2FF; border: 1.5px solid #DBEAFE; border-radius: 4px 18px 18px 18px; color: #1A1A2E; }
+.cb-mt { font-size: 10px; color: #9CA3AF; margin-top: 4px; padding: 0 4px; }
+.cb-m.sent .cb-mt { text-align: right; color: #C7D2FE; }
+
+/* Attachments — inline image / file chip inside a bubble */
+.cb-m-img {
+  display: block;
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 14px;
+  object-fit: cover;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+.cb-m-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+.cb-m.recv .cb-m-file,
+.cb-m.bot  .cb-m-file { background: #fff; border: 1px solid #E5E7EB; }
+.cb-m-file-name {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* AI Confidence banner */
 .cb-ai-confidence {

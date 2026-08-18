@@ -20,6 +20,23 @@
 .recDot{width:6px;height:6px;background:#dc2626;border-radius:50%;animation:ml-pulse 1s infinite;}
 .endBtn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:background 0.18s;}
 .endBtn:hover{background:#fee2e2;}
+.topIconBtn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;cursor:pointer;transition:background 0.18s,color 0.18s;}
+.topIconBtn:hover{background:#eef2ff;color:#2B52D4;}
+
+/* Custom buttons docked as their own row directly above ZegoCloud's
+   native bottom toolbar (mic/camera/screen-share/leave, rendered by
+   the SDK itself and not repositionable). Evenly gapped and centered. */
+.zegoExtraBar{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:14px;z-index:20;}
+.zegoExtraBtn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:none;cursor:pointer;backdrop-filter:blur(4px);transition:background 0.18s;}
+.zegoExtraBtn:hover{background:rgba(255,255,255,0.28);}
+.zegoExtraBtnActive{background:#2B52D4;}
+.zegoExtraBtnActive:hover{background:#2445b8;}
+.zegoExtraBtnRecording{background:#dc2626;}
+.zegoExtraBtnRecording:hover{background:#b91c1c;}
+.zegoExtraBtnLeave{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#dc2626;color:#fff;border:none;cursor:pointer;transition:background 0.18s;}
+.zegoExtraBtnLeave:hover{background:#b91c1c;}
+.zegoRecordIcon{display:flex;align-items:center;justify-content:center;width:auto;height:auto;background:transparent;color:rgba(255,255,255,0.85);border:none;cursor:pointer;padding:4px;transition:color 0.18s;}
+.zegoRecordIcon:hover{color:#fff;}
 
 /* BODY */
 .body{display:flex;flex:1;overflow:hidden;padding:16px;gap:16px;}
