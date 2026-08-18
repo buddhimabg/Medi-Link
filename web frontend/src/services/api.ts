@@ -118,12 +118,12 @@ class ApiService {
 
   // ==================== DOCTOR ENDPOINTS ====================
   
-  async getDoctorProfile(): Promise<any> {
-    return this.request('/doctor/profile');
+  async getDoctorProfile(user_id: string | null): Promise<any> {
+    return this.request(`/doctor/profile/${user_id}`);
   }
 
-  async updateDoctorProfile(id: number, data: { phone: string; bio: string; photo: string }): Promise<any> {
-    return this.request(`/doctor/profile/${id}`, {
+  async updateDoctorProfile(user_id: string, data: { phone?: string; bio?: string; email?: string; specialty?: string; licenseNumber?: string; yearsOfExperience?: number }): Promise<any> {
+    return this.request(`/doctor/profile/${user_id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });

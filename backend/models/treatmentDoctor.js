@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // autoIndex is off and no fields are required/unique here so loading this
 // model never tries to alter that collection's existing indexes.
 const TreatmentDoctorSchema = new mongoose.Schema({
-    id: { type: Number },
+    id: { type: String },
     name: { type: String },
     specialty: { type: String, default: 'Psychiatrist' },
     email: { type: String },
