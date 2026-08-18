@@ -48,6 +48,7 @@ import "./App.css";
 import LandingPage from "./pages/landingpage";
 import LoginPage from "./pages/loginPage";
 import RegisterPage from "./pages/registerpage";
+import ForgotPassword from "./pages/forgotPassword";
 import Patientdashboard from "./pages/patientDashboard";
 import BookAppointment from "./pages/bookAppointment";
 import WellnessHub from "./pages/WellnessHub";
@@ -155,6 +156,7 @@ const App: React.FC = () => {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/dashboard" element={<Patientdashboard />} />
           <Route path="/bookAppointment" element={<BookAppointment />} />
           <Route path="/history" element={<AppointmentHistory />} />

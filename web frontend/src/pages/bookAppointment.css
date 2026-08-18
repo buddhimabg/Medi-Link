@@ -133,7 +133,7 @@
   color: #334155;
   outline: none;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgb(249, 249, 250);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   transition: all 0.2s ease;
 }
 
@@ -158,10 +158,10 @@
   border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #f7f8f9;
+  color: #334155;
   outline: none;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgb(255, 255, 255);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   transition: all 0.2s ease;
 }
 

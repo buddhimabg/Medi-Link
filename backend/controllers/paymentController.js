@@ -130,8 +130,9 @@ const getPaymentHistory = async (req, res) => {
       const appt = pay.appointmentId;
       return {
         _id: pay._id,
+        appointmentId: appt ? appt._id : null,
         paymentId: pay.paymentId || "N/A",
-        amount: pay.amount,
+        amount: pay.status === 'Refunded' && pay.refundAmount != null ? pay.refundAmount : pay.amount,
         currency: pay.currency,
         status: pay.status,
         method: pay.method || "PayHere Gateway",

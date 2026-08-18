@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./RegisterPage.css";
 import { useGoogleLogin } from "@react-oauth/google";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,23 +15,94 @@ const RegisterPage: React.FC = () => {
     dob: "",
     mobile: "",
     password: "",
+    confirmPassword: "",
   });
 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    mobile?: string;
+    confirmPassword?: string;
+  }>({});
+
+  const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  // Sri Lankan mobile numbers: 07XXXXXXXX, +947XXXXXXXX, or 947XXXXXXXX
+  const MOBILE_REGEX = /^(?:\+?94|0)7\d{8}$/;
+
+  const validateEmail = (value: string): string | undefined => {
+    if (!value.trim()) return "Email address is required.";
+    if (!EMAIL_REGEX.test(value.trim())) return "Please enter a valid email address.";
+    return undefined;
+  };
+
+  const validateMobile = (value: string): string | undefined => {
+    const cleaned = value.trim().replace(/[\s-]/g, "");
+    if (!cleaned) return "Mobile number is required.";
+    if (!MOBILE_REGEX.test(cleaned)) {
+      return "Enter a valid Sri Lankan mobile number (e.g. 07XXXXXXXX or +947XXXXXXXX).";
+    }
+    return undefined;
+  };
+
+  const validateConfirmPassword = (password: string, confirmPassword: string): string | undefined => {
+    if (!confirmPassword) return "Please confirm your password.";
+    if (password !== confirmPassword) return "Password not matching.";
+    return undefined;
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    const updated = { ...formData, [name]: value };
+    setFormData(updated);
+
+    // Re-check the match live once both password fields have been touched,
+    // so correcting a typo clears the error immediately instead of only on blur.
+    if ((name === "password" || name === "confirmPassword") && updated.confirmPassword) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateConfirmPassword(updated.password, updated.confirmPassword),
+      }));
+    }
+
+    // Once the email field has an error showing, re-validate live so it
+    // clears the moment the address becomes valid instead of waiting for blur.
+    if (name === "email" && fieldErrors.email) {
+      setFieldErrors((prev) => ({ ...prev, email: validateEmail(value) }));
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === "email") {
+      setFieldErrors((prev) => ({ ...prev, email: validateEmail(value) }));
+    } else if (name === "mobile") {
+      setFieldErrors((prev) => ({ ...prev, mobile: validateMobile(value) }));
+    } else if (name === "confirmPassword") {
+      setFieldErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateConfirmPassword(formData.password, value),
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const emailError = validateEmail(formData.email);
+    const mobileError = validateMobile(formData.mobile);
+    const confirmPasswordError = validateConfirmPassword(formData.password, formData.confirmPassword);
+    if (emailError || mobileError || confirmPasswordError) {
+      setFieldErrors({ email: emailError, mobile: mobileError, confirmPassword: confirmPasswordError });
+      setError(confirmPasswordError === "Password not matching." ? "Password not matching." : "Please fix the highlighted fields before continuing.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -39,8 +111,8 @@ const RegisterPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.fullName,
-          email: formData.email,
-          mobile: formData.mobile,
+          email: formData.email.trim(),
+          mobile: formData.mobile.trim().replace(/[\s-]/g, ""),
           password: formData.password,
           gender: formData.gender,
           city: formData.city,
@@ -117,7 +189,7 @@ const RegisterPage: React.FC = () => {
 
           {error && <div className="error-message">{error}</div>}
 
-          <form onSubmit={handleSubmit} className="register-form">
+          <form onSubmit={handleSubmit} className="register-form" noValidate>
             <div className="input-group">
               <label htmlFor="fullName">Full Name</label>
               <input
@@ -140,29 +212,34 @@ const RegisterPage: React.FC = () => {
                 placeholder="Email Address"
                 value={formData.email}
                 onChange={handleChange}
-                pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-                title="Please enter a valid email address"
+                onBlur={handleBlur}
+                className={fieldErrors.email ? "input-invalid" : ""}
                 required
               />
+              {fieldErrors.email && <span className="field-error">{fieldErrors.email}</span>}
             </div>
 
             <div className="form-row-2">
               <div className="input-group">
                 <label htmlFor="gender">Gender</label>
-                <select
-                  id="gender"
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="" disabled>
-                    Gender
-                  </option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+                <div className="select-wrapper">
+                  <select
+                    id="gender"
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="modern-select"
+                    required
+                  >
+                    <option value="" disabled>
+                      Gender
+                    </option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <ChevronDown size={18} className="select-chevron" />
+                </div>
               </div>
 
               <div className="input-group">
@@ -201,24 +278,65 @@ const RegisterPage: React.FC = () => {
                   placeholder="07X XXX XXXX"
                   value={formData.mobile}
                   onChange={handleChange}
-                  pattern="^\+?[0-9\s\-]{9,15}$"
-                  title="Please enter a valid mobile number (9 to 15 digits)"
+                  onBlur={handleBlur}
+                  className={fieldErrors.mobile ? "input-invalid" : ""}
                   required
                 />
+                {fieldErrors.mobile && <span className="field-error">{fieldErrors.mobile}</span>}
               </div>
             </div>
 
             <div className="input-group">
               <label htmlFor="password">Password</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className={fieldErrors.confirmPassword ? "input-invalid" : ""}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {fieldErrors.confirmPassword && (
+                <span className="field-error">{fieldErrors.confirmPassword}</span>
+              )}
             </div>
 
             <button

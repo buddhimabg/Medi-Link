@@ -107,6 +107,34 @@
   background-color: #e5e5e5;
 }
 
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  padding-right: 48px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 14px;
+  background: none;
+  border: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.password-toggle-btn:hover {
+  color: #0D47A1;
+}
+
 .form-options {
   display: flex;
   justify-content: space-between;

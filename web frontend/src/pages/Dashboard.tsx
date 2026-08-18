@@ -4,6 +4,7 @@ import "./Dashboard.css";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import Sidebar from "../components/Sidebar";
+import PatientTopNav from "../component/PatientTopNav";
 import StatsCard from "../components/StatsCard";
 import QuickActionCard from "../components/QuickActionCard";
 
@@ -60,6 +61,7 @@ const Dashboard = () => {
       <div className="flex bg-gray-50 min-h-screen">
         <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
         <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+          <PatientTopNav />
           <PageLoadingSpinner message="Loading dashboard…" />
         </main>
       </div>
@@ -69,8 +71,11 @@ const Dashboard = () => {
     return (
       <div className="flex bg-gray-50 min-h-screen">
         <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
-        <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
-          <PageErrorState message="We couldn't load your dashboard. Please try again." />
+        <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+          <PatientTopNav />
+          <div className="p-8">
+            <PageErrorState message="We couldn't load your dashboard. Please try again." />
+          </div>
         </main>
       </div>
     );
@@ -79,7 +84,9 @@ const Dashboard = () => {
   return (
     <div className="flex bg-gray-50 min-h-screen">
       <Sidebar activePage="Mood Track" collapsed={collapsed} setCollapsed={setCollapsed} />
-      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+        <PatientTopNav />
+        <div className="p-8">
         {showSuccess && (
           <div className="fixed bottom-4 right-4 z-50 w-80 animate-slide-in">
             <InlineAlert type="success" message="Check-in completed!" onClose={() => setShowSuccess(false)} />
@@ -139,6 +146,7 @@ const Dashboard = () => {
               />
             </div>
           </div>
+        </div>
         </div>
       </main>
     </div>

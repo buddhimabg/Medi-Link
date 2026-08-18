@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Video,
@@ -11,6 +12,9 @@ import {
   PhoneCall,
   Save,
   ShieldCheck,
+  Eye,
+  Download,
+  MapPin,
 } from "lucide-react";
 import "./patientDashboard.css";
 import Sidebar from "../component/sidebar";
@@ -18,6 +22,7 @@ import Sidebar from "../component/sidebar";
 interface Appointment {
   _id: string;
   doctorId: string;
+  doctorUserId?: string | null;
   doctorName: string;
   specialty: string;
   credentials: string;
@@ -39,7 +44,26 @@ interface CachedUser {
   mobile?: string;
 }
 
+interface PrescriptionMedication {
+  name: string;
+  dose: string;
+  frequency?: string;
+  duration?: string;
+  withFood?: string;
+}
+
+interface PrescriptionRecord {
+  _id: string;
+  doctorId: string;
+  doctorName?: string;
+  doctorSpecialty?: string;
+  medications: PrescriptionMedication[];
+  notes?: string;
+  issuedAt: string;
+}
+
 const PatientDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -59,6 +83,9 @@ const PatientDashboard: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
 
+  // Which appointment card's "cancellation locked" popover is currently open
+  const [lockedCancelApptId, setLockedCancelApptId] = useState<string | null>(null);
+
   // Rescheduling wizard modal states
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
   const [selectedApptToReschedule, setSelectedApptToReschedule] = useState<Appointment | null>(null);
@@ -72,6 +99,12 @@ const PatientDashboard: React.FC = () => {
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // Prescription history states
+  const [isPrescriptionHistoryOpen, setIsPrescriptionHistoryOpen] = useState(false);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
+  const [isPrescriptionsLoading, setIsPrescriptionsLoading] = useState(false);
+  const [viewingPrescription, setViewingPrescription] = useState<PrescriptionRecord | null>(null);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationsMenuRef = useRef<HTMLDivElement>(null);
@@ -213,6 +246,26 @@ const PatientDashboard: React.FC = () => {
     return new Date(isoStr);
   };
 
+  const handleCancelButtonClick = (appt: Appointment, canModify: boolean) => {
+    if (!canModify) {
+      setLockedCancelApptId((prev) => (prev === appt._id ? null : appt._id));
+      return;
+    }
+    handleCancelAppointment(appt._id);
+  };
+
+  useEffect(() => {
+    if (!lockedCancelApptId) return;
+    const closePopover = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".cancel-lock-wrapper")) {
+        setLockedCancelApptId(null);
+      }
+    };
+    document.addEventListener("mousedown", closePopover);
+    return () => document.removeEventListener("mousedown", closePopover);
+  }, [lockedCancelApptId]);
+
   const handleCancelAppointment = async (apptId: string) => {
     if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
     try {
@@ -327,6 +380,82 @@ const PatientDashboard: React.FC = () => {
     }
   };
 
+  const handleTogglePrescriptionHistory = async () => {
+    if (isPrescriptionHistoryOpen) {
+      setIsPrescriptionHistoryOpen(false);
+      return;
+    }
+
+    setIsPrescriptionHistoryOpen(true);
+    setIsPrescriptionsLoading(true);
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u?._id) {
+          const res = await fetch(`http://localhost:5000/api/prescriptions/patient/${u._id}`);
+          if (res.ok) {
+            const json = await res.json();
+            setPrescriptions(json.data || []);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error loading prescription history:", err);
+    } finally {
+      setIsPrescriptionsLoading(false);
+    }
+  };
+
+  const handleDownloadPrescription = (id: string) => {
+    window.open(`http://localhost:5000/api/prescriptions/${id}/download`, "_blank");
+  };
+
+  const handleDownloadInvoice = (id: string) => {
+    window.open(`http://localhost:5000/api/appointments/${id}/invoice`, "_blank");
+  };
+
+  // Mirrors App.tsx's buildSessionId — the doctor's video room is a
+  // permanent, per-doctor room keyed off their own User._id, not the
+  // appointment or the Doctor directory record's id.
+  const buildSessionId = (doctorUserId: string): string => {
+    const suffix = doctorUserId.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
+    return suffix.length >= 4 ? `doc-${suffix}` : "";
+  };
+
+  const handleJoinCall = (appt: Appointment) => {
+    if (!appt.doctorUserId) {
+      alert("This doctor hasn't set up video calls yet. Please try again later.");
+      return;
+    }
+    const sessionId = buildSessionId(appt.doctorUserId);
+    if (!sessionId) {
+      alert("Unable to start the video call for this appointment.");
+      return;
+    }
+
+    // The video-call routes are gated on the same medilink_* keys the
+    // doctor portal uses. The patient's JWT is already cached inside
+    // localStorage["user"].token from login — just mirror it into those
+    // keys here so the guard passes regardless of when the user logged in.
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      const u = JSON.parse(stored);
+      if (u?.token) {
+        localStorage.setItem("medilink_token", u.token);
+        localStorage.setItem("medilink_logged_in", "true");
+        localStorage.setItem(
+          "medilink_user_info",
+          JSON.stringify({ id: u._id, name: u.name, role: "patient", email: u.email })
+        );
+      }
+    }
+
+    // Full navigation (not React Router's navigate) so App.tsx remounts
+    // and picks up the freshly-written medilink_logged_in flag.
+    window.location.href = `/patient-join/${sessionId}`;
+  };
+
   useEffect(() => {
     const fetchAppointments = async () => {
       const stored = localStorage.getItem("user");
@@ -343,8 +472,10 @@ const PatientDashboard: React.FC = () => {
         const response = await fetch(`http://localhost:5000/api/appointments?userId=${userData._id}`);
         if (!response.ok) throw new Error("Failed");
         const data = await response.json();
-        const activeOnly = data.filter((a: any) => a.paymentStatus !== 'Canceled');
-        setAppointments(activeOnly);
+        const upcomingOnly = data.filter(
+          (a: any) => a.paymentStatus !== 'Canceled' && parseSlotStringToDate(a.slot).getTime() >= Date.now()
+        );
+        setAppointments(upcomingOnly);
       } catch {
         setError("Could not load appointments. Please try again later.");
       } finally {
@@ -606,21 +737,14 @@ const PatientDashboard: React.FC = () => {
           </div>
 
           <section className="quick-actions-grid">
-            <button className="action-card">
+            <button className="action-card" onClick={() => navigate("/bookAppointment")}>
               <div className="icon-wrapper blue-bg">
                 <Calendar size={24} className="blue-icon" />
               </div>
               <h3>Book Appointment</h3>
               <p>Schedule a consultation</p>
             </button>
-            <button className="action-card">
-              <div className="icon-wrapper green-bg">
-                <Video size={24} className="green-icon" />
-              </div>
-              <h3>Consult Online</h3>
-              <p>Start Virtual Consultation</p>
-            </button>
-            <button className="action-card">
+            <button className="action-card" onClick={handleTogglePrescriptionHistory}>
               <div className="icon-wrapper yellow-bg">
                 <FileText size={24} className="yellow-icon" />
               </div>
@@ -667,6 +791,7 @@ const PatientDashboard: React.FC = () => {
                         <th style={{ padding: "12px 8px", fontWeight: "600" }}>Method</th>
                         <th style={{ padding: "12px 8px", fontWeight: "600" }}>Transaction ID</th>
                         <th style={{ padding: "12px 8px", fontWeight: "600", textAlign: "center" }}>Status</th>
+                        <th style={{ padding: "12px 8px", fontWeight: "600", textAlign: "center" }}>Invoice</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -719,6 +844,18 @@ const PatientDashboard: React.FC = () => {
                                 {historyItem.status}
                               </span>
                             </td>
+                            <td style={{ padding: "12px 8px", textAlign: "center" }}>
+                              {isPaid && historyItem.appointmentId ? (
+                                <button
+                                  onClick={() => handleDownloadInvoice(historyItem.appointmentId)}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "5px 10px", fontSize: "0.72rem", fontWeight: "600", color: "#174eb6", backgroundColor: "#e6f0fd", border: "1px solid #bcd6fb", borderRadius: "6px", cursor: "pointer" }}
+                                >
+                                  <Download size={12} /> Invoice
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: "0.72rem", color: "#cbd5e0" }}>—</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -732,6 +869,125 @@ const PatientDashboard: React.FC = () => {
                 </div>
               )}
             </section>
+          )}
+
+          {isPrescriptionHistoryOpen && (
+            <section className="prescription-history-section" style={{ marginBottom: "32px", padding: "24px", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+              <div className="section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div>
+                  <h2 style={{ fontSize: "1.25rem", color: "#1a202c", fontWeight: "700", margin: 0 }}>Prescription History</h2>
+                  <p className="text-muted" style={{ fontSize: "0.85rem", color: "#718096", margin: "2px 0 0 0" }}>Newest prescriptions first</p>
+                </div>
+                <button
+                  onClick={() => setIsPrescriptionHistoryOpen(false)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 12px", fontSize: "0.85rem", fontWeight: "600", color: "#e53e3e", backgroundColor: "#fff5f5", border: "1px solid #fed7d7", borderRadius: "6px", cursor: "pointer", gap: "6px" }}
+                >
+                  <X size={14} /> Close
+                </button>
+              </div>
+
+              {isPrescriptionsLoading ? (
+                <div style={{ textAlign: "center", padding: "24px" }}>
+                  <Loader className="spin-icon" size={24} style={{ color: "#3182ce" }} />
+                  <p style={{ fontSize: "0.85rem", color: "#718096", marginTop: "8px" }}>Loading prescriptions...</p>
+                </div>
+              ) : prescriptions.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {prescriptions.map((rx) => (
+                    <div key={rx._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderRadius: "10px", border: "1px solid #e2e8f0", backgroundColor: "#f9fafb" }}>
+                      <div>
+                        <h3 style={{ fontSize: "0.95rem", color: "#1a202c", margin: "0 0 4px" }}>
+                          {rx.doctorName} {rx.doctorSpecialty ? `• ${rx.doctorSpecialty}` : ""}
+                        </h3>
+                        <p style={{ fontSize: "0.78rem", color: "#718096", margin: 0 }}>
+                          {new Date(rx.issuedAt).toLocaleDateString()} • {rx.medications?.length || 0} medication(s)
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          className="btn-modal-save"
+                          onClick={() => setViewingPrescription(rx)}
+                        >
+                          <Eye size={14} /> View
+                        </button>
+                        <button
+                          className="btn-modal-save"
+                          onClick={() => handleDownloadPrescription(rx._id)}
+                        >
+                          <Download size={14} /> Download
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#a0aec0" }}>
+                  <FileText size={36} style={{ marginBottom: "8px", color: "#cbd5e0" }} />
+                  <p style={{ margin: 0, fontSize: "0.88rem" }}>Nothing to show.</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {viewingPrescription && (
+            <div
+              style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+              onClick={() => setViewingPrescription(null)}
+            >
+              <div
+                style={{ backgroundColor: "#fff", borderRadius: "14px", padding: "24px", width: "90%", maxWidth: "480px", maxHeight: "80vh", overflowY: "auto" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <h2 style={{ fontSize: "1.15rem", color: "#1a202c", margin: 0 }}>Prescription Details</h2>
+                  <button
+                    onClick={() => setViewingPrescription(null)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#718096" }}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <p style={{ fontSize: "0.85rem", color: "#4a5568", margin: "0 0 4px" }}>
+                  <strong>Doctor:</strong> {viewingPrescription.doctorName} {viewingPrescription.doctorSpecialty ? `(${viewingPrescription.doctorSpecialty})` : ""}
+                </p>
+                <p style={{ fontSize: "0.85rem", color: "#4a5568", margin: "0 0 16px" }}>
+                  <strong>Issued:</strong> {new Date(viewingPrescription.issuedAt).toLocaleString()}
+                </p>
+
+                <h3 style={{ fontSize: "0.95rem", color: "#1a202c", marginBottom: "8px" }}>Medications</h3>
+                {viewingPrescription.medications && viewingPrescription.medications.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+                    {viewingPrescription.medications.map((med, idx) => (
+                      <div key={idx} style={{ padding: "10px 12px", borderRadius: "8px", backgroundColor: "#f7fafc", border: "1px solid #edf2f7" }}>
+                        <p style={{ margin: "0 0 2px", fontSize: "0.88rem", fontWeight: 600, color: "#2d3748" }}>{med.name} — {med.dose}</p>
+                        <p style={{ margin: 0, fontSize: "0.78rem", color: "#718096" }}>
+                          {med.frequency ? `Frequency: ${med.frequency}  ` : ""}
+                          {med.duration ? `Duration: ${med.duration}  ` : ""}
+                          With food: {med.withFood || "Yes"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: "0.85rem", color: "#a0aec0" }}>No medications listed.</p>
+                )}
+
+                {viewingPrescription.notes && (
+                  <>
+                    <h3 style={{ fontSize: "0.95rem", color: "#1a202c", marginBottom: "8px" }}>Notes</h3>
+                    <p style={{ fontSize: "0.85rem", color: "#4a5568" }}>{viewingPrescription.notes}</p>
+                  </>
+                )}
+
+                <button
+                  className="btn-modal-save"
+                  style={{ marginTop: "16px" }}
+                  onClick={() => handleDownloadPrescription(viewingPrescription._id)}
+                >
+                  <Download size={14} /> Download
+                </button>
+              </div>
+            </div>
           )}
 
           <section className="appointments-section">
@@ -776,7 +1032,8 @@ const PatientDashboard: React.FC = () => {
                           </div>
                           <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center" }}>
                             <span className="badge-online">
-                              <Video size={14} /> {appt.type || "Online"}
+                              {appt.type === "Physical" ? <MapPin size={14} /> : <Video size={14} />}{" "}
+                              {appt.type || "Virtual"}
                             </span>
                             {appt.paymentStatus === 'Pending' && (
                               <span className="badge-status pending" style={{ fontSize: "0.72rem", padding: "3px 8px", borderRadius: "12px", fontWeight: "700", backgroundColor: "#fffaf0", color: "#dd6b20", border: "1px solid #fbd38d", display: "inline-flex", alignItems: "center" }}>
@@ -788,24 +1045,42 @@ const PatientDashboard: React.FC = () => {
                       </div>
 
                       <div className="appt-actions">
-                        <button
-                          className="btn-cancel"
-                          onClick={() => handleCancelAppointment(appt._id)}
-                          disabled={!canModify}
-                        >
-                          Cancel
-                        </button>
+                        {appt.type === "Virtual" && (
+                          <button
+                            className="btn-join-call"
+                            onClick={() => handleJoinCall(appt)}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                          >
+                            <Video size={14} /> Join Call
+                          </button>
+                        )}
+                        <div className="cancel-lock-wrapper">
+                          <button
+                            className={`btn-cancel${!canModify ? " locked" : ""}`}
+                            onClick={() => handleCancelButtonClick(appt, canModify)}
+                          >
+                            Cancel
+                          </button>
+                          {lockedCancelApptId === appt._id && (
+                            <div className="cancel-lock-popover">
+                              Cancellation locked — appointments can only be canceled at least 24 hours in advance.
+                            </div>
+                          )}
+                        </div>
                         <button
                           className="btn-reschedule"
                           onClick={() => handleStartReschedule(appt)}
-                          disabled={!canModify}
                         >
                           Reschedule
                         </button>
-                        {!canModify && (
-                          <span className="policy-lock-warning" style={{ display: "block", fontSize: "0.7rem", color: "#e53e3e", marginTop: "6px", fontWeight: 600, textAlign: "right", width: "100%" }}>
-                            * Locked (under 24h limit)
-                          </span>
+                        {appt.paymentStatus === 'Paid' && (
+                          <button
+                            className="btn-reschedule"
+                            onClick={() => handleDownloadInvoice(appt._id)}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                          >
+                            <Download size={14} /> Invoice
+                          </button>
                         )}
                       </div>
                     </div>

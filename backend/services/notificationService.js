@@ -22,15 +22,17 @@ const transporter = nodemailer.createTransport({
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} html - Email HTML content
+ * @param {Array<{filename: string, content: Buffer, contentType?: string}>} [attachments] - Optional file attachments
  * @returns {Promise<void>}
  */
-exports.sendEmailNotification = async (to, subject, html) => {
+exports.sendEmailNotification = async (to, subject, html, attachments) => {
   try {
     const mailOptions = {
       from: process.env.SMTP_FROM || 'noreply@medilink.com',
       to,
       subject,
-      html
+      html,
+      ...(attachments && attachments.length ? { attachments } : {})
     };
 
     await transporter.sendMail(mailOptions);

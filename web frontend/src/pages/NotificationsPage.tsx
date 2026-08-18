@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import PatientTopNav from "../component/PatientTopNav";
 import StatsCard from "../components/StatsCard";
 import { updateReminder } from "../api/reminderApi";
 import { useReminderStore } from "../store/reminderStore";
@@ -318,6 +319,7 @@ const NotificationsPage: React.FC = () => {
       />
 
       <main className={`flex-1 overflow-y-auto transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+        <PatientTopNav />
         <div className="p-8 max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">

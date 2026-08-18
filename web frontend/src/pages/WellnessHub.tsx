@@ -43,10 +43,35 @@ const allTips = [
   { text: "Permit yourself to say no. Protecting your boundaries is self-care.", icon: "🧸", color: "#eef5fc" }
 ];
 
+// Real YouTube videos matching each featured-video topic. Verified titles/
+// channels via a web search rather than guessed, since a wrong video ID
+// would silently embed unrelated or broken content.
+const featuredVideos = [
+  {
+    id: "O-6f5wQXSu8",
+    title: "10-Minute Meditation For Anxiety",
+    channel: "Goodful",
+    duration: "10 min",
+  },
+  {
+    id: "ssss7V1_eyA",
+    title: "5 Minute Mindfulness Meditation",
+    channel: "Goodful",
+    duration: "5 min",
+  },
+  {
+    id: "grfXR6FAsI8",
+    title: "3-Minute Stress Management (Box Breathing)",
+    channel: "Therapy in a Nutshell",
+    duration: "3 min",
+  },
+];
+
 const WellnessHub: React.FC = () => {
   // 2. Setup State for the categories
   const [categories, setCategories] = useState<WellnessCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
 
   // 3. Fetch data from your backend when the component loads
   useEffect(() => {
@@ -171,48 +196,44 @@ const WellnessHub: React.FC = () => {
           </a>
         </div>
         <div className="videos-grid">
-          {/* Video Card 1 */}
-          <div className="video-card">
-            <div className="video-thumbnail bg-thumb-1">
-              <button className="play-button">▶</button>
-              <span className="duration">10:25</span>
-            </div>
-            <div className="video-info">
-              <h3>Guided Meditation for Anxiety</h3>
-              <div className="video-meta">
-                <span>Great Meditation</span>
-                <span className="tag">10 min</span>
+          {featuredVideos.map((video) => (
+            <div className="video-card" key={video.id}>
+              {playingVideoId === video.id ? (
+                <div className="video-thumbnail video-embed-wrapper">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${video.id}?autoplay=1`}
+                    title={video.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    frameBorder={0}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="video-thumbnail"
+                  style={{
+                    backgroundImage: `url(https://img.youtube.com/vi/${video.id}/hqdefault.jpg)`,
+                  }}
+                  onClick={() => setPlayingVideoId(video.id)}
+                >
+                  <button
+                    className="play-button"
+                    onClick={() => setPlayingVideoId(video.id)}
+                    aria-label={`Play ${video.title}`}
+                  >
+                    ▶
+                  </button>
+                </div>
+              )}
+              <div className="video-info">
+                <h3>{video.title}</h3>
+                <div className="video-meta">
+                  <span>{video.channel}</span>
+                  <span className="tag">{video.duration}</span>
+                </div>
               </div>
             </div>
-          </div>
-          {/* Video Card 2 */}
-          <div className="video-card">
-            <div className="video-thumbnail bg-thumb-2">
-              <button className="play-button">▶</button>
-              <span className="duration">5:12</span>
-            </div>
-            <div className="video-info">
-              <h3>5 Minute Mindfulness Meditation</h3>
-              <div className="video-meta">
-                <span>Goodful</span>
-                <span className="tag">5 min</span>
-              </div>
-            </div>
-          </div>
-          {/* Video Card 3 */}
-          <div className="video-card">
-            <div className="video-thumbnail bg-thumb-3">
-              <button className="play-button">▶</button>
-              <span className="duration">7:07</span>
-            </div>
-            <div className="video-info">
-              <h3>Box Breathing for Stress & Anxiety</h3>
-              <div className="video-meta">
-                <span>Therapy in a Nutshell</span>
-                <span className="tag">7 min</span>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 

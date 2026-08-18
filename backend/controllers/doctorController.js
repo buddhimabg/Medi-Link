@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Doctor = require('../models/doctor');
 const User = require('../models/user');
 const Appointment = require('../models/appointment');
@@ -385,7 +386,8 @@ exports.createOrUpdateDoctorProfile = async (req, res, next) => {
       return next(new ValidationError('License number and specialization are required'));
     }
 
-    let doctor = await Doctor.findOne({ userId: req.userId });
+    const doctorUserId = new mongoose.Types.ObjectId(req.userId);
+    let doctor = await Doctor.findOne({ userId: doctorUserId });
 
     if (!doctor) {
       // Find max id
@@ -394,7 +396,7 @@ exports.createOrUpdateDoctorProfile = async (req, res, next) => {
 
       doctor = new Doctor({
         id: nextId,
-        userId: req.userId,
+        userId: doctorUserId,
         licenseNumber,
         specialization,
         experience: experience || 0,

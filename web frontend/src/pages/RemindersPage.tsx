@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useMemo, useState, useRef } from "react";
 import Sidebar from "../components/Sidebar";
+import PatientTopNav from "../component/PatientTopNav";
 import StatsCard from "../components/StatsCard";
 import { getCurrentUserId, UI_ALERT_TIMEOUT_MS } from "../config";
 import {
@@ -714,7 +715,9 @@ const RemindersPage = () => {
         unreadNotificationsCount={0}
       />
 
-      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+        <PatientTopNav />
+        <div className="p-8">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -869,6 +872,7 @@ const RemindersPage = () => {
               </div>
             )}
           </section>
+        </div>
         </div>
       </main>
 

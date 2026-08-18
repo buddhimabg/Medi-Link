@@ -4,13 +4,17 @@ const Payment = require('../models/payment');
 const Doctor = require('../models/doctor');
 const Notification = require('../models/notification');
 const DoctorSchedule = require('../models/doctorSchedule');
+const invoiceService = require('./invoiceService');
 
 /**
  * Generate PayHere sandbox/live payment details and MD5 secure signature.
  */
 const generatePaymentConfig = async (appointmentId, amount, user, doctorName, protocol, host) => {
-  const merchantId = process.env.PAYHERE_MERCHANT_ID || "1224416";
-  const merchantSecret = process.env.PAYHERE_MERCHANT_SECRET || "8NzMwODMyMjU1NTE3MjQyMDA2MzI4MzUxMDQ3MTk1ODU2ODEwOTg0";
+  const merchantId = process.env.PAYHERE_MERCHANT_ID;
+  const merchantSecret = process.env.PAYHERE_MERCHANT_SECRET;
+  if (!merchantId || !merchantSecret) {
+    throw new Error("PAYHERE_MERCHANT_ID / PAYHERE_MERCHANT_SECRET are not set in the environment.");
+  }
   const formattedAmount = parseFloat(amount).toFixed(2);
   const currency = 'LKR';
 
@@ -33,7 +37,7 @@ const generatePaymentConfig = async (appointmentId, amount, user, doctorName, pr
     sandbox: process.env.PAYHERE_SANDBOX !== 'false',
     merchant_id: merchantId,
     order_id: appointmentId.toString(),
-    items: `Appointment with Dr. ${doctorName}`,
+    items: `Appointment with ${doctorName.startsWith('Dr') ? doctorName : `Dr. ${doctorName}`}`,
     amount: formattedAmount,
     currency: currency,
     hash: paymentHash,
@@ -51,11 +55,35 @@ const generatePaymentConfig = async (appointmentId, amount, user, doctorName, pr
 };
 
 /**
+ * Build the patient-facing booking confirmation message, including the
+ * hospital name for Physical appointments.
+ */
+const formatConfirmationMessage = (appointment) => {
+  const [dateStr, ...timeParts] = appointment.slot.split(' ');
+  const timeStr = timeParts.join(' ');
+  const formattedDate = new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const locationPart = appointment.type === 'Physical' && appointment.hospital
+    ? ` at ${appointment.hospital}`
+    : '';
+
+  return `Your ${appointment.type} appointment with ${appointment.doctorName} is confirmed for ${formattedDate} at ${timeStr}${locationPart}. Amount Paid: Rs. ${appointment.amount}.00 via PayHere.`;
+};
+
+/**
  * Verify incoming webhook MD5 signature.
  */
 const verifySignature = (body) => {
   const { merchant_id, order_id, payhere_amount, payhere_currency, status_code, md5sig } = body;
-  const merchantSecret = process.env.PAYHERE_MERCHANT_SECRET || "8NzMwODMyMjU1NTE3MjQyMDA2MzI4MzUxMDQ3MTk1ODU2ODEwOTg0";
+  const merchantSecret = process.env.PAYHERE_MERCHANT_SECRET;
+  if (!merchantSecret) {
+    throw new Error("PAYHERE_MERCHANT_SECRET is not set in the environment.");
+  }
   
   const hashedSecret = crypto.createHash('md5').update(merchantSecret).digest('hex').toUpperCase();
   const localSigString = merchant_id + order_id + payhere_amount + payhere_currency + status_code + hashedSecret;
@@ -116,13 +144,19 @@ const handleNotifyCallback = async (body) => {
         await Notification.create({
           userId: appointment.userId,
           title: "Appointment Confirmed",
-          message: `Your ${appointment.type} appointment with ${appointment.doctorName} on ${appointment.slot} is confirmed. Amount Paid: Rs. ${appointment.amount}.00 via PayHere.`,
+          message: formatConfirmationMessage(appointment),
           type: "system",
           category: "appointment"
         });
       } catch (notifError) {
         console.error("Failed to create confirmation notification:", notifError);
       }
+
+      // Physical appointments get an emailed confirmation + invoice PDF.
+      // Wired here too, not just in confirmPayment, since PayHere's
+      // server-to-server webhook can be the first (or only) path to mark
+      // the appointment Paid depending on timing.
+      invoiceService.sendPhysicalInvoiceEmail(appointment._id);
     }
     return { success: true, message: "Payment processed successfully." };
   } else {
@@ -162,5 +196,6 @@ const handleNotifyCallback = async (body) => {
 module.exports = {
   generatePaymentConfig,
   verifySignature,
-  handleNotifyCallback
+  handleNotifyCallback,
+  formatConfirmationMessage
 };

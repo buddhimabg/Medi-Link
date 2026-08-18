@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import PatientTopNav from "../component/PatientTopNav";
 import "./ReportAnalysisPage.css";
 import { getCurrentUserId, UI_ALERT_TIMEOUT_MS } from "../config";
 import { fetchReportHistory, uploadAndAnalyzeReport } from "../api/reportApi";
@@ -170,7 +171,9 @@ const ReportAnalysisPage = () => {
     <div className="flex bg-gray-50 min-h-screen">
       <Sidebar activePage="Report Analysis" collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+        <PatientTopNav />
+        <div className="p-8">
         <div className="max-w-6xl mx-auto">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -453,6 +456,7 @@ const ReportAnalysisPage = () => {
               </div>
             </>
           )}
+        </div>
         </div>
       </main>
     </div>

@@ -6,6 +6,7 @@ const paymentSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   currency: { type: String, default: 'LKR' },
   status: { type: String, required: true, default: 'Pending' },
+  refundAmount: { type: Number }, // Actual amount credited back on a 'Refunded' cancellation
   method: { type: String }, // Visa, Mastercard, etc.
   cardHolderName: { type: String },
   cardMasked: { type: String }
