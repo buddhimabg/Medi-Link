@@ -143,7 +143,6 @@ const ReportDetailPage: React.FC = () => {
   const unmatchedMarkers = getUnmatchedReportMarkers(report);
   const score            = Math.min(100, Math.round(Number(report.overallScore || 0)));
   const validAnalyzedCount = visibleMarkers.filter((m: any) => m.status === "normal" || m.status === "low" || m.status === "high").length;
-  const unsupportedCount   = visibleMarkers.filter((m: any) => m.status === "unsupported").length;
   const needAttention      = visibleMarkers.filter((m: any) => m.status === "low" || m.status === "high").length;
   const scoreLabel       = score >= 80 ? "Good" : score >= 60 ? "Fair" : "Needs Attention";
   const scoreLabelColor  = score >= 80 ? "text-green-500" : score >= 60 ? "text-amber-500" : "text-rose-500";
@@ -361,7 +360,7 @@ const ReportDetailPage: React.FC = () => {
 
                             {/* Value */}
                             <td className="px-4 py-4 text-right">
-                              <span className={`text-lg font-bold ${marker.status === "normal" ? "text-[#0C5BD5]" : marker.status === "low" ? "text-amber-600" : marker.status === "high" ? "text-rose-600" : "text-gray-500"}`}>
+                              <span className={`text-lg font-bold ${sc.text}`}>
                                 {value}
                               </span>
                               {unit && <span className="text-xs ml-1 text-gray-400">{unit}</span>}
