@@ -41,6 +41,44 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/doctors/search?name=&specialization=&hospital=
+// Public doctor search used by the landing page. Registered before
+// GET /:id so "search" isn't swallowed as an :id value.
+router.get('/search', async (req, res) => {
+  try {
+    const { name, specialization, hospital } = req.query;
+    const query = { status: 'active' };
+
+    if (name) {
+      query.name = { $regex: name, $options: 'i' };
+    }
+    if (specialization) {
+      query.$or = [
+        { specialty: { $regex: specialization, $options: 'i' } },
+        { specialization: { $regex: specialization, $options: 'i' } },
+      ];
+    }
+    if (hospital) {
+      const hospitalOr = [
+        { hospital: { $regex: hospital, $options: 'i' } },
+        { availableHospitals: { $regex: hospital, $options: 'i' } },
+      ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: hospitalOr }];
+        delete query.$or;
+      } else {
+        query.$or = hospitalOr;
+      }
+    }
+
+    const doctors = await Doctor.find(query).limit(60);
+    res.status(200).json(doctors);
+  } catch (error) {
+    console.error("Error in doctorRoutes GET /search :", error);
+    res.status(500).json({ success: false, message: "Failed to search doctors" });
+  }
+});
+
 // GET /api/doctors/:id
 router.get('/:id', async (req, res) => {
   try {

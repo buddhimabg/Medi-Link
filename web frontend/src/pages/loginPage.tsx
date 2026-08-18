@@ -1,6 +1,43 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useGoogleLogin } from "@react-oauth/google";
+import { Eye, EyeOff } from "lucide-react";
 import "./loginPage.css";
+
+const REMEMBER_EMAIL_KEY = "medilink_remembered_email";
+const REMEMBER_PASSWORD_KEY = "medilink_remembered_password";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// Shared by both the email/password and Google sign-in paths: stash the
+// account and route by role the same way regardless of how they logged in.
+const routeAfterLogin = (
+  data: any,
+  navigate: ReturnType<typeof useNavigate>
+) => {
+  localStorage.setItem("user", JSON.stringify(data));
+
+  if (data.role === "doctor") {
+    // Doctor portal (video calls, chatbot, journals) runs on its own
+    // JWT-gated routes, so it needs its own localStorage keys set too.
+    localStorage.setItem("medilink_token", data.token || "");
+    localStorage.setItem("medilink_logged_in", "true");
+    localStorage.setItem(
+      "medilink_user_info",
+      JSON.stringify({ id: data._id, name: data.name, role: data.role, email: data.email })
+    );
+    // Full navigation (not React Router's navigate) so App.tsx remounts
+    // and picks up the freshly-written medilink_logged_in flag.
+    window.location.href = "/video-call";
+  } else if (data.role === "admin") {
+    // Admin dashboard's own API layer (src/api/api.ts) reads this
+    // specific key for its Authorization header on every request.
+    localStorage.setItem("medilink_auth_token", data.token || "");
+    window.location.href = "/admin-dashboard";
+  } else {
+    navigate("/dashboard");
+  }
+};
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -8,6 +45,19 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Pre-fill from a previous "Remember me" login, if any.
+  useEffect(() => {
+    const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    const savedPassword = localStorage.getItem(REMEMBER_PASSWORD_KEY);
+    if (savedEmail && savedPassword) {
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,9 +65,6 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
@@ -29,28 +76,15 @@ const LoginPage: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("user", JSON.stringify(data));
-
-        if (data.role === "doctor") {
-          // Doctor portal (video calls, chatbot, journals) runs on its own
-          // JWT-gated routes, so it needs its own localStorage keys set too.
-          localStorage.setItem("medilink_token", data.token || "");
-          localStorage.setItem("medilink_logged_in", "true");
-          localStorage.setItem(
-            "medilink_user_info",
-            JSON.stringify({ id: data._id, name: data.name, role: data.role, email: data.email })
-          );
-          // Full navigation (not React Router's navigate) so App.tsx remounts
-          // and picks up the freshly-written medilink_logged_in flag.
-          window.location.href = "/video-call";
-        } else if (data.role === "admin") {
-          // Admin dashboard's own API layer (src/api/api.ts) reads this
-          // specific key for its Authorization header on every request.
-          localStorage.setItem("medilink_auth_token", data.token || "");
-          window.location.href = "/admin-dashboard";
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+          localStorage.setItem(REMEMBER_PASSWORD_KEY, password);
         } else {
-          navigate("/dashboard");
+          localStorage.removeItem(REMEMBER_EMAIL_KEY);
+          localStorage.removeItem(REMEMBER_PASSWORD_KEY);
         }
+
+        routeAfterLogin(data, navigate);
       } else {
         setError(
           data.message || "Login failed. Please check your credentials."
@@ -63,6 +97,36 @@ const LoginPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setError("");
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: tokenResponse.access_token }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          routeAfterLogin(data, navigate);
+        } else {
+          setError(data.message || "Google authentication failed.");
+        }
+      } catch (err) {
+        console.error("Google Login Error:", err);
+        setError("Cannot connect to the server for Google login.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => {
+      setError("Google login was closed or failed.");
+    },
+  });
 
   return (
     <div className="login-container">
@@ -101,24 +165,39 @@ const LoginPage: React.FC = () => {
 
             <div className="input-group">
               <label htmlFor="password">Password</label>
-              <input
-                type="password"
-                id="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <div className="form-options">
               <label className="remember-me">
-                <input type="checkbox" />
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
                 <span>Remember me</span>
               </label>
-              <a href="#" className="forgot-password">
+              <Link to="/forgot-password" className="forgot-password">
                 Forgot Password?
-              </a>
+              </Link>
             </div>
 
             <button type="submit" className="login-button" disabled={isLoading}>
@@ -129,7 +208,12 @@ const LoginPage: React.FC = () => {
               <span>or</span>
             </div>
 
-            <button type="button" className="google-button">
+            <button
+              type="button"
+              className="google-button"
+              onClick={() => handleGoogleLogin()}
+              disabled={isLoading}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 48 48"

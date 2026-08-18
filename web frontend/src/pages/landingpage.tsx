@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import {
   Calendar,
@@ -14,56 +14,12 @@ import "./landingpage.css";
 import Doctor from "../assets/doctorLandingPage.png";
 import backgroundImage from "../assets/herobackground.png";
 
-interface Doctor {
-  _id: string;
-  name: string;
-  specialty?: string;
-  hospital?: string;
-  imageUrl?: string;
-}
-
 const LandingPage: React.FC = () => {
-  // SEARCH LOGIC & STATE
-  const [nameQuery, setNameQuery] = useState("");
-  const [specQuery, setSpecQuery] = useState("");
-  const [hospQuery, setHospQuery] = useState("");
-
-  const [results, setResults] = useState<Doctor[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
   // --- NEW: Smooth Scroll Helper Function ---
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setHasSearched(true);
-
-    try {
-      const queryParams = new URLSearchParams();
-      if (nameQuery) queryParams.append("name", nameQuery);
-      if (specQuery) queryParams.append("specialization", specQuery);
-      if (hospQuery) queryParams.append("hospital", hospQuery);
-
-      const response = await fetch(
-        `http://localhost:5000/api/doctors/search?${queryParams.toString()}`
-      );
-
-      if (!response.ok) throw new Error("Failed to fetch data");
-
-      const data = await response.json();
-      setResults(data);
-    } catch (error) {
-      console.error("Search failed:", error);
-      setResults([]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -98,17 +54,6 @@ const LandingPage: React.FC = () => {
               }}
             >
               Services
-            </a>
-          </li>
-          <li>
-            <a
-              href="#doctors-section"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToSection("doctors-section");
-              }}
-            >
-              Doctors
             </a>
           </li>
           {/* NEW: Wellness Hub Link routing to a new page */}
@@ -212,138 +157,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* Search/Filter Section (Target 3: Doctors) */}
-      <section id="doctors-section" className="search-section-wrapper">
-        <form className="search-bar-container" onSubmit={handleSearch}>
-          <div className="search-input-group">
-            <label>Doctor name</label>
-            <input
-              type="text"
-              placeholder="Search doctor name"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-          </div>
-          <div className="search-input-group">
-            <label>Specialization</label>
-            <input
-              type="text"
-              placeholder="Select Specialization"
-              value={specQuery}
-              onChange={(e) => setSpecQuery(e.target.value)}
-            />
-          </div>
-          <div className="search-input-group">
-            <label>Hospital</label>
-            <input
-              type="text"
-              placeholder="Select hospital"
-              value={hospQuery}
-              onChange={(e) => setHospQuery(e.target.value)}
-            />
-          </div>
-          <div className="search-input-group">
-            <label>Date</label>
-            <input type="date" placeholder="MM/DD/YYYY" />
-          </div>
-          <div className="search-button-group">
-            <button type="submit" className="btn-search" disabled={isLoading}>
-              {isLoading ? "Searching..." : "Search"}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* Doctor Results */}
-      {hasSearched && (
-        <section
-          className="search-results-container"
-          style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}
-        >
-          {results.length === 0 && !isLoading && (
-            <h3
-              style={{
-                textAlign: "center",
-                color: "#666",
-                marginBottom: "60px",
-              }}
-            >
-              No doctors found. Try a different search.
-            </h3>
-          )}
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: "24px",
-            }}
-          >
-            {results.map((doctor) => (
-              <div
-                key={doctor._id}
-                style={{
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  backgroundColor: "white",
-                  boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-                }}
-              >
-                <img
-                  src={
-                    doctor.imageUrl ||
-                    "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=250&auto=format&fit=crop"
-                  }
-                  alt={doctor.name}
-                  style={{
-                    width: "80px",
-                    height: "80px",
-                    borderRadius: "50%",
-                    marginBottom: "15px",
-                    objectFit: "cover",
-                  }}
-                />
-
-                <h3
-                  style={{
-                    margin: "0 0 10px 0",
-                    fontSize: "1.2rem",
-                    color: "#1a365d",
-                  }}
-                >
-                  {doctor.name}
-                </h3>
-                <p style={{ margin: "5px 0", color: "#4a5568" }}>
-                  <strong>Specialty:</strong>{" "}
-                  {doctor.specialty || "General Specialist"}
-                </p>
-                <p style={{ margin: "5px 0", color: "#4a5568" }}>
-                  <strong>Hospital:</strong>{" "}
-                  {doctor.hospital || "Not specified"}
-                </p>
-
-                <button
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    marginTop: "20px",
-                    backgroundColor: "#1e56a0",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Book Now
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Footer */}
       <footer className="footer-section">

@@ -246,9 +246,17 @@
   margin-bottom: 1rem;
 }
 
-.bg-thumb-1 { background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80'); }
-.bg-thumb-2 { background-image: url('https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&q=80'); }
-.bg-thumb-3 { background-image: url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80'); }
+.video-embed-wrapper {
+  overflow: hidden;
+  padding: 0;
+}
+
+.video-embed-wrapper iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 16px;
+}
 
 .play-button {
   background: rgba(255, 255, 255, 0.25);

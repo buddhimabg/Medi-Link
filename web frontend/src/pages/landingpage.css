@@ -88,7 +88,7 @@
 
 .btn-signup {
   background-color: #ffffff;
-  color: #0b1a3d;
+  color: #1047d1;
   border: 1px solid rgba(11, 26, 61, 0.1);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
 }
@@ -136,7 +136,7 @@
 }
 
 .btn-book-appointment {
-  background-color: #0b1a3d;
+  background-color: #0c3497;
   color: white;
   border: none;
   padding: 18px 36px;
@@ -367,7 +367,7 @@
 
 /*FOOTER*/
 .footer-section {
-  background-color: #0b1a3d;
+  background-color: #124a9e;
   color: white;
    
   padding: 120px 8% 40px; 

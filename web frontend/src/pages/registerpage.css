@@ -2,7 +2,7 @@
 .register-container {
   display: flex;
   min-height: 100vh;
-  background-color: #1a56db; /* Main Blue Background */
+  background-color: #ffffff;
   font-family: 'Inter', -apple-system, sans-serif;
 }
 
@@ -40,7 +40,7 @@
 .register-form-wrapper {
   width: 100%;
   max-width: 480px;
-  color: white;
+  color: #1f2937;
 }
 
 .register-title {
@@ -67,7 +67,7 @@
 .input-group label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: #374151;
 }
 
 .input-group input,
@@ -75,8 +75,8 @@
   width: 100%;
   padding: 12px 16px;
   border-radius: 8px;
-  border: none;
-  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  background-color: #f9fafb;
   color: #1f2937;
   font-size: 1rem;
   box-sizing: border-box;
@@ -85,12 +85,102 @@
 
 .input-group input:focus,
 .input-group select:focus {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid #1a56db;
+  border-color: #1a56db;
+}
+
+.input-group input.input-invalid {
+  border-color: #ef4444;
+  outline: none;
+}
+
+.field-error {
+  color: #ef4444;
+  font-size: 0.8rem;
+  margin-top: 2px;
 }
 
 .form-row-2 {
   display: flex;
   gap: 16px;
+}
+
+/* Password visibility toggle */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  padding-right: 44px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.password-toggle-btn:hover {
+  color: #1a56db;
+}
+
+/* Modernized Gender dropdown */
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.modern-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 12px 40px 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background-color: #f9fafb;
+  color: #1f2937;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.modern-select:hover {
+  border-color: #9ca3af;
+  background-color: #ffffff;
+}
+
+.modern-select:focus {
+  outline: none;
+  border-color: #1a56db;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.15);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 14px;
+  color: #6b7280;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.select-wrapper:focus-within .select-chevron {
+  color: #1a56db;
 }
 
 /* Error Message */
@@ -138,12 +228,12 @@
 
 .divider-line {
   height: 1px;
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: #e5e7eb;
   flex: 1;
 }
 
 .divider-text {
-  color: rgba(255, 255, 255, 0.8);
+  color: #6b7280;
   font-size: 0.9rem;
 }
 
@@ -155,8 +245,8 @@
   gap: 10px;
   width: 100%;
   background-color: transparent;
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #1f2937;
+  border: 1px solid #d1d5db;
   padding: 12px;
   border-radius: 8px;
   font-size: 1rem;
@@ -166,7 +256,7 @@
 }
 
 .google-auth-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: #f3f4f6;
 }
 
 /* Login Prompt */
@@ -174,11 +264,11 @@
   text-align: center;
   margin-top: 20px;
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: #4b5563;
 }
 
 .login-link {
-  color: white;
+  color: #1a56db;
   font-weight: 600;
   text-decoration: none;
 }

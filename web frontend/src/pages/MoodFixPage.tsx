@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import PatientTopNav from "../component/PatientTopNav";
 import "./MoodFixPage.css";
 import InsightIcon from "../assets/InsightIcon";
 import MoodFixIcon from "../assets/MoodFixIcon";
@@ -198,7 +199,9 @@ const MoodFixPage = () => {
     <div className="flex bg-gray-50 min-h-screen">
       <Sidebar activePage={activeSidebarPage} strictActive collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"} p-8`}>
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? "ml-20" : "ml-64"}`}>
+        <PatientTopNav />
+        <div className="p-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -345,6 +348,7 @@ const MoodFixPage = () => {
               )}
             </div>
           </section>
+        </div>
         </div>
       </main>
     </div>

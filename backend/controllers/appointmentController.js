@@ -1,7 +1,14 @@
+const PDFDocument = require('pdfkit');
 const Appointment = require('../models/appointment');
 const Doctor = require('../models/doctor');
 const User = require('../models/user');
+const Payment = require('../models/payment');
 const DoctorSchedule = require('../models/doctorSchedule');
+const paymentService = require('../services/paymentService');
+const invoiceService = require('../services/invoiceService');
+
+// Flat service charge kept back on every no-show-refund cancellation.
+const NO_SHOW_FEE = 275;
 
 const parseSlotStringToDate = (slotStr) => {
   if (!slotStr) return new Date();
@@ -35,7 +42,12 @@ const createAppointment = async (req, res) => {
       type,
       imageUrl,
       slot,
-      amount
+      hospital,
+      amount,
+      doctorFee,
+      hospitalFee,
+      channelingFee,
+      noShowRefund
     } = req.body;
 
     if (!userId || !doctorId || !slot || !type || !amount) {
@@ -90,7 +102,13 @@ const createAppointment = async (req, res) => {
       type,
       imageUrl: imageUrl || doctor.photo || doctor.imageUrl,
       slot,
+      hospital: type === 'Physical' ? hospital : undefined,
       amount,
+      doctorFee,
+      hospitalFee,
+      channelingFee,
+      noShowRefund: !!noShowRefund,
+      noShowFee: noShowRefund ? NO_SHOW_FEE : 0,
       paymentStatus: 'Pending'
     });
 
@@ -128,8 +146,23 @@ const getAppointments = async (req, res) => {
     if (userId) {
       query.userId = userId;
     }
-    const appointments = await Appointment.find(query).sort({ createdAt: -1 });
-    res.status(200).json(appointments);
+    const appointments = await Appointment.find(query).sort({ createdAt: -1 }).lean();
+
+    // Virtual appointments join a per-doctor video room keyed off the
+    // doctor's own User._id (see App.tsx's buildSessionId), which is a
+    // different id than Appointment.doctorId (the Doctor directory
+    // record's own _id) — so resolve that link here for the "Join Call"
+    // button on the patient dashboard.
+    const doctorIds = [...new Set(appointments.map((a) => a.doctorId?.toString()).filter(Boolean))];
+    const doctors = await Doctor.find({ _id: { $in: doctorIds } }, 'userId').lean();
+    const doctorUserIdById = new Map(doctors.map((d) => [d._id.toString(), d.userId ? d.userId.toString() : null]));
+
+    const data = appointments.map((a) => ({
+      ...a,
+      doctorUserId: doctorUserIdById.get(a.doctorId?.toString()) || null,
+    }));
+
+    res.status(200).json(data);
   } catch (error) {
     console.error("Error fetching appointments:", error);
     res.status(500).json({ success: false, message: "Failed to load appointments." });
@@ -144,11 +177,14 @@ const cancelAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
-    // Enforce 24-hour cancellation validation check
+    // Enforce 24-hour cancellation validation check — waived for bookings
+    // that opted into No Show Refund, since covering late cancellations /
+    // missed sessions (minus the flat service charge) is the whole point
+    // of that add-on.
     const apptDate = parseSlotStringToDate(appointment.slot);
     const now = new Date();
     const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursDiff < 24) {
+    if (hoursDiff < 24 && !appointment.noShowRefund) {
       return res.status(400).json({
         success: false,
         message: "Appointments can only be canceled at least 24 hours before the scheduled slot time."
@@ -178,36 +214,49 @@ const cancelAppointment = async (req, res) => {
       }
     }
 
-    // 3. Mark appointment as canceled & issue automatic refund if paid
+    // 3. Mark appointment as canceled & issue automatic refund if paid.
+    // No Show Refund bookings keep back the flat NO_SHOW_FEE service
+    // charge; everyone else gets a full refund (subject to the 24h policy
+    // enforced above).
     const wasPaid = appointment.paymentStatus === 'Paid';
+    const refundAmount = appointment.noShowRefund
+      ? Math.max(appointment.amount - NO_SHOW_FEE, 0)
+      : appointment.amount;
     appointment.paymentStatus = 'Canceled';
     await appointment.save();
 
     if (wasPaid) {
-      console.log(`[REFUND] Automatically refunded Rs. ${appointment.amount}.00 for appointment ${appointment._id} to user card`);
-      
+      console.log(`[REFUND] Automatically refunded Rs. ${refundAmount}.00 for appointment ${appointment._id} to user card`);
+
       try {
         const Payment = require('../models/payment');
         const paymentLog = await Payment.findOne({ appointmentId: appointment._id });
         if (paymentLog) {
           paymentLog.status = 'Refunded';
+          paymentLog.refundAmount = refundAmount;
           await paymentLog.save();
         }
       } catch (payErr) {
         console.warn("Could not update payment log to Refunded:", payErr);
       }
+    }
 
-      try {
-        const Notification = require('../models/notification');
-        await Notification.create({
-          userId: appointment.userId,
-          title: "Automatic Billing Refund Issued",
-          message: `Your appointment with Dr. ${appointment.doctorName} was successfully canceled. An automatic refund of Rs. ${appointment.amount}.00 has been credited back to your card.`,
-          category: "billing"
-        });
-      } catch (notifyErr) {
-        console.warn("Could not create billing notification:", notifyErr);
-      }
+    try {
+      const Notification = require('../models/notification');
+      const refundNote = wasPaid
+        ? appointment.noShowRefund
+          ? ` An automatic refund of Rs. ${refundAmount}.00 has been credited back to your card (Rs. ${NO_SHOW_FEE}.00 No Show Refund service charge withheld).`
+          : ` An automatic refund of Rs. ${refundAmount}.00 has been credited back to your card.`
+        : '';
+      await Notification.create({
+        userId: appointment.userId,
+        title: "Appointment Canceled",
+        message: `Your appointment with ${appointment.doctorName} on ${appointment.slot} has been canceled.${refundNote}`,
+        type: "alert",
+        category: "appointment"
+      });
+    } catch (notifyErr) {
+      console.warn("Could not create cancellation notification:", notifyErr);
     }
 
     res.status(200).json({
@@ -289,9 +338,23 @@ const rescheduleAppointment = async (req, res) => {
     }
 
     // 5. Update appointment slot and status
+    const previousSlot = appointment.slot;
     appointment.slot = newSlot;
     appointment.paymentStatus = 'Paid'; // Ensure it's marked as active paid
     await appointment.save();
+
+    try {
+      const Notification = require('../models/notification');
+      await Notification.create({
+        userId: appointment.userId,
+        title: "Appointment Rescheduled",
+        message: `Your appointment with ${appointment.doctorName} has been moved from ${previousSlot} to ${newSlot}.`,
+        type: "system",
+        category: "appointment"
+      });
+    } catch (notifyErr) {
+      console.warn("Could not create reschedule notification:", notifyErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -337,12 +400,18 @@ const confirmPayment = async (req, res) => {
         await Notification.create({
           userId: appointment.userId,
           title: "Appointment Confirmed",
-          message: `Your ${appointment.type} appointment with ${appointment.doctorName} on ${appointment.slot} is confirmed. Amount Paid: Rs. ${appointment.amount}.00 via PayHere.`,
+          message: paymentService.formatConfirmationMessage(appointment),
+          type: "system",
           category: "appointment"
         });
       } catch (err) {
         console.warn("Notification creation failed:", err);
       }
+
+      // Physical appointments get an emailed confirmation + invoice PDF.
+      // Fire-and-forget: this never throws (errors are logged internally)
+      // and shouldn't hold up the API response.
+      invoiceService.sendPhysicalInvoiceEmail(appointment._id);
     }
 
     res.status(200).json({
@@ -356,10 +425,31 @@ const confirmPayment = async (req, res) => {
   }
 };
 
+const getInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const appointment = await Appointment.findById(id);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found." });
+    }
+    if (appointment.paymentStatus !== 'Paid') {
+      return res.status(400).json({ success: false, message: "Invoice is only available for paid appointments." });
+    }
+
+    await invoiceService.streamInvoiceToResponse(appointment, res);
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: "Server error generating invoice." });
+    }
+  }
+};
+
 module.exports = {
   createAppointment,
   getAppointments,
   cancelAppointment,
+  getInvoice,
   rescheduleAppointment,
   confirmPayment
 };

@@ -9,7 +9,13 @@ const appointmentSchema = new mongoose.Schema({
   type: { type: String, enum: ['Virtual', 'Physical'], required: true },
   imageUrl: { type: String },
   slot: { type: String, required: true },
+  hospital: { type: String }, // Only set for Physical appointments
   amount: { type: Number, required: true },
+  doctorFee: { type: Number },
+  hospitalFee: { type: Number },
+  channelingFee: { type: Number },
+  noShowRefund: { type: Boolean, default: false },
+  noShowFee: { type: Number, default: 0 },
   paymentStatus: { type: String, default: 'Paid' },
   cardHolderName: { type: String },
   cardNumber: { type: String }, // Partial/Masked for records

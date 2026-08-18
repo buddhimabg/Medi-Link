@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Search,
   MapPin,
@@ -50,14 +51,18 @@ interface Doctor {
   availableHospitals?: string[];
   hospital?: string;
   availableModes?: string[];
-  virtualPrice: number;
-  physicalPrice: number;
+  virtualPrice?: number;
+  physicalPrice?: number;
   availableSlots: string[];
   availableDays?: string[];
   schedules?: DoctorSchedule[];
 }
 
 const BookAppointment: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const preselectedDoctorId = searchParams.get("doctorId");
+  const hasAutoSelectedDoctor = useRef(false);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
@@ -178,7 +183,8 @@ const BookAppointment: React.FC = () => {
 
   const doctorFee = useMemo(() => {
     if (!activeDoctor) return 0;
-    return bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice;
+    const fee = bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice;
+    return fee || 0;
   }, [activeDoctor, bookingMode]);
 
   const hospitalFee = useMemo(() => {
@@ -187,12 +193,13 @@ const BookAppointment: React.FC = () => {
 
   const channelingFee = 399;
   const discount = 0;
-  const noShowFee = 0;
+  const NO_SHOW_FEE = 275;
+  const noShowFee = noShowRefund ? NO_SHOW_FEE : 0;
   const redeemPoints = 0;
 
   const totalFee = useMemo(() => {
     return doctorFee + hospitalFee + channelingFee + noShowFee - discount - redeemPoints;
-  }, [doctorFee, hospitalFee]);
+  }, [doctorFee, hospitalFee, noShowFee]);
 
   // Helper functions and memoizations for doctor schedules view
   const formatScheduleDate = (dateStr: string) => {
@@ -246,7 +253,7 @@ const BookAppointment: React.FC = () => {
     setIsCheckoutOpen(true);
   };
 
-  const handleProceedToStep2 = () => {
+  const handleProceedToPay = () => {
     setFormValidationError("");
     if (!patientName.trim()) {
       setFormValidationError("Name is required.");
@@ -260,7 +267,7 @@ const BookAppointment: React.FC = () => {
       setFormValidationError(`${identityType === "nic" ? "NIC" : "Passport"} number is required.`);
       return;
     }
-    setBookingStep(2);
+    handleProcessPayment();
   };
 
   const doctorSchedulesGrouped = useMemo(() => {
@@ -353,7 +360,8 @@ const BookAppointment: React.FC = () => {
           type: bookingMode,
           imageUrl: activeDoctor.photo || activeDoctor.imageUrl,
           slot: selectedSlot,
-          amount: totalFee
+          amount: totalFee,
+          noShowRefund
         })
       });
 
@@ -559,6 +567,20 @@ const BookAppointment: React.FC = () => {
     };
     fetchDoctors();
   }, []);
+
+  // Deep-link support: "Book Now" from the landing page's public doctor
+  // search passes ?doctorId=, so pre-select that doctor once the full list
+  // has loaded instead of dropping the user on an empty booking page.
+  useEffect(() => {
+    if (hasAutoSelectedDoctor.current || !preselectedDoctorId || doctors.length === 0) return;
+    hasAutoSelectedDoctor.current = true;
+    const match = doctors.find((d) => d._id === preselectedDoctorId);
+    if (match) {
+      setHasSearched(true);
+      handleOpenBooking(match);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctors, preselectedDoctorId]);
 
   // Upgraded Live Filtering Math
   const filteredDoctors = doctors.filter((doc) => {
@@ -802,12 +824,13 @@ const BookAppointment: React.FC = () => {
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "16px",
-                alignItems: "center",
+                alignItems: "flex-end",
                 marginTop: "16px",
               }}
             >
               {/* 1. Specialty Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
+                <label>Specialty</label>
                 <div className="modern-select-wrapper">
                   <select
                     value={selectedSpecialty}
@@ -827,6 +850,7 @@ const BookAppointment: React.FC = () => {
 
               {/* 2. Hospital Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
+                <label>Hospital</label>
                 <div className="modern-select-wrapper">
                   <select
                     value={selectedHospital}
@@ -846,6 +870,7 @@ const BookAppointment: React.FC = () => {
 
               {/* 3. Doctor Names Dropdown */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
+                <label>Doctor</label>
                 <div className="modern-select-wrapper">
                   <select
                     value={selectedDoctorName}
@@ -869,6 +894,7 @@ const BookAppointment: React.FC = () => {
               {/* 4. Duplicate Doctor Selection (Conditional) */}
               {selectedDoctorName && doctorNameGroups[selectedDoctorName]?.length > 1 && (
                 <div className="dropdown-group" style={{ flex: "1 1 250px" }}>
+                  <label>Practitioner</label>
                   <div className="modern-select-wrapper">
                     <select
                       value={selectedDoctorId}
@@ -896,6 +922,7 @@ const BookAppointment: React.FC = () => {
 
               {/* 5. Available Date Picker */}
               <div className="dropdown-group" style={{ flex: "1 1 200px" }}>
+                <label>Date</label>
                 <div className="modern-select-wrapper">
                   <input
                     type="date"
@@ -1111,7 +1138,7 @@ const BookAppointment: React.FC = () => {
                                     </div>
                                     <div className="session-fee-info">
                                       <span className="session-fee-amount">
-                                        Rs. {(bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice).toLocaleString()}.00 + Booking Fee
+                                        Rs. {((bookingMode === "Virtual" ? activeDoctor.virtualPrice : activeDoctor.physicalPrice) || 0).toLocaleString()}.00 + Booking Fee
                                       </span>
                                       <span className="session-fee-label">Channelling Fee</span>
                                     </div>
@@ -1120,7 +1147,7 @@ const BookAppointment: React.FC = () => {
                                         onClick={() => handleStartCheckout(fullSlotStr)}
                                         className="session-available-btn"
                                       >
-                                        Available
+                                        Book Appointment
                                       </button>
                                     </div>
                                   </div>
@@ -1365,6 +1392,11 @@ const BookAppointment: React.FC = () => {
                           ⚠️ {formValidationError}
                         </div>
                       )}
+                      {paymentError && (
+                        <div className="payment-error-alert" style={{ marginBottom: "12px", fontSize: "0.85rem", padding: "10px", backgroundColor: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", color: "#b91c1c", textAlign: "left" }}>
+                          ⚠️ {paymentError}
+                        </div>
+                      )}
                       <div className="payment-details-card">
                         <h4 className="pd-title">Payment Details</h4>
                         <p className="pd-subtitle">Detailed payment breakdown on your transaction</p>
@@ -1407,110 +1439,13 @@ const BookAppointment: React.FC = () => {
                       <button
                         type="button"
                         className="btn-pay-securely"
-                        onClick={handleProceedToStep2}
-                      >
-                        🔒 Pay
-                      </button>
-                      <p className="pay-instruction-caption">
-                        Please click "Pay" button to confirm your appointment
-                      </p>
-                    </div>
-                  </div>
-                ) : bookingStep === 2 ? (
-                  <div className="inline-checkout-layout-grid">
-                    {/* Left Panel: PayHere Secure Payment Info */}
-                    <div ref={formContainerRef} className="inline-checkout-form-container">
-                      <div className="inline-checkout-header">
-                        <button
-                          type="button"
-                          className="btn-inline-back"
-                          disabled={isPaying}
-                          onClick={() => setBookingStep(1)}
-                        >
-                          ← Back to Patient Details
-                        </button>
-                        <div className="inline-checkout-title">
-                          <h3>Secure Channeling Payment</h3>
-                        </div>
-                      </div>
-
-                      <div className="wizard-form-section">
-                        <div className="payment-wizard-summary">
-                          <span className="pws-title">Channeling summary:</span>
-                          <div className="pws-details">
-                            <div>Mode: <strong>{bookingMode} Consultation</strong></div>
-                            <div>Slot: <strong>{selectedSlot}</strong></div>
-                            <div>Total Fee: <strong>Rs. {totalFee.toLocaleString()}.00</strong></div>
-                          </div>
-                        </div>
-
-                        <div className="payhere-checkout-container">
-                          <img
-                            className="payhere-logo"
-                            src="https://www.payhere.lk/downloads/images/payhere_square_banner.png"
-                            alt="PayHere Secure Gateway"
-                          />
-                          <h4 className="payhere-title">Pay via PayHere</h4>
-                          <p className="payhere-desc">
-                            You will be routed to the secure PayHere Sandbox payment gateway to complete this transaction using sandbox test cards.
-                          </p>
-
-                          {paymentError && <div className="payment-error-alert">{paymentError}</div>}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Panel: Payment Details Card */}
-                    <div className="inline-checkout-summary-section">
-                      <div className="payment-details-card">
-                        <h4 className="pd-title">Payment Details</h4>
-                        <p className="pd-subtitle">Detailed payment breakdown on your transaction</p>
-
-                        <div className="pd-divider"></div>
-
-                        <div className="pd-row">
-                          <span>Doctor fee</span>
-                          <strong>Rs {doctorFee.toLocaleString()}.00</strong>
-                        </div>
-                        <div className="pd-row">
-                          <span>Hospital fee</span>
-                          <strong>Rs {hospitalFee.toLocaleString()}.00</strong>
-                        </div>
-                        <div className="pd-row">
-                          <span>eChannelling fee</span>
-                          <strong>Rs {channelingFee.toLocaleString()}.00</strong>
-                        </div>
-                        <div className="pd-row discount-row">
-                          <span>Discount</span>
-                          <strong className="red-text">- Rs {discount.toLocaleString()}.00</strong>
-                        </div>
-                        <div className="pd-row">
-                          <span>No show fee</span>
-                          <strong>Rs {noShowFee.toLocaleString()}.00</strong>
-                        </div>
-                        <div className="pd-row discount-row">
-                          <span>Redeem Points</span>
-                          <strong className="red-text">- Rs {redeemPoints.toLocaleString()}.00</strong>
-                        </div>
-
-                        <div className="pd-divider"></div>
-
-                        <div className="pd-row total-row">
-                          <span>Total fee</span>
-                          <strong className="total-amount">Rs {totalFee.toLocaleString()}.00</strong>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="btn-pay-securely font-bold"
                         disabled={isPaying}
-                        onClick={() => handleProcessPayment()}
+                        onClick={handleProceedToPay}
                       >
-                        {isPaying ? "Opening Gateway..." : "Proceed to Checkout"}
+                        {isPaying ? "Opening Gateway..." : "🔒 Proceed to Pay"}
                       </button>
                       <p className="pay-instruction-caption">
-                        Please click "Proceed to Checkout" to initiate gateway payment
+                        You'll be routed to the secure PayHere gateway to complete payment
                       </p>
                     </div>
                   </div>

@@ -211,15 +211,21 @@
 /* Appointment Action Buttons */
 .appt-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.cancel-lock-wrapper {
+  position: relative;
 }
 
 .btn-cancel {
   background: transparent;
   border: 1px solid #cbd5e0;
   color: #4a5568;
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -230,12 +236,48 @@
   border-color: #a0aec0;
 }
 
+.btn-cancel.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-cancel.locked:hover {
+  background: transparent;
+  border-color: #cbd5e0;
+}
+
+.cancel-lock-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 220px;
+  background: #174eb6;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.cancel-lock-popover::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  right: 16px;
+  border: 6px solid transparent;
+  border-bottom-color: #174eb6;
+}
+
 .btn-reschedule {
   background: #174eb6;
   border: none;
   color: white;
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
@@ -243,6 +285,22 @@
 
 .btn-reschedule:hover {
   background: #0f3680;
+}
+
+.btn-join-call {
+  background: #00a389;
+  border: none;
+  color: white;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-join-call:hover {
+  background: #00876f;
 }
 
 .btn-cancel:disabled, .btn-reschedule:disabled {
@@ -306,9 +364,23 @@
     width: 100%;
     justify-content: stretch;
   }
-  
+
   .appt-actions button {
     flex: 1;
+  }
+
+  .cancel-lock-wrapper {
+    flex: 1;
+    display: flex;
+  }
+
+  .cancel-lock-wrapper .btn-cancel {
+    flex: 1;
+  }
+
+  .cancel-lock-popover {
+    right: auto;
+    left: 0;
   }
 }
 
