@@ -30,6 +30,7 @@ const LoginPage: React.FC = () => {
 
       if (response.ok) {
         localStorage.setItem("user", JSON.stringify(data));
+        localStorage.setItem("user_id", data._id);
 
         if (data.role === "doctor") {
           // Doctor portal (video calls, chatbot, journals) runs on its own
@@ -40,9 +41,7 @@ const LoginPage: React.FC = () => {
             "medilink_user_info",
             JSON.stringify({ id: data._id, name: data.name, role: data.role, email: data.email })
           );
-          // Full navigation (not React Router's navigate) so App.tsx remounts
-          // and picks up the freshly-written medilink_logged_in flag.
-          window.location.href = "/video-call";
+          window.location.href = "/doctor-dashboard";
         } else if (data.role === "admin") {
           // Admin dashboard's own API layer (src/api/api.ts) reads this
           // specific key for its Authorization header on every request.
