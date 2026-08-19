@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 
 const doctorSchema = new mongoose.Schema({
+  // Sequential display id used by the admin dashboard (doctorController.js
+  // assigns the next number on creation) — not the same as Mongo's _id.
+  id: { type: Number },
   // Booking-flow fields (patient-facing directory/scheduling) — required by
   // the existing doctor search, booking, and appointment flow.
   name: { type: String, required: true },

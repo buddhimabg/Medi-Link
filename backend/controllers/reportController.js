@@ -160,7 +160,7 @@ exports.getAppointmentTrends = async (req, res, next) => {
 exports.getAppointmentStatus = async (req, res, next) => {
   try {
     const completed = await Appointment.countDocuments({ status: 'completed' });
-    const upcoming = await Appointment.countDocuments({ status: 'scheduled' });
+    const ongoing = await Appointment.countDocuments({ status: 'ongoing' });
     const cancelled = await Appointment.countDocuments({ status: 'cancelled' });
 
     logger.debug(`Appointment status retrieved`);
@@ -169,7 +169,7 @@ exports.getAppointmentStatus = async (req, res, next) => {
       success: true,
       data: {
         completed: completed,
-        upcoming: upcoming,
+        ongoing: ongoing,
         cancelled: cancelled
       }
     });

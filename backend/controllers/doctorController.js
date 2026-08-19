@@ -155,10 +155,10 @@ exports.createDoctor = async (req, res, next) => {
       email,
       password: password || 'Doctor@123456', // Default password
       role: 'doctor',
-      phone: phone || '',
-      address: address || '',
-      isActive: true,
-      emailVerified: false
+      mobile: phone || '0000000000',
+      gender: 'Not Specified',
+      city: address || 'Not Specified',
+      dob: new Date('1980-01-01')
     });
 
     await user.save();
@@ -187,6 +187,8 @@ exports.createDoctor = async (req, res, next) => {
         yearsOfExperience: yearsOfExperience !== undefined ? yearsOfExperience : (experience || 0),
         qualifications: qualifications || [],
         consultationFee: consultationFee || 0,
+        virtualPrice: consultationFee || 1500,
+        physicalPrice: consultationFee || 2000,
         status: status || 'active',
         rating: rating || 0,
         bio: bio || '',
@@ -290,8 +292,8 @@ exports.updateDoctor = async (req, res, next) => {
       const userUpdate = {};
       if (name !== undefined) userUpdate.name = name;
       if (email !== undefined) userUpdate.email = email;
-      if (phone !== undefined) userUpdate.phone = phone;
-      if (address !== undefined) userUpdate.address = address;
+      if (phone !== undefined) userUpdate.mobile = phone;
+      if (address !== undefined) userUpdate.city = address;
       userUpdate.updatedAt = new Date();
 
       await User.findByIdAndUpdate(doctor.userId, userUpdate);
@@ -393,15 +395,22 @@ exports.createOrUpdateDoctorProfile = async (req, res, next) => {
       // Find max id
       const lastDoctor = await Doctor.findOne().sort({ id: -1 }).select('id');
       const nextId = (lastDoctor && lastDoctor.id) ? Number(lastDoctor.id) + 1 : 1;
+      
+      const user = await User.findById(req.userId);
 
       doctor = new Doctor({
         id: nextId,
         userId: doctorUserId,
+        name: user ? user.name : 'Doctor',
         licenseNumber,
+        specialty: specialization,
         specialization,
         experience: experience || 0,
+        yearsOfExperience: experience || 0,
         qualifications: qualifications || [],
         consultationFee: consultationFee || 0,
+        virtualPrice: consultationFee || 1500,
+        physicalPrice: consultationFee || 2000,
         availability: availability || {},
         status: status || 'active'
       });

@@ -13,6 +13,28 @@ const patientSchema = new mongoose.Schema({
     required: false
   },
 
+  email: {
+    type: String,
+    required: false,
+    trim: true,
+    lowercase: true
+  },
+
+  phone: {
+    type: String,
+    required: false
+  },
+
+  address: {
+    type: String,
+    required: false
+  },
+
+  city: {
+    type: String,
+    required: false
+  },
+
   dateOfBirth: {
     type: Date,
     required: false
@@ -25,13 +47,11 @@ const patientSchema = new mongoose.Schema({
 
   gender: {
     type: String,
-    enum: ['male', 'female', 'other', 'prefer-not-to-say'],
     default: 'prefer-not-to-say'
   },
 
   bloodType: {
     type: String,
-    enum: ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'],
     default: null
   },
 
@@ -160,6 +180,7 @@ const patientSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
+  strict: false,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
@@ -178,7 +199,7 @@ const patientSchema = new mongoose.Schema({
 // });
 
 // Virtual for completion rate
-patientSchema.virtual('completionRate').get(function() {
+patientSchema.virtual('completionRate').get(function () {
   const total = this.completedAppointments + this.cancelledAppointments;
   return total > 0 ? ((this.completedAppointments / total) * 100).toFixed(2) : 0;
 });

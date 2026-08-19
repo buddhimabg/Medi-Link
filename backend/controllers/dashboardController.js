@@ -3,6 +3,7 @@ const User = require('../models/user');
 const Doctor = require('../models/doctor');
 const Patient = require('../models/Patient');
 const Appointment = require('../models/appointment');
+const Payment = require('../models/payment');
 const SystemActivity = require('../models/SystemActivity');
 const { logger } = require('../middlewares/logger');
 const { getTimeAgo } = require('../utils/dateHelpers');
@@ -18,63 +19,93 @@ exports.getDashboardStats = async (req, res, next) => {
     const totalDoctors = await Doctor.countDocuments();
     const totalAppointments = await Appointment.countDocuments();
 
-    // Calculate revenue based on completed appointments only
-    const completedAppointments = await Appointment.countDocuments({ status: 'completed' });
-    const revenue = completedAppointments * 50;
+    // Doctor verification counts
+    const verifiedDoctors = await Doctor.countDocuments({ isVerified: true });
+    const pendingDoctors = await Doctor.countDocuments({ isVerified: false });
+    const activeDoctors = await Doctor.countDocuments({ status: { $in: ['active', 'Active'] } });
 
-    // Calculate cumulative growth compared to last month
-    const thisMonthStart = new Date();
-    thisMonthStart.setDate(1);
-    thisMonthStart.setHours(0, 0, 0, 0);
+    // Patient active counts
+    const activePatients = await Patient.countDocuments({ status: { $in: ['active', 'Active'] } }) || totalPatients;
 
-    const lastMonthTotalPatients = await Patient.countDocuments({
-      createdAt: { $lt: thisMonthStart }
+    // Appointment modality breakdown
+    const virtualAppointments = await Appointment.countDocuments({ type: 'Virtual' });
+    const physicalAppointments = await Appointment.countDocuments({ type: 'Physical' });
+
+    // Calculate revenue based on successful payments from database
+    const successPayments = await Payment.find({
+      status: { $in: ['Success', 'Paid', 'completed', 'success', 'paid'] }
     });
-    const patientGrowth = lastMonthTotalPatients > 0 
-      ? ((totalPatients - lastMonthTotalPatients) / lastMonthTotalPatients * 100).toFixed(1) 
-      : (totalPatients > 0 ? '100.0' : '0.0');
-    const patientChangeStr = parseFloat(patientGrowth) >= 0 ? `+${patientGrowth}% vs last month` : `${patientGrowth}% vs last month`;
 
-    const lastMonthTotalDoctors = await Doctor.countDocuments({
-      createdAt: { $lt: thisMonthStart }
-    });
-    const doctorGrowth = lastMonthTotalDoctors > 0 
-      ? ((totalDoctors - lastMonthTotalDoctors) / lastMonthTotalDoctors * 100).toFixed(1) 
-      : (totalDoctors > 0 ? '100.0' : '0.0');
-    const doctorChangeStr = parseFloat(doctorGrowth) >= 0 ? `+${doctorGrowth}% vs last month` : `${doctorGrowth}% vs last month`;
+    const revenue = successPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const paidCount = successPayments.length;
+    const avgRevenue = paidCount > 0 ? Math.round(revenue / paidCount) : 0;
 
-    const lastMonthTotalAppointments = await Appointment.countDocuments({
-      date: { $lt: thisMonthStart }
-    });
-    const apptGrowth = lastMonthTotalAppointments > 0 
-      ? ((totalAppointments - lastMonthTotalAppointments) / lastMonthTotalAppointments * 100).toFixed(1) 
-      : (totalAppointments > 0 ? '100.0' : '0.0');
-    const apptChangeStr = parseFloat(apptGrowth) >= 0 ? `+${apptGrowth}% vs last month` : `${apptGrowth}% vs last month`;
+    // Time boundaries
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
 
-    const lastMonthCompletedAppts = await Appointment.countDocuments({
-      date: { $lt: thisMonthStart },
-      status: 'completed'
-    });
-    const lastMonthRevenueTotal = lastMonthCompletedAppts * 50;
-    const revenueGrowth = lastMonthRevenueTotal > 0 
-      ? ((revenue - lastMonthRevenueTotal) / lastMonthRevenueTotal * 100).toFixed(1) 
-      : (revenue > 0 ? '100.0' : '0.0');
-    const revenueChangeStr = parseFloat(revenueGrowth) >= 0 ? `+${revenueGrowth}% vs last month` : `${revenueGrowth}% vs last month`;
-
-    // Calculate weekly appointments
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // New additions this month
+    const newPatientsThisMonth = await Patient.countDocuments({
+      createdAt: { $gte: thisMonthStart }
+    });
+    const newPatientsLastMonth = await Patient.countDocuments({
+      createdAt: { $gte: lastMonthStart, $lt: thisMonthStart }
+    });
+    const patientGrowth = newPatientsLastMonth > 0
+      ? (((newPatientsThisMonth - newPatientsLastMonth) / newPatientsLastMonth) * 100).toFixed(1)
+      : (newPatientsThisMonth > 0 ? '+100' : '0');
+    const patientChangeStr = newPatientsThisMonth > 0
+      ? `+${newPatientsThisMonth} new this month`
+      : `${totalPatients} active profiles`;
+
+    const newDoctorsThisMonth = await Doctor.countDocuments({
+      createdAt: { $gte: thisMonthStart }
+    });
+    const doctorChangeStr = pendingDoctors > 0
+      ? `${verifiedDoctors} Verified · ${pendingDoctors} Pending SLMC`
+      : `${verifiedDoctors} Verified Active`;
+
+    const thisWeekAppointments = await Appointment.countDocuments({
+      $or: [
+        { createdAt: { $gte: sevenDaysAgo } },
+        { date: { $gte: sevenDaysAgo } },
+        { appointmentDate: { $gte: sevenDaysAgo } }
+      ]
+    });
+    const apptChangeStr = `${virtualAppointments} Virtual · ${physicalAppointments} Physical`;
+
+    const thisMonthPayments = successPayments.filter(p => p.createdAt && new Date(p.createdAt) >= thisMonthStart);
+    const thisMonthRevenue = thisMonthPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const revenueChangeStr = paidCount > 0
+      ? `${paidCount} Paid · Avg ~LKR ${avgRevenue.toLocaleString()}`
+      : `LKR 0 this month`;
+
+    // Calculate weekly appointments
     const weeklyAppointmentsRaw = await Appointment.aggregate([
       {
         $match: {
-          date: { $gte: sevenDaysAgo }
+          $or: [
+            { createdAt: { $gte: sevenDaysAgo } },
+            { date: { $gte: sevenDaysAgo } },
+            { appointmentDate: { $gte: sevenDaysAgo } }
+          ]
         }
       },
       {
         $group: {
-          _id: { $dayOfWeek: "$date" },
+          _id: {
+            $dayOfWeek: {
+              $ifNull: [
+                "$createdAt",
+                { $ifNull: ["$date", "$appointmentDate"] }
+              ]
+            }
+          },
           count: { $sum: 1 }
         }
       }
@@ -137,19 +168,36 @@ exports.getDashboardStats = async (req, res, next) => {
       data: {
         totalPatients: {
           value: totalPatients,
-          change: patientChangeStr
+          change: patientChangeStr,
+          newThisMonth: newPatientsThisMonth,
+          active: activePatients,
+          growthRate: patientGrowth
         },
         totalDoctors: {
           value: totalDoctors,
-          change: doctorChangeStr
+          change: doctorChangeStr,
+          verified: verifiedDoctors,
+          pending: pendingDoctors,
+          active: activeDoctors
         },
         appointments: {
           value: totalAppointments,
-          change: apptChangeStr
+          change: apptChangeStr,
+          virtual: virtualAppointments,
+          physical: physicalAppointments,
+          thisWeek: thisWeekAppointments
         },
         revenue: {
-          value: `$${revenue}`,
-          change: revenueChangeStr
+          value: `LKR ${revenue.toLocaleString()}`,
+          change: revenueChangeStr,
+          paidCount,
+          avgRevenue,
+          thisMonthRevenue
+        },
+        summary: {
+          doctorVerificationRate: totalDoctors > 0 ? ((verifiedDoctors / totalDoctors) * 100).toFixed(1) : '100',
+          virtualRatio: totalAppointments > 0 ? ((virtualAppointments / totalAppointments) * 100).toFixed(1) : '0',
+          systemUptime: '99.9%'
         },
         weeklyAppointments,
         patientGrowthData

@@ -41,6 +41,11 @@ const treatmentPlanRoutes = require("./routes/treatmentPlan");
 const treatmentSessionRoutes = require("./routes/session");
 const treatmentDebugRoutes = require("./routes/debug");
 
+// Admin dashboard: notifications / payments / sessions — dev-pavindu's feature
+const adminNotificationRoutes = require("./routes/adminNotificationRoutes");
+const adminPaymentRoutes = require("./routes/adminPaymentRoutes");
+const adminSessionRoutes = require("./routes/adminSessionRoutes");
+
 const app = express();
 const server = http.createServer(app);
 
@@ -193,6 +198,11 @@ app.use("/api/treatment-plans", treatmentPlanRoutes);
 app.use("/api/sessions", treatmentSessionRoutes);
 // Debug endpoints (do not expose in production)
 app.use("/api/debug", treatmentDebugRoutes);
+
+// Admin dashboard: notifications / payments / sessions — dev-pavindu's feature
+app.use("/api/admin/notifications", adminNotificationRoutes);
+app.use("/api/admin/payments", adminPaymentRoutes);
+app.use("/api/admin/sessions", adminSessionRoutes);
 
 // 404 for anything unmatched under /api
 app.use("/api", (req, res) => {

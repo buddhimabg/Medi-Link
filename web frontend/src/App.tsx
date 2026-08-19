@@ -36,6 +36,9 @@ const DoctorApprovalsPage = React.lazy(() => import("./pages/DoctorApprovalsPage
 const ManagePatientsPage = React.lazy(() => import("./pages/ManagePatientsPage"));
 const AdminReportsPage = React.lazy(() => import("./pages/ReportsPage"));
 const AdminSettingsPage = React.lazy(() => import("./pages/SettingsPage"));
+const SendNotificationsPage = React.lazy(() => import("./pages/SendNotificationsPage"));
+const PaymentsPage = React.lazy(() => import("./pages/PaymentsPage"));
+const ManageSessionsPage = React.lazy(() => import("./pages/ManageSessionsPage"));
 
 // Doctor-portal treatment scheduling — dev-nawodya's feature set
 const DoctorDashboardPage = React.lazy(() => import("./pages/doctorDashboard"));
@@ -291,8 +294,32 @@ const App: React.FC = () => {
             element={isAdminLoggedIn ? <DoctorApprovalsPage /> : <Navigate to="/login" />}
           />
           <Route
+            path="/manage-sessions"
+            element={isAdminLoggedIn ? <ManageSessionsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/admin-sessions"
+            element={isAdminLoggedIn ? <ManageSessionsPage /> : <Navigate to="/login" />}
+          />
+          <Route
             path="/manage-patients"
             element={isAdminLoggedIn ? <ManagePatientsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/admin-payments"
+            element={isAdminLoggedIn ? <PaymentsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/payments"
+            element={isAdminLoggedIn ? <PaymentsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/send-notifications"
+            element={isAdminLoggedIn ? <SendNotificationsPage /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/admin-notifications"
+            element={isAdminLoggedIn ? <SendNotificationsPage /> : <Navigate to="/login" />}
           />
           <Route
             path="/admin-reports"

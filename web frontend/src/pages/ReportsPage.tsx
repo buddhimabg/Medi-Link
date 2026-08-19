@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'; // debug reload 3
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, Download, ShieldCheck } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, clearAuthToken } from '../api/api';
+import AdminSidebar from '../components/AdminSidebar';
 import './ReportsPage.css';
 
 interface StatCard {
@@ -79,7 +80,7 @@ const ReportsAnalytics: React.FC = () => {
 
   const [appointmentStatusData, setAppointmentStatusData] = useState([
     { label: 'Completed', value: 0, color: '#4CAF50' },
-    { label: 'Upcoming', value: 0, color: '#2196F3' },
+    { label: 'Ongoing', value: 0, color: '#2196F3' },
     { label: 'Cancelled', value: 0, color: '#F44336' },
   ]);
 
@@ -116,7 +117,7 @@ const ReportsAnalytics: React.FC = () => {
         if (statusRes?.success && statusRes.data) {
           setAppointmentStatusData([
             { label: 'Completed', value: statusRes.data.completed || 0, color: '#4CAF50' },
-            { label: 'Upcoming', value: statusRes.data.upcoming || 0, color: '#2196F3' },
+            { label: 'Ongoing', value: statusRes.data.ongoing || 0, color: '#2196F3' },
             { label: 'Cancelled', value: statusRes.data.cancelled || 0, color: '#F44336' },
           ]);
         }
@@ -250,47 +251,7 @@ const ReportsAnalytics: React.FC = () => {
 
   return (
     <div className="reports-container">
-      <aside className="sidebar">
-        <div className="logo-section">
-          <h2 className="logo">MediLink</h2>
-        </div>
-
-
-        <nav className="navigation">
-          <ul className="nav-list">
-            <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon"><LayoutDashboard size={20} /></span>
-              <span className="nav-label">Dashboard</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon"><Stethoscope size={20} /></span>
-              <span className="nav-label">Manage Doctors</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/doctor-approvals')}>
-              <span className="nav-icon"><ShieldCheck size={20} /></span>
-              <span className="nav-label">Doctor Approvals</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon"><Users size={20} /></span>
-              <span className="nav-label">Manage Patients</span>
-            </li>
-            <li className="nav-item nav-item-active" onClick={() => navigate('/admin-reports')}>
-              <span className="nav-icon"><FileText size={20} /></span>
-              <span className="nav-label">Reports</span>
-              <span className="nav-arrow">›</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/admin-settings')}>
-              <span className="nav-icon"><Settings size={20} /></span>
-              <span className="nav-label">Settings</span>
-            </li>
-          </ul>
-        </nav>
-
-        <button className="logout-btn" onClick={handleLogout}>
-          <span className="logout-icon"><LogOut size={20} /></span>
-          <span className="logout-text">Log Out</span>
-        </button>
-      </aside>
+      <AdminSidebar activeRoute="/admin-reports" />
 
       <main className="main-content" ref={reportRef}>
         <div className="page-header">
@@ -300,12 +261,6 @@ const ReportsAnalytics: React.FC = () => {
           </div>
           {!isExporting && (
             <div className="header-actions">
-              <select className="month-dropdown">
-                <option>This Month</option>
-                <option>Last Month</option>
-                <option>This Quarter</option>
-                <option>This Year</option>
-              </select>
               <button className="export-btn" onClick={handleExportPDF}>
                 <Download size={16} /> Export PDF
               </button>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutDashboard, Stethoscope, Users, FileText, Settings, LogOut, ShieldCheck, ShieldAlert, AlertCircle, Search } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, AlertCircle, CheckCircle2, Search, CalendarCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, clearAuthToken } from '../api/api';
+import AdminSidebar from '../components/AdminSidebar';
 import './ManageDoctorsPage.css';
 
 interface Doctor {
@@ -31,6 +32,9 @@ interface DoctorFormData {
   status: 'Active' | 'On Leave' | 'Inactive';
   rating: number;
 }
+
+type FormErrors = Partial<Record<keyof DoctorFormData, string>>;
+type FormTouched = Partial<Record<keyof DoctorFormData, boolean>>;
 
 const SPECIALTIES = [
   'General',
@@ -65,6 +69,8 @@ const ManageDoctors: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editDoctorId, setEditDoctorId] = useState<string | null>(null);
   const [formData, setFormData] = useState<DoctorFormData>({ ...emptyForm });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [touched, setTouched] = useState<FormTouched>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -158,11 +164,137 @@ const ManageDoctors: React.FC = () => {
     return matchesSearch && matchesSpecialty && matchesStatus;
   });
 
+  // ─── REAL-TIME FIELD VALIDATOR ───
+  const validateField = (fieldName: keyof DoctorFormData, val: any): string => {
+    const strVal = typeof val === 'string' ? val : '';
+    const trimmed = strVal.trim();
+
+    switch (fieldName) {
+      case 'name':
+        if (!trimmed) return 'Doctor name is required';
+        if (trimmed.length < 3) return 'Name must be at least 3 characters';
+        if (!/^[a-zA-Z\s\.\-']+$/.test(trimmed)) {
+          return 'Name should only contain letters, spaces, dots, and hyphens';
+        }
+        return '';
+
+      case 'email':
+        if (!trimmed) return 'Email address is required';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmed)) {
+          return 'Please enter a valid email address (e.g. name@example.com)';
+        }
+        const emailDup = doctors.some(
+          d => d.email && d.email.toLowerCase() === trimmed.toLowerCase() && d.id !== editDoctorId
+        );
+        if (emailDup) {
+          return 'This email is already registered to another doctor';
+        }
+        return '';
+
+      case 'phone':
+        if (!trimmed) return ''; // Optional
+        const phoneClean = trimmed.replace(/[\s\-()]/g, '');
+        if (!/^(\+94\d{9}|0\d{9})$/.test(phoneClean)) {
+          return 'Tel number must be +94 7X XXX XXXX (or 07X XXX XXXX)';
+        }
+        return '';
+
+      case 'nic':
+        if (!trimmed) return ''; // Optional
+        const nicClean = trimmed.replace(/\s+/g, '').toUpperCase();
+        const isNewNic = /^\d{12}$/.test(nicClean);
+        const isOldNic = /^\d{9}[VX]$/.test(nicClean);
+        if (!isNewNic && !isOldNic) {
+          return 'NIC must be 12 digits (new NIC) or 9 digits + V/X (old NIC)';
+        }
+        const nicDup = doctors.some(
+          d => d.nic && d.nic.replace(/\s+/g, '').toUpperCase() === nicClean && d.id !== editDoctorId
+        );
+        if (nicDup) {
+          return 'This NIC is already registered to another doctor';
+        }
+        return '';
+
+      case 'licenseNumber':
+        if (!trimmed) return ''; // Optional
+        if (trimmed.length < 4) {
+          return 'License number must be at least 4 characters';
+        }
+        if (!/^[a-zA-Z0-9\-_/]+$/.test(trimmed)) {
+          return 'License number can only contain letters, numbers, hyphens, and slashes';
+        }
+        const licenseDup = doctors.some(
+          d => d.licenseNumber && d.licenseNumber.trim().toLowerCase() === trimmed.toLowerCase() && d.id !== editDoctorId
+        );
+        if (licenseDup) {
+          return 'This SLMC license number already exists in the system';
+        }
+        return '';
+
+      case 'address':
+        if (!trimmed) return ''; // Optional
+        if (trimmed.length < 5) {
+          return 'Address must be at least 5 characters if provided';
+        }
+        return '';
+
+      case 'specialty':
+        if (!trimmed || !SPECIALTIES.includes(trimmed)) {
+          return 'Please select a valid specialty';
+        }
+        return '';
+
+      default:
+        return '';
+    }
+  };
+
+  // ─── VALIDATE ALL FIELDS ───
+  const validateAll = (): boolean => {
+    const fieldsToValidate: (keyof DoctorFormData)[] = ['name', 'email', 'phone', 'nic', 'licenseNumber', 'address', 'specialty'];
+    const newErrors: FormErrors = {};
+    const allTouched: FormTouched = {};
+    let hasErrors = false;
+
+    fieldsToValidate.forEach((field) => {
+      allTouched[field] = true;
+      const error = validateField(field, formData[field]);
+      if (error) {
+        newErrors[field] = error;
+        hasErrors = true;
+      }
+    });
+
+    setTouched(allTouched);
+    setFormErrors(newErrors);
+    return !hasErrors;
+  };
+
+  // Helper to determine field validity status
+  const isFieldValid = (name: keyof DoctorFormData): boolean => {
+    const val = formData[name];
+    const isTouched = !!touched[name];
+    const hasError = !!formErrors[name];
+    if (!isTouched || hasError) return false;
+    // For optional fields, only show green valid indicator if user entered non-empty valid content
+    if (typeof val === 'string' && !val.trim() && (name === 'phone' || name === 'nic' || name === 'licenseNumber' || name === 'address')) {
+      return false;
+    }
+    return true;
+  };
+
+  const isFieldInvalid = (name: keyof DoctorFormData): boolean => {
+    return !!touched[name] && !!formErrors[name];
+  };
+
   // ─── OPEN ADD MODAL ───
   const handleAddDoctor = () => {
     setIsEditMode(false);
     setEditDoctorId(null);
     setFormData({ ...emptyForm });
+    setFormErrors({});
+    setTouched({});
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -185,6 +317,8 @@ const ManageDoctors: React.FC = () => {
       status: doctor.status,
       rating: doctor.rating || 0
     });
+    setFormErrors({});
+    setTouched({});
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -195,13 +329,32 @@ const ManageDoctors: React.FC = () => {
     setIsEditMode(false);
     setEditDoctorId(null);
     setFormData({ ...emptyForm });
+    setFormErrors({});
+    setTouched({});
     setFormError(null);
   };
 
-  // ─── FORM INPUT CHANGE ───
+  // ─── FORM INPUT CHANGE (REAL-TIME VALIDATION) ───
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'rating' ? Number(value) : value }));
+    const nextValue = name === 'rating' ? Number(value) : value;
+
+    setFormData(prev => ({ ...prev, [name]: nextValue }));
+    setTouched(prev => ({ ...prev, [name]: true }));
+
+    // Instant real-time validation calculation
+    const fieldError = validateField(name as keyof DoctorFormData, nextValue);
+    setFormErrors(prev => ({ ...prev, [name]: fieldError }));
+
+    if (formError) setFormError(null);
+  };
+
+  // ─── FORM INPUT BLUR (MARK TOUCHED AND VALIDATE) ───
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    const fieldError = validateField(name as keyof DoctorFormData, value);
+    setFormErrors(prev => ({ ...prev, [name]: fieldError }));
   };
 
   // ─── SUBMIT (CREATE or UPDATE) ───
@@ -209,30 +362,10 @@ const ManageDoctors: React.FC = () => {
     e.preventDefault();
     setFormError(null);
 
-    if (!formData.name || !formData.email || !formData.specialty) {
-      setFormError('Please fill in Name, Email, and Specialty');
+    const isValid = validateAll();
+    if (!isValid) {
+      setFormError('Please resolve the highlighted validation errors before submitting.');
       return;
-    }
-
-    if (!formData.email.includes('@')) {
-      setFormError('Email must contain an @ symbol');
-      return;
-    }
-
-    if (formData.phone) {
-      const phoneClean = formData.phone.replace(/\s+/g, '');
-      if (!/^\+94\d{9}$/.test(phoneClean)) {
-        setFormError('Tel number must start with +94 followed by exactly 9 digits');
-        return;
-      }
-    }
-
-    if (formData.nic) {
-      const nicClean = formData.nic.replace(/\s+/g, '');
-      if (!/^\d{12}$/.test(nicClean)) {
-        setFormError('NIC must have exactly 12 numbers');
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -243,12 +376,12 @@ const ManageDoctors: React.FC = () => {
         await apiFetch(`/doctors/${editDoctorId}`, {
           method: 'PUT',
           body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            address: formData.address,
-            nic: formData.nic,
-            licenseNumber: formData.licenseNumber || undefined,
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            address: formData.address.trim(),
+            nic: formData.nic.trim().toUpperCase(),
+            licenseNumber: formData.licenseNumber.trim() || undefined,
             specialization: formData.specialty,
             status: formData.status === 'On Leave' ? 'on-leave' : formData.status === 'Inactive' ? 'inactive' : 'active',
             rating: formData.rating
@@ -259,12 +392,12 @@ const ManageDoctors: React.FC = () => {
         await apiFetch('/doctors', {
           method: 'POST',
           body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            address: formData.address,
-            nic: formData.nic,
-            licenseNumber: formData.licenseNumber || `SLMC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            address: formData.address.trim(),
+            nic: formData.nic.trim().toUpperCase(),
+            licenseNumber: formData.licenseNumber.trim() || `SLMC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
             specialization: formData.specialty,
             password: 'Doctor@123456',
             status: formData.status === 'On Leave' ? 'on-leave' : formData.status === 'Inactive' ? 'inactive' : 'active',
@@ -326,52 +459,7 @@ const ManageDoctors: React.FC = () => {
   return (
     <div className="manage-doctors-container">
       {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="logo-section">
-          <h2 className="logo">MediLink</h2>
-        </div>
-
-
-        <nav className="navigation">
-          <ul className="nav-list">
-            <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon"><LayoutDashboard size={20} /></span>
-              <span className="nav-label">Dashboard</span>
-            </li>
-            <li className="nav-item nav-item-active" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon"><Stethoscope size={20} /></span>
-              <span className="nav-label">Manage Doctors</span>
-              <span className="nav-arrow">›</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/doctor-approvals')}>
-              <span className="nav-icon"><ShieldCheck size={20} /></span>
-              <span className="nav-label">Doctor Approvals</span>
-              {doctors.filter(d => !d.isVerified).length > 0 && (
-                <span className="sidebar-pending-badge" style={{ marginLeft: 'auto', background: '#f59e0b', color: '#fff', fontSize: '0.72rem', fontWeight: 800, padding: '2px 7px', borderRadius: '9999px' }}>
-                  {doctors.filter(d => !d.isVerified).length}
-                </span>
-              )}
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon"><Users size={20} /></span>
-              <span className="nav-label">Manage Patients</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/admin-reports')}>
-              <span className="nav-icon"><FileText size={20} /></span>
-              <span className="nav-label">Reports</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/admin-settings')}>
-              <span className="nav-icon"><Settings size={20} /></span>
-              <span className="nav-label">Settings</span>
-            </li>
-          </ul>
-        </nav>
-
-        <button className="logout-btn" onClick={handleLogout}>
-          <span className="logout-icon"><LogOut size={20} /></span>
-          <span className="logout-text">Log Out</span>
-        </button>
-      </aside>
+      <AdminSidebar activeRoute="/manage-doctors" />
 
       {/* Main Content */}
       <main className="main-content">
@@ -568,105 +656,209 @@ const ManageDoctors: React.FC = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitDoctor} className="add-doctor-form">
+              <form onSubmit={handleSubmitDoctor} noValidate className="add-doctor-form">
                 {formError && (
                   <div className="form-error">
-                    <span>⚠️ {formError}</span>
+                    <AlertCircle size={16} />
+                    <span>{formError}</span>
                   </div>
                 )}
 
+                {/* Doctor Name */}
                 <div className="form-group">
-                  <label htmlFor="name">Doctor Name *</label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Dr. John Doe"
-                    required
-                  />
+                  <label htmlFor="name" className="form-label">
+                    Doctor Name <span className="required-asterisk">*</span>
+                  </label>
+                  <div className="input-with-feedback">
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      placeholder="Dr. John Doe"
+                      className={`form-input ${isFieldInvalid('name') ? 'input-error' : ''} ${isFieldValid('name') ? 'input-valid' : ''}`}
+                    />
+                    {isFieldValid('name') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                    {isFieldInvalid('name') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                  </div>
+                  {isFieldInvalid('name') && (
+                    <div className="field-error-text">
+                      <AlertCircle size={13} />
+                      <span>{formErrors.name}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Email Address */}
                 <div className="form-group">
-                  <label htmlFor="email">Email Address *</label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="john@example.com"
-                    required
-                  />
+                  <label htmlFor="email" className="form-label">
+                    Email Address <span className="required-asterisk">*</span>
+                  </label>
+                  <div className="input-with-feedback">
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      placeholder="john@example.com"
+                      className={`form-input ${isFieldInvalid('email') ? 'input-error' : ''} ${isFieldValid('email') ? 'input-valid' : ''}`}
+                    />
+                    {isFieldValid('email') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                    {isFieldInvalid('email') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                  </div>
+                  {isFieldInvalid('email') && (
+                    <div className="field-error-text">
+                      <AlertCircle size={13} />
+                      <span>{formErrors.email}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Phone and NIC */}
                 <div className="form-row">
                   <div className="form-group">
-                    <label htmlFor="phone">Tel Number</label>
-                    <input
-                      type="text"
-                      id="phone"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      placeholder="+94 77 123 4567"
-                    />
+                    <label htmlFor="phone" className="form-label">Tel Number</label>
+                    <div className="input-with-feedback">
+                      <input
+                        type="text"
+                        id="phone"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        placeholder="+94 77 123 4567"
+                        className={`form-input ${isFieldInvalid('phone') ? 'input-error' : ''} ${isFieldValid('phone') ? 'input-valid' : ''}`}
+                      />
+                      {isFieldValid('phone') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                      {isFieldInvalid('phone') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                    </div>
+                    {isFieldInvalid('phone') ? (
+                      <div className="field-error-text">
+                        <AlertCircle size={13} />
+                        <span>{formErrors.phone}</span>
+                      </div>
+                    ) : (
+                      <span className="field-hint">e.g. +94 77 123 4567</span>
+                    )}
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="nic">NIC</label>
-                    <input
-                      type="text"
-                      id="nic"
-                      name="nic"
-                      value={formData.nic}
-                      onChange={handleInputChange}
-                      placeholder="200012345678"
-                    />
+                    <label htmlFor="nic" className="form-label">NIC</label>
+                    <div className="input-with-feedback">
+                      <input
+                        type="text"
+                        id="nic"
+                        name="nic"
+                        value={formData.nic}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        placeholder="200012345678"
+                        className={`form-input ${isFieldInvalid('nic') ? 'input-error' : ''} ${isFieldValid('nic') ? 'input-valid' : ''}`}
+                      />
+                      {isFieldValid('nic') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                      {isFieldInvalid('nic') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                    </div>
+                    {isFieldInvalid('nic') ? (
+                      <div className="field-error-text">
+                        <AlertCircle size={13} />
+                        <span>{formErrors.nic}</span>
+                      </div>
+                    ) : (
+                      <span className="field-hint">12 digits (new) or 9 digits+V (old)</span>
+                    )}
                   </div>
                 </div>
 
+                {/* Medical Council License Number (SLMC) */}
                 <div className="form-group">
-                  <label htmlFor="licenseNumber">Medical Council License Number (SLMC)</label>
-                  <input
-                    type="text"
-                    id="licenseNumber"
-                    name="licenseNumber"
-                    value={formData.licenseNumber}
-                    onChange={handleInputChange}
-                    placeholder="SLMC-2026-12345 (optional, auto-generated if empty)"
-                  />
+                  <label htmlFor="licenseNumber" className="form-label">
+                    Medical Council License Number (SLMC)
+                  </label>
+                  <div className="input-with-feedback">
+                    <input
+                      type="text"
+                      id="licenseNumber"
+                      name="licenseNumber"
+                      value={formData.licenseNumber}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      placeholder="SLMC-2026-12345 (optional, auto-generated if empty)"
+                      className={`form-input ${isFieldInvalid('licenseNumber') ? 'input-error' : ''} ${isFieldValid('licenseNumber') ? 'input-valid' : ''}`}
+                    />
+                    {isFieldValid('licenseNumber') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                    {isFieldInvalid('licenseNumber') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                  </div>
+                  {isFieldInvalid('licenseNumber') ? (
+                    <div className="field-error-text">
+                      <AlertCircle size={13} />
+                      <span>{formErrors.licenseNumber}</span>
+                    </div>
+                  ) : (
+                    <span className="field-hint">Leave blank to auto-generate a valid SLMC registration license</span>
+                  )}
                 </div>
 
+                {/* Address */}
                 <div className="form-group">
-                  <label htmlFor="address">Address</label>
-                  <input
-                    type="text"
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    placeholder="123 Main Street, Colombo"
-                  />
+                  <label htmlFor="address" className="form-label">Address</label>
+                  <div className="input-with-feedback">
+                    <input
+                      type="text"
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      placeholder="123 Main Street, Colombo"
+                      className={`form-input ${isFieldInvalid('address') ? 'input-error' : ''} ${isFieldValid('address') ? 'input-valid' : ''}`}
+                    />
+                    {isFieldValid('address') && <CheckCircle2 className="feedback-icon valid-icon" size={17} />}
+                    {isFieldInvalid('address') && <AlertCircle className="feedback-icon invalid-icon" size={17} />}
+                  </div>
+                  {isFieldInvalid('address') && (
+                    <div className="field-error-text">
+                      <AlertCircle size={13} />
+                      <span>{formErrors.address}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Specialty */}
                 <div className="form-group">
-                  <label htmlFor="specialty">Specialty *</label>
-                  <select
-                    id="specialty"
-                    name="specialty"
-                    value={formData.specialty}
-                    onChange={handleInputChange}
-                  >
-                    {SPECIALTIES.map((spec) => (
-                      <option key={spec} value={spec}>{spec}</option>
-                    ))}
-                  </select>
+                  <label htmlFor="specialty" className="form-label">
+                    Specialty <span className="required-asterisk">*</span>
+                  </label>
+                  <div className="input-with-feedback">
+                    <select
+                      id="specialty"
+                      name="specialty"
+                      value={formData.specialty}
+                      onChange={handleInputChange}
+                      onBlur={handleBlur}
+                      className={`form-input ${isFieldInvalid('specialty') ? 'input-error' : ''} ${isFieldValid('specialty') ? 'input-valid' : ''}`}
+                    >
+                      {SPECIALTIES.map((spec) => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
+                    </select>
+                    {isFieldValid('specialty') && <CheckCircle2 className="feedback-icon valid-icon select-feedback-icon" size={17} />}
+                    {isFieldInvalid('specialty') && <AlertCircle className="feedback-icon invalid-icon select-feedback-icon" size={17} />}
+                  </div>
+                  {isFieldInvalid('specialty') && (
+                    <div className="field-error-text">
+                      <AlertCircle size={13} />
+                      <span>{formErrors.specialty}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Status */}
                 <div className="form-group">
-                  <label>Status</label>
+                  <label className="form-label">Status</label>
                   <div className="radio-group" style={{ display: 'flex', gap: '10px', marginTop: '8px', width: '100%' }}>
                     <label style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', backgroundColor: formData.status === 'Active' ? '#eef2ff' : '#fff', borderColor: formData.status === 'Active' ? '#6366f1' : '#ccc', transition: 'all 0.2s' }}>
                       <input
@@ -693,8 +885,9 @@ const ManageDoctors: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Rating */}
                 <div className="form-group">
-                  <label>Rating {formData.rating > 0 ? `(${formData.rating}/5)` : ''}</label>
+                  <label className="form-label">Rating {formData.rating > 0 ? `(${formData.rating}/5)` : ''}</label>
                   <div className="rating-radio-group" style={{ display: 'flex', gap: '10px', marginTop: '8px', width: '100%' }}>
                     {[1, 2, 3, 4, 5].map((num) => (
                       <label key={num} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', backgroundColor: formData.rating === num ? '#eef2ff' : '#fff', borderColor: formData.rating === num ? '#6366f1' : '#ccc', transition: 'all 0.2s' }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AdminSidebar from '../components/AdminSidebar';
 import {
   LayoutDashboard,
   Stethoscope,
@@ -26,7 +27,9 @@ import {
   List,
   CheckSquare,
   Square,
-  AlertTriangle
+  AlertTriangle,
+  DollarSign,
+  CalendarCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, clearAuthToken } from '../api/api';
@@ -289,49 +292,7 @@ export const DoctorApprovalsPage: React.FC = () => {
   return (
     <div className="approvals-page-container">
       {/* ─── SIDEBAR ─── */}
-      <aside className="sidebar">
-        <div className="logo-section">
-          <h2 className="logo">MediLink</h2>
-        </div>
-
-        <nav className="navigation">
-          <ul className="nav-list">
-            <li className="nav-item" onClick={() => navigate('/admin-dashboard')}>
-              <span className="nav-icon"><LayoutDashboard size={20} /></span>
-              <span className="nav-label">Dashboard</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-doctors')}>
-              <span className="nav-icon"><Stethoscope size={20} /></span>
-              <span className="nav-label">Manage Doctors</span>
-            </li>
-            <li className="nav-item nav-item-active" onClick={() => navigate('/doctor-approvals')}>
-              <span className="nav-icon"><ShieldCheck size={20} /></span>
-              <span className="nav-label">Doctor Approvals</span>
-              {stats.pending > 0 && (
-                <span className="sidebar-pending-badge">{stats.pending}</span>
-              )}
-              <span className="nav-arrow">›</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/manage-patients')}>
-              <span className="nav-icon"><Users size={20} /></span>
-              <span className="nav-label">Manage Patients</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/admin-reports')}>
-              <span className="nav-icon"><FileText size={20} /></span>
-              <span className="nav-label">Reports</span>
-            </li>
-            <li className="nav-item" onClick={() => navigate('/admin-settings')}>
-              <span className="nav-icon"><Settings size={20} /></span>
-              <span className="nav-label">Settings</span>
-            </li>
-          </ul>
-        </nav>
-
-        <button className="logout-btn" onClick={() => { clearAuthToken(); navigate('/login'); }}>
-          <span className="logout-icon"><LogOut size={20} /></span>
-          <span className="logout-text">Log Out</span>
-        </button>
-      </aside>
+      <AdminSidebar activeRoute="/doctor-approvals" />
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="main-content">
