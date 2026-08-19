@@ -43,7 +43,25 @@ const mockDoctor: Doctor = {
   availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
 };
 
-// MAIN COMPONENT 
+// Resolves the currently logged-in doctor's account id (the User._id that
+// Doctor.userId links to) — falls back to medilink_user_info.id in case an
+// existing session predates the standalone "user_id" key being set at login.
+const getLoggedInDoctorId = (): string | null => {
+  const direct = localStorage.getItem("user_id");
+  if (direct) return direct;
+  try {
+    const info = localStorage.getItem("medilink_user_info");
+    if (info) {
+      const parsed = JSON.parse(info);
+      return parsed?.id || null;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+// MAIN COMPONENT
 const DoctorProfile: React.FC = () => {
   // State variables
   const [doctor, setDoctor] = useState<Doctor | null>(null);        // Doctor data
@@ -59,7 +77,7 @@ const DoctorProfile: React.FC = () => {
   useEffect(() => {
     const fetchDoctor = async () => {
       try {
-        const user_id = localStorage.getItem("user_id");
+        const user_id = getLoggedInDoctorId();
         const data = await api.getDoctorProfile(user_id);
         if (!data) {
           setDoctor(mockDoctor);
@@ -108,11 +126,15 @@ const DoctorProfile: React.FC = () => {
     setSaving(true);
     setSaveError(null);
 
-    console.log('🔍 Doctor ID being sent:', doctor.id);  
-    console.log('🔍 Edit Form Data:', editForm);         
+    const user_id = getLoggedInDoctorId();
+    if (!user_id) {
+      setSaveError('Could not identify your account. Please log in again.');
+      setSaving(false);
+      return;
+    }
 
     try {
-      const updated = await api.updateDoctorProfile(doctor.id, editForm);
+      const updated = await api.updateDoctorProfile(user_id, editForm);
       if (updated) {
         setDoctor(updated);
       } else {

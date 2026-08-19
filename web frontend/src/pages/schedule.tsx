@@ -102,6 +102,21 @@ const Schedule: React.FC = () => {
     setSlots(slotsData);
   };
 
+  // Resolves the currently logged-in doctor's account id — falls back to
+  // medilink_user_info.id in case an existing session predates the
+  // standalone "user_id" key being set at login.
+  const getLoggedInDoctorId = (): string | null => {
+    const direct = localStorage.getItem('user_id');
+    if (direct) return direct;
+    try {
+      const info = localStorage.getItem('medilink_user_info');
+      if (info) return JSON.parse(info)?.id || null;
+    } catch {
+      // ignore
+    }
+    return null;
+  };
+
   const fetchDoctorInfo = async () => {
     // Fall back to the logged-in account's own name (always available)
     // in case the doctor profile fetch fails.
@@ -115,7 +130,7 @@ const Schedule: React.FC = () => {
     setDoctorInfo({ name: fallbackName, specialty: '' });
 
     try {
-      const user_id = localStorage.getItem('user_id');
+      const user_id = getLoggedInDoctorId();
       const data = await api.getDoctorProfile(user_id);
       if (data) {
         setDoctorInfo({ name: data.name || fallbackName, specialty: data.specialty || '' });
