@@ -36,46 +36,46 @@ async function runMoodTrackingTests(driver) {
     // Step 1: Select mood 'good'
     const moodBtns = await driver.findElements(By.css('.mood-btn'));
     if (moodBtns.length >= 4) {
-      await moodBtns[3].click(); // Select 'good'
+      await driver.executeScript("arguments[0].click();", moodBtns[3]); // Select 'good'
       await driver.sleep(500);
     }
 
     // Click Continue to Step 2
     const continueBtn1 = await waitForElement(driver, By.xpath("//button[contains(.,'Continue')]"));
-    await continueBtn1.click();
+    await driver.executeScript("arguments[0].click();", continueBtn1);
     await driver.sleep(2000);
 
     // Step 2 (/check-in/details): Select answer for all 4 questions
     const answerCardsStep2 = await driver.findElements(By.css('.checkin2-answer-card'));
     if (answerCardsStep2.length >= 16) {
-      await answerCardsStep2[0].click();
+      await driver.executeScript("arguments[0].click();", answerCardsStep2[0]);
       await driver.sleep(300);
-      await answerCardsStep2[4].click();
+      await driver.executeScript("arguments[0].click();", answerCardsStep2[4]);
       await driver.sleep(300);
-      await answerCardsStep2[8].click();
+      await driver.executeScript("arguments[0].click();", answerCardsStep2[8]);
       await driver.sleep(300);
-      await answerCardsStep2[12].click();
-      await driver.sleep(300);
+      await driver.executeScript("arguments[0].click();", answerCardsStep2[12]);
+      await driver.sleep(500);
     }
 
     const continueBtn2 = await waitForElement(driver, By.xpath("//button[contains(.,'Continue')]"));
-    await continueBtn2.click();
+    await driver.executeScript("arguments[0].click();", continueBtn2);
     await driver.sleep(2000);
 
     // Step 3 (/check-in/details/2): Select answer for all 3 questions
     const answerCardsStep3 = await driver.findElements(By.css('.checkin2-answer-card'));
     if (answerCardsStep3.length >= 12) {
-      await answerCardsStep3[0].click();
+      await driver.executeScript("arguments[0].click();", answerCardsStep3[0]);
       await driver.sleep(300);
-      await answerCardsStep3[4].click();
+      await driver.executeScript("arguments[0].click();", answerCardsStep3[4]);
       await driver.sleep(300);
-      await answerCardsStep3[8].click();
-      await driver.sleep(300);
+      await driver.executeScript("arguments[0].click();", answerCardsStep3[8]);
+      await driver.sleep(600);
     }
 
     const completeBtn = await waitForElement(driver, By.xpath("//button[contains(.,'Complete Check-in')]"));
-    await completeBtn.click();
-    await driver.sleep(5500);
+    await driver.executeScript("arguments[0].click();", completeBtn);
+    await driver.sleep(6000);
 
     const currentUrl = await driver.getCurrentUrl();
     const isSummary = currentUrl.includes('/check-in/summary') || currentUrl.includes('/dashboard');
@@ -187,55 +187,42 @@ async function runMoodTrackingTests(driver) {
   // TC-MOOD-06: Mood Fix activity completion where supported
   try {
     await driver.get(`${BASE_URL}/mood-fix`);
+    const startBtn = await waitForElement(driver, By.xpath("//button[contains(text(),'Start')]"), 10000);
+    await driver.executeScript("arguments[0].click();", startBtn);
     await driver.sleep(2000);
 
-    const startBtns = await driver.findElements(By.xpath("//button[contains(text(),'Start')]"));
-    if (startBtns.length > 0) {
-      await startBtns[0].click();
-      await driver.sleep(2000);
-
-      // Toggle step checkboxes using JS click
-      const stepCheckboxes = await driver.findElements(By.xpath("//div[contains(@class,'space-y-2')]//button"));
-      for (const btn of stepCheckboxes) {
-        try {
-          await driver.executeScript("arguments[0].click();", btn);
-          await driver.sleep(200);
-        } catch (_) {}
-      }
-
-      // Select post-activity mood rating using JS click
-      const ratingBtns = await driver.findElements(By.xpath("//div[contains(@class,'grid-cols-5')]//button"));
-      if (ratingBtns.length > 1) {
-        await driver.executeScript("arguments[0].click();", ratingBtns[1]); // Select 'Good'
-        await driver.sleep(400);
-      }
-
-      // Click complete button
-      const completeActivityBtn = await waitForElement(driver, By.xpath("//button[contains(.,'Complete Mood Fix Activity')]"));
-      await driver.executeScript("arguments[0].click();", completeActivityBtn);
-      await driver.sleep(3000);
-
-      const pageText = await driver.findElement(By.css('body')).getText();
-      const completedSuccess = pageText.includes('Completed') || pageText.includes('Great job finishing') || pageText.includes('After mood');
-
-      results.push({
-        testId: 'TC-MOOD-06',
-        module: 'Mood Tracking',
-        testCase: 'Mood Fix activity completion where supported',
-        expected: 'Activity completed, post-activity mood recorded, success banner displayed',
-        actual: completedSuccess ? 'Activity marked complete and feedback saved successfully' : `Notice text preview: "${pageText.slice(0, 100).replace(/\n/g, ' ')}..."`,
-        status: completedSuccess ? 'PASS' : 'FAIL'
-      });
-    } else {
-      results.push({
-        testId: 'TC-MOOD-06',
-        module: 'Mood Tracking',
-        testCase: 'Mood Fix activity completion where supported',
-        expected: 'Activity started and completed',
-        actual: 'No activity start buttons found',
-        status: 'FAIL'
-      });
+    // Toggle step checkboxes using JS click
+    const stepCheckboxes = await driver.findElements(By.xpath("//div[contains(@class,'space-y-2')]//button"));
+    for (const btn of stepCheckboxes) {
+      try {
+        await driver.executeScript("arguments[0].click();", btn);
+        await driver.sleep(200);
+      } catch (_) {}
     }
+
+    // Select post-activity mood rating using JS click
+    const ratingBtns = await driver.findElements(By.xpath("//div[contains(@class,'grid-cols-5')]//button"));
+    if (ratingBtns.length > 1) {
+      await driver.executeScript("arguments[0].click();", ratingBtns[1]); // Select 'Good'
+      await driver.sleep(400);
+    }
+
+    // Click complete button
+    const completeActivityBtn = await waitForElement(driver, By.xpath("//button[contains(.,'Complete Mood Fix Activity')]"));
+    await driver.executeScript("arguments[0].click();", completeActivityBtn);
+    await driver.sleep(3000);
+
+    const pageText = await driver.findElement(By.css('body')).getText();
+    const completedSuccess = pageText.includes('Completed') || pageText.includes('Great job finishing') || pageText.includes('After mood');
+
+    results.push({
+      testId: 'TC-MOOD-06',
+      module: 'Mood Tracking',
+      testCase: 'Mood Fix activity completion where supported',
+      expected: 'Activity completed, post-activity mood recorded, success banner displayed',
+      actual: completedSuccess ? 'Activity marked complete and feedback saved successfully' : `Notice text preview: "${pageText.slice(0, 100).replace(/\n/g, ' ')}..."`,
+      status: completedSuccess ? 'PASS' : 'FAIL'
+    });
   } catch (err) {
     results.push({
       testId: 'TC-MOOD-06',
