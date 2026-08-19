@@ -22,13 +22,14 @@ type ReportData = Record<string, any>;
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const statusColors: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  normal:    { bg: "bg-[#ECFDF3]", text: "text-[#15803D]", border: "border-[#86EFAC]", dot: "bg-green-500" },
-  low:       { bg: "bg-[#FEFCE8]", text: "text-[#A16207]", border: "border-[#FDE68A]", dot: "bg-amber-500" },
-  high:      { bg: "bg-[#FEF2F2]", text: "text-[#B91C1C]", border: "border-[#FCA5A5]", dot: "bg-rose-500" },
-  "not-found": { bg: "bg-[#F8FAFC]", text: "text-[#475569]", border: "border-[#CBD5E1]", dot: "bg-gray-400" },
+  normal:      { bg: "bg-[#ECFDF3]", text: "text-[#15803D]", border: "border-[#86EFAC]", dot: "bg-green-500" },
+  low:         { bg: "bg-[#FEFCE8]", text: "text-[#A16207]", border: "border-[#FDE68A]", dot: "bg-amber-500" },
+  high:        { bg: "bg-[#FEF2F2]", text: "text-[#B91C1C]", border: "border-[#FCA5A5]", dot: "bg-rose-500" },
+  unsupported: { bg: "bg-[#EFF6FF]", text: "text-[#1D4ED8]", border: "border-[#BFDBFE]", dot: "bg-blue-500" },
+  "not-found":  { bg: "bg-[#F8FAFC]", text: "text-[#475569]", border: "border-[#CBD5E1]", dot: "bg-gray-400" },
 };
 const statusLabel: Record<string, string> = {
-  normal: "Normal", low: "Low", high: "High", "not-found": "Not Found",
+  normal: "Normal", low: "Low", high: "High", unsupported: "Needs Review", "not-found": "Not Found",
 };
 
 const getNormalRangeText = (marker: any) => {
@@ -36,11 +37,13 @@ const getNormalRangeText = (marker: any) => {
   if (typeof r === "string" && r.trim()) return r.trim();
   const min = marker.normalMin ?? marker.ranges?.normalMin;
   const max = marker.normalMax ?? marker.ranges?.normalMax;
-  if (min !== undefined && max !== undefined) return `${min} – ${max}`;
+  const unit = marker.unit ? ` ${marker.unit}` : "";
+  if (min !== undefined && max !== undefined) return `${min} – ${max}${unit}`;
   return "Unavailable";
 };
 
 const getRangeIndicator = (marker: any) => {
+  if (marker.status === "unsupported" || marker.status === "not-found") return null;
   const value = Number(marker.value ?? marker.observedValue ?? marker.actualValue);
   const min   = Number(marker.normalMin ?? marker.ranges?.normalMin);
   const max   = Number(marker.normalMax ?? marker.ranges?.normalMax);
@@ -68,6 +71,7 @@ const ReportDetailPage: React.FC = () => {
   const [expandedMarkers, setExpandedMarkers] = useState<Set<number>>(new Set());
   const [showAllRecs, setShowAllRecs] = useState<boolean>(false);
   const [showAllDaily, setShowAllDaily] = useState<boolean>(false);
+  const [showOtherTests, setShowOtherTests] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -135,14 +139,28 @@ const ReportDetailPage: React.FC = () => {
   );
 
   /* ── derived values ─────────────────────────────────────── */
-  const visibleMarkers  = getVisibleReportMarkers(report);
+  const visibleMarkers   = getVisibleReportMarkers(report);
   const unmatchedMarkers = getUnmatchedReportMarkers(report);
-  const score           = Math.min(100, Math.round(Number(report.overallScore || 0)));
-  const needAttention   = visibleMarkers.filter((m: any) => m.status === "low" || m.status === "high").length;
-  const scoreLabel      = score >= 80 ? "Good" : score >= 60 ? "Fair" : "Needs Attention";
-  const scoreLabelColor = score >= 80 ? "text-green-500" : score >= 60 ? "text-amber-500" : "text-rose-500";
-  const immediateActions = report.recommendations?.immediateActions || [];
-  const dailyPractices   = report.recommendations?.dailyPractices   || [];
+  const validAnalyzedCount = visibleMarkers.filter((m: any) => m.status === "normal" || m.status === "low" || m.status === "high").length;
+
+  if (validAnalyzedCount === 0) {
+    return shell(
+      <div className="w-full h-full flex items-center justify-center">
+        <PageErrorState 
+          message="No valid biomarkers were detected in this report. Please upload a valid laboratory report." 
+          onRetry={() => navigate("/reports")} 
+          retryText="Back to Reports" 
+        />
+      </div>
+    );
+  }
+
+  const score            = Math.min(100, Math.round(Number(report.overallScore || 0)));
+  const needAttention      = visibleMarkers.filter((m: any) => m.status === "low" || m.status === "high").length;
+  const scoreLabel       = score >= 80 ? "Good" : score >= 60 ? "Fair" : "Needs Attention";
+  const scoreLabelColor  = score >= 80 ? "text-green-500" : score >= 60 ? "text-amber-500" : "text-rose-500";
+  const immediateActions  = report.recommendations?.immediateActions || [];
+  const dailyPractices    = report.recommendations?.dailyPractices   || [];
 
   /* ── render ─────────────────────────────────────────────── */
   return (
@@ -202,6 +220,9 @@ const ReportDetailPage: React.FC = () => {
                   <p className="stats-title">Health Score</p>
                   <p className="stats-value text-[#0C5BD5]">{score} <span className="text-base font-semibold text-gray-400">/ 100</span></p>
                   <p className={`text-xs font-semibold mt-0.5 ${scoreLabelColor}`}>{scoreLabel}</p>
+                  <p className="text-xs text-gray-500 mt-1 font-medium">
+                    Based on {validAnalyzedCount} analyzed biomarker{validAnalyzedCount === 1 ? "" : "s"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -217,8 +238,8 @@ const ReportDetailPage: React.FC = () => {
                 </div>
                 <div className="stats-text">
                   <p className="stats-title">Biomarkers Analyzed</p>
-                  <p className="stats-value text-gray-800">{visibleMarkers.length}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Matched with database</p>
+                  <p className="stats-value text-gray-800">{validAnalyzedCount}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Valid markers in score</p>
                 </div>
               </div>
             </div>
@@ -235,7 +256,9 @@ const ReportDetailPage: React.FC = () => {
                 <div className="stats-text">
                   <p className="stats-title">Need Attention</p>
                   <p className="stats-value text-gray-800">{needAttention}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Results out of normal range</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Results outside normal range
+                  </p>
                 </div>
               </div>
             </div>
@@ -278,6 +301,7 @@ const ReportDetailPage: React.FC = () => {
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Normal</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />Low</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />High</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />Needs Review</span>
               </div>
             </div>
 
@@ -321,7 +345,12 @@ const ReportDetailPage: React.FC = () => {
 
                             {/* Healthy range text */}
                             <td className="px-4 py-4 text-gray-500 text-xs whitespace-nowrap">
-                              Normal: {getNormalRangeText(marker)} {unit && <span>{unit}</span>}
+                              <div>Normal: {getNormalRangeText(marker)}</div>
+                              {marker.rangeSource && (
+                                <div className={`text-[10px] mt-0.5 ${marker.rangeSource === "Laboratory report" ? "text-emerald-500" : "text-gray-400"}`}>
+                                  Source: {marker.rangeSource}
+                                </div>
+                              )}
                             </td>
 
                             {/* Range slider */}
@@ -344,7 +373,7 @@ const ReportDetailPage: React.FC = () => {
 
                             {/* Value */}
                             <td className="px-4 py-4 text-right">
-                              <span className={`text-lg font-bold ${marker.status === "normal" ? "text-[#0C5BD5]" : marker.status === "low" ? "text-amber-600" : marker.status === "high" ? "text-rose-600" : "text-gray-500"}`}>
+                              <span className={`text-lg font-bold ${sc.text}`}>
                                 {value}
                               </span>
                               {unit && <span className="text-xs ml-1 text-gray-400">{unit}</span>}
@@ -352,16 +381,23 @@ const ReportDetailPage: React.FC = () => {
 
                             {/* Status pill + expand arrow */}
                             <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-2">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                                  {statusLabel[marker.status] || "—"}
-                                </span>
-                                <svg
-                                  className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                                    {statusLabel[marker.status] || "—"}
+                                  </span>
+                                  <svg
+                                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                                {marker.status !== "unsupported" && (marker.confidence === "low" || marker.reviewNote?.toLowerCase().includes("review recommended")) && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Review recommended
+                                  </span>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -370,10 +406,27 @@ const ReportDetailPage: React.FC = () => {
                           {isExpanded && (
                             <tr className="border-b border-gray-50">
                               <td colSpan={5} className="px-8 py-4 bg-[#F8FAFF]">
-                                <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1">Explanation</p>
-                                <p className="text-sm text-gray-600 leading-relaxed">
-                                  {marker.explanation || "No explanation available."}
-                                </p>
+                                <div className="space-y-1">
+                                  <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Rule-Based Interpretation</p>
+                                  <p className="text-sm text-gray-600 leading-relaxed">
+                                    {marker.status === "unsupported"
+                                      ? "Unit could not be verified. This result was excluded from automatic scoring."
+                                      : (marker.explanation || "No explanation available.")}
+                                  </p>
+                                  {marker.mentalHealthRelevance && (
+                                    <div className="mt-4 pt-3 border-t border-indigo-100">
+                                      <p className="text-xs uppercase tracking-wide text-indigo-400 font-semibold mb-1">Mental-Health-Relevant Findings</p>
+                                      <p className="text-sm text-indigo-900 leading-relaxed font-medium">
+                                        {marker.mentalHealthRelevance}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {marker.reviewNote && marker.status !== "unsupported" && (
+                                    <p className="text-xs text-amber-700 font-medium pt-2">
+                                      Note: {marker.reviewNote}
+                                    </p>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           )}
@@ -386,26 +439,44 @@ const ReportDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* ── Unmatched tests (if any) ─────────────── */}
+          {/* ── Other Detected Tests (collapsible, hidden by default) ─────────────── */}
           {unmatchedMarkers.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z" />
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowOtherTests(!showOtherTests)}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-500 hover:text-[#0C5BD5] transition"
+              >
+                <svg className={`w-3.5 h-3.5 transition-transform ${showOtherTests ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-                <h2 className="text-base font-bold text-gray-800">Unmatched Extracted Tests</h2>
-                <span className="ml-1 text-xs text-gray-500">— not yet in biomarker database</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {unmatchedMarkers.map((m: any, i: number) => (
-                  <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-200 rounded-full text-xs font-semibold text-gray-700">
-                    {m.name}
-                    {m.value !== null && m.value !== undefined && (
-                      <span className="text-amber-600">{m.value}{m.unit ? ` ${m.unit}` : ""}</span>
-                    )}
-                  </span>
-                ))}
-              </div>
+                {showOtherTests ? "Hide other detected tests" : `View ${unmatchedMarkers.length} other detected test${unmatchedMarkers.length === 1 ? "" : "s"}`}
+              </button>
+
+              {showOtherTests && (
+                <div className="mt-3 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <h2 className="text-base font-bold text-gray-800">Other Detected Tests</h2>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3.5">
+                    These tests were detected in the report but are not currently configured for automatic analysis.
+                  </p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {unmatchedMarkers.map((m: any, i: number) => {
+                      const valText = m.value !== null && m.value !== undefined ? ` — ${m.value}${m.unit ? ` ${m.unit}` : ""}` : "";
+                      return (
+                        <div key={i} className="inline-flex items-center px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 shadow-2xs">
+                          <span className="font-semibold text-gray-800">{m.name}</span>
+                          {valText && <span className="text-gray-600">{valText}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

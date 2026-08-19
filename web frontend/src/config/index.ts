@@ -55,5 +55,25 @@ export const UI_ALERT_TIMEOUT_MS = 4000;
 
 /** @returns {string} */
 export const getCurrentUserId = () => {
-  return sessionStorage.getItem("userId") || getEnvValue("VITE_MEDITRACK_USER_ID") || "testuser001";
+  // 1. Check sessionStorage (set at login)
+  const sessionId = sessionStorage.getItem("userId");
+  if (sessionId) return sessionId;
+
+  // 2. Fallback: check persisted user in localStorage (survives page refresh)
+  try {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed?._id) {
+        // Restore to sessionStorage for faster subsequent reads
+        sessionStorage.setItem("userId", parsed._id);
+        return parsed._id;
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  // 3. Fallback: env variable or hardcoded default
+  return getEnvValue("VITE_MEDITRACK_USER_ID") || "testuser001";
 };

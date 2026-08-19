@@ -18,6 +18,10 @@ const routeAfterLogin = (
   localStorage.setItem("user", JSON.stringify(data));
   // docprofile.tsx (doctor-portal profile page) reads this key directly.
   localStorage.setItem("user_id", data._id);
+  // getCurrentUserId() (used across mood tracking/insights) reads this key.
+  if (data._id) {
+    sessionStorage.setItem("userId", data._id);
+  }
 
   if (data.role === "doctor") {
     // Doctor portal (video calls, chatbot, journals) runs on its own

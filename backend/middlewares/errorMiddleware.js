@@ -20,6 +20,16 @@ const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
 
+  // Multer errors (file size limit, file filter, etc.)
+  if (err.name === "MulterError") {
+    statusCode = 400;
+    if (err.code === "LIMIT_FILE_SIZE") {
+      message = "File is too large. Maximum allowed size is 8MB.";
+    } else {
+      message = `Upload error: ${err.message}`;
+    }
+  }
+
   // Mongoose validation error
   if (err.name === "ValidationError") {
     statusCode = 400;
@@ -47,7 +57,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Return standardized error
-  res.status(statusCode).json(apiFail(message));
+  res.status(statusCode).json(apiFail(message, null, err.code || null));
 };
 
 /**

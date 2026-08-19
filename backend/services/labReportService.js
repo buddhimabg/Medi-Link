@@ -35,6 +35,13 @@ const hydrateReportMarkerRanges = async (report) => {
   const biomarkerByName = new Map(biomarkerDocs.map((item) => [item.name, item]));
 
   const markers = report.markers.map((marker) => {
+    // If the marker already has its own normal range info (e.g. from the lab report)
+    // then preserve it and don't overwrite with the database fallback.
+    if (marker.normalMin !== undefined && marker.normalMin !== null &&
+        marker.normalMax !== undefined && marker.normalMax !== null) {
+      return marker;
+    }
+
     const biomarker = biomarkerByName.get(marker?.name);
     const normalMin = biomarker?.ranges?.normalMin;
     const normalMax = biomarker?.ranges?.normalMax;
@@ -50,6 +57,7 @@ const hydrateReportMarkerRanges = async (report) => {
       normalMin,
       normalMax,
       normalRange: formatNormalRange(normalMin, normalMax, unit),
+      rangeSource: "Medi-Link configured range",
     };
   });
 
@@ -75,19 +83,22 @@ const createLabReportAnalysis = async ({ userId, file }) => {
       throw new Error("labReportAnalysisService is missing parseAndAnalyzeMarkers export.");
     }
 
-    let extractedText;
+    let extractionResult;
     try {
-      extractedText = await extractTextFromReport({
+      extractionResult = await extractTextFromReport({
         filePath: file.path,
         mimeType: file.mimetype,
       });
     } catch (ocrErr) {
       const err = new Error(ocrErr.message || "Could not extract readable text from the uploaded report.");
-      err.statusCode = 400;
+      err.statusCode = ocrErr.statusCode || 400;
       throw err;
     }
 
-    const analysisResult = await parseAndAnalyzeMarkers(extractedText);
+    const extractedText = typeof extractionResult === "string" ? extractionResult : extractionResult?.text || "";
+    const ocrConfidence = typeof extractionResult === "object" ? extractionResult?.confidence : 100;
+
+    const analysisResult = await parseAndAnalyzeMarkers(extractedText, { ocrConfidence });
     const {
       overallScore,
       summary,
@@ -100,7 +111,16 @@ const createLabReportAnalysis = async ({ userId, file }) => {
     } = analysisResult || {};
 
     if (!reportBiomarkers || reportBiomarkers.length === 0) {
-      const err = new Error("The uploaded document does not appear to be a valid lab report. No recognized biomarkers were found.");
+      const err = new Error("No supported biomarkers were found in this lab report.");
+      err.code = "NO_SUPPORTED_BIOMARKERS";
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const validAnalyzedCount = (markers || []).filter(m => m.status === "normal" || m.status === "low" || m.status === "high").length;
+    if (validAnalyzedCount === 0) {
+      const err = new Error("No valid biomarkers were detected in this report. Please upload a valid laboratory report.");
+      err.code = "NO_VALID_BIOMARKERS";
       err.statusCode = 400;
       throw err;
     }
@@ -118,7 +138,7 @@ const createLabReportAnalysis = async ({ userId, file }) => {
       reportBiomarkers,
       keyIssues,
       recommendations,
-      explanation: "This is not a medical diagnosis. Please consult a doctor.",
+      explanation: "This analysis provides rule-based interpretations using configured reference ranges. It is not a medical diagnosis. Please consult a qualified healthcare professional.",
     });
 
     return reportDoc;

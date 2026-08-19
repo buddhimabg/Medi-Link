@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon -e js,json,env server.js",
+    "test": "node tests/labReportAnalysis.test.js && node utils/scoreEngine.test.js",
+    "test:report-analysis": "node tests/labReportAnalysis.test.js",
     "test:reminder-flow": "node scripts/testReminderFlow.js",
     "demo:workflow": "node scripts/seedDemoWorkflow.js",
     "seed:biomarkers": "node scripts/seedBiomarkers.js",

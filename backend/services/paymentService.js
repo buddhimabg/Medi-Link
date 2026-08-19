@@ -5,6 +5,7 @@ const Doctor = require('../models/doctor');
 const Notification = require('../models/notification');
 const DoctorSchedule = require('../models/doctorSchedule');
 const invoiceService = require('./invoiceService');
+const { syncAppointmentReminder, removeAppointmentReminder } = require('../utils/appointmentReminderHelper');
 
 /**
  * Generate PayHere sandbox/live payment details and MD5 secure signature.
@@ -139,6 +140,13 @@ const handleNotifyCallback = async (body) => {
       if (card_masked) appointment.cardNumber = card_masked;
       await appointment.save();
 
+      // Sync appointment reminder in Reminder collection
+      try {
+        await syncAppointmentReminder(appointment);
+      } catch (remErr) {
+        console.error("Failed to sync appointment reminder:", remErr);
+      }
+
       // Trigger notification
       try {
         await Notification.create({
@@ -166,6 +174,12 @@ const handleNotifyCallback = async (body) => {
 
     appointment.paymentStatus = status_code === '-1' ? 'Canceled' : 'Failed';
     await appointment.save();
+
+    try {
+      await removeAppointmentReminder(appointment);
+    } catch (remErr) {
+      console.error("Failed to remove appointment reminder:", remErr);
+    }
 
     // Release slot back to doctor
     const parts = appointment.slot.split(" ");

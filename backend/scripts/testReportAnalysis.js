@@ -52,9 +52,11 @@ Vitamin D                      22         ng/mL        30 - 100
         const filePath = path.join(uploadsDir, file);
         console.log(`\nTesting PDF: ${file}`);
         try {
-          const text = await extractTextFromReport({ filePath });
-          console.log(`Extracted Text Length: ${text.length} chars. First 150 chars:\n"${text.slice(0, 150)}..."`);
-          const result = await parseAndAnalyzeMarkers(text);
+          const res = await extractTextFromReport({ filePath });
+          const text = typeof res === "string" ? res : res.text;
+          const confidence = typeof res === "object" ? res.confidence : 100;
+          console.log(`Extracted Text Length: ${text.length} chars (OCR confidence: ${confidence}%). First 150 chars:\n"${text.slice(0, 150)}..."`);
+          const result = await parseAndAnalyzeMarkers(text, { ocrConfidence: confidence });
           console.log(`-> Overall Score: ${result.overallScore}`);
           console.log(`-> Matched Biomarkers (${result.reportBiomarkers.length}):`, result.reportBiomarkers);
           if (result.unmatchedMarkers.length) {

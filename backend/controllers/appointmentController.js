@@ -6,6 +6,7 @@ const Payment = require('../models/payment');
 const DoctorSchedule = require('../models/doctorSchedule');
 const paymentService = require('../services/paymentService');
 const invoiceService = require('../services/invoiceService');
+const { syncAppointmentReminder, removeAppointmentReminder } = require('../utils/appointmentReminderHelper');
 
 // Flat service charge kept back on every no-show-refund cancellation.
 const NO_SHOW_FEE = 275;
@@ -228,6 +229,12 @@ const cancelAppointment = async (req, res) => {
     appointment.paymentStatus = 'Canceled';
     await appointment.save();
 
+    try {
+      await removeAppointmentReminder(appointment);
+    } catch (remErr) {
+      console.warn("Could not remove appointment reminder:", remErr);
+    }
+
     if (wasPaid) {
       console.log(`[REFUND] Automatically refunded Rs. ${refundAmount}.00 for appointment ${appointment._id} to user card`);
 
@@ -359,6 +366,12 @@ const rescheduleAppointment = async (req, res) => {
       console.warn("Could not create reschedule notification:", notifyErr);
     }
 
+    try {
+      await syncAppointmentReminder(appointment);
+    } catch (remErr) {
+      console.warn("Could not sync appointment reminder on reschedule:", remErr);
+    }
+
     res.status(200).json({
       success: true,
       message: "Appointment rescheduled successfully.",
@@ -381,6 +394,12 @@ const confirmPayment = async (req, res) => {
     if (appointment.paymentStatus !== 'Paid') {
       appointment.paymentStatus = 'Paid';
       await appointment.save();
+
+      try {
+        await syncAppointmentReminder(appointment);
+      } catch (remErr) {
+        console.warn("Could not sync appointment reminder on confirm:", remErr);
+      }
 
       // Update associated Payment transaction log to Success
       try {

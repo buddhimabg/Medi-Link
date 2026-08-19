@@ -1,4 +1,12 @@
-const { formatDate, getMoodScore100, calculateMentalHealthScore } = require("./scoreEngine.js");
+const {
+  formatDate,
+  getMoodScore100,
+  calculateMentalHealthScore,
+  calculateSevenDayAverage,
+  normalizePositive1to10,
+  normalizeInverted1to10,
+  WELLBEING_WEIGHTS,
+} = require("./scoreEngine.js");
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -61,19 +69,12 @@ const DEFAULT_FACTOR_META = {
 
 const clamp = (value) => Math.max(0, Math.min(100, value));
 
-const toLevel100 = (value) => {
-  if (value === null || value === undefined || value === "") return 50;
-  const n = Number(value);
-  if (Number.isNaN(n)) return 50;
-  return clamp(n, 1, 10) * 10;
-};
-
+const toLevel100 = (value) => normalizePositive1to10(value);
 const invert100 = (value) => 100 - value;
-
 const toMood100 = getMoodScore100;
 
 const average = (values) => {
-  if (!values.length) return 0;
+  if (!values || !values.length) return 0;
   return Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1));
 };
 
@@ -90,28 +91,25 @@ const getTrendFromChange = (change, threshold = 3) => {
 
 const mentalScore10 = calculateMentalHealthScore;
 
-const normalizeEntry = (entry) => {
-  const sleep = toLevel100(entry.sleepLevel);
-  const anxietyRaw = toLevel100(entry.anxietyLevel);
-  const stressRaw = toLevel100(entry.stressLevel);
-  const energy = toLevel100(entry.energyLevel);
-  const motivation = toLevel100(entry.motivationLevel);
-  const focus = toLevel100(entry.focusLevel);
-  const social = toLevel100(entry.socialInteraction);
-  const mood = toMood100(entry.mood);
-
-  const anxiety = invert100(anxietyRaw);
-  const stress = invert100(stressRaw);
+const normalizeEntry = (entry = {}) => {
+  const sleep = normalizePositive1to10(entry.sleepLevel);
+  const anxiety = normalizeInverted1to10(entry.anxietyLevel);
+  const stress = normalizeInverted1to10(entry.stressLevel);
+  const energy = normalizePositive1to10(entry.energyLevel);
+  const motivation = normalizePositive1to10(entry.motivationLevel);
+  const focus = normalizePositive1to10(entry.focusLevel);
+  const social = normalizePositive1to10(entry.socialInteraction);
+  const mood = getMoodScore100(entry.mood);
 
   const overall =
-    mood * 0.2 +
-    sleep * 0.15 +
-    anxiety * 0.15 +
-    stress * 0.15 +
-    energy * 0.12 +
-    motivation * 0.09 +
-    focus * 0.07 +
-    social * 0.07;
+    mood * WELLBEING_WEIGHTS.mood +
+    sleep * WELLBEING_WEIGHTS.sleep +
+    anxiety * WELLBEING_WEIGHTS.anxiety +
+    stress * WELLBEING_WEIGHTS.stress +
+    energy * WELLBEING_WEIGHTS.energy +
+    motivation * WELLBEING_WEIGHTS.motivation +
+    focus * WELLBEING_WEIGHTS.focus +
+    social * WELLBEING_WEIGHTS.social;
 
   return {
     mood,
@@ -499,7 +497,7 @@ const buildMoodInsights = (entries = [], options = {}) => {
     dailyInsight,
     moodDistribution,
     weeklySummary: {
-      averageMoodScore: average(dailyTrend.filter((d) => d.entries > 0).map((d) => d.averageMoodScore)),
+      averageMoodScore: calculateSevenDayAverage(currentWeek),
       totalCheckIns: currentWeek.length,
       bestDay: bestDayRaw
         ? {

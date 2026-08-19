@@ -24,40 +24,73 @@ const MOOD_SCORE_MAP_100 = {
   great: 100
 };
 
-// Weights (normalized automatically later)
+// Single Source of Truth for Wellbeing Weights (sums to 1.00)
+const WELLBEING_WEIGHTS = {
+  mood: 0.22,
+  sleep: 0.18,
+  anxiety: 0.18,
+  stress: 0.15,
+  energy: 0.12,
+  motivation: 0.07,
+  focus: 0.05,
+  social: 0.03
+};
+
+// Recovery Weights (sums to 1.00) — specialized recovery metric
 const RECOVERY_WEIGHTS = {
+  mood: 0.20,
   sleep: 0.15,
   anxiety: 0.15,
   stress: 0.15,
   energy: 0.12,
-  social: 0.07,
-  mood: 0.2
+  motivation: 0.09,
+  focus: 0.07,
+  social: 0.07
 };
-
-const NEGATIVE_IMPACT = 0.5;
-const NORMALIZATION_FACTOR = 0.75;
 
 // ==========================================
 // HELPERS
 // ==========================================
 
 /**
- * Maps mood string to normalized 0-10 value. Falls back to default 5 (neutral) if mood is unknown or missing.
+ * Maps mood string to normalized 0-100 value.
  */
-const getMoodValue = (mood) => {
-  const score100 = MOOD_SCORE_MAP_100[mood?.toLowerCase()];
-  if (score100 === undefined) return 5;
-
-  return score100 / 10; // convert to 0–10 scale
+const getMoodScore100 = (mood) => {
+  return MOOD_SCORE_MAP_100[mood?.toLowerCase()] ?? 60;
 };
 
 /**
- * Safely parses numeric metric levels. Falls back to default 5 (neutral) if value is null, undefined, or NaN.
+ * Maps mood string to normalized 0-10 value.
  */
-const num = (v, def = 5) => {
+const getMoodValue = (mood) => {
+  return getMoodScore100(mood) / 10;
+};
+
+/**
+ * Safely parses numeric metric levels. Falls back to default 5.5 (neutral midpoint for 1–10 scale) if value is null, undefined, or NaN.
+ */
+const num = (v, def = 5.5) => {
   if (v === null || v === undefined || v === "") return def;
   const n = Number(v);
   return isNaN(n) ? def : n;
+};
+
+const clampLevel = (v) => Math.max(1, Math.min(10, num(v)));
+
+/**
+ * Standard positive 1-10 factor normalization to 0-100 scale: (val - 1) / 9 * 100
+ */
+const normalizePositive1to10 = (v) => {
+  const val = clampLevel(v);
+  return ((val - 1) / 9) * 100;
+};
+
+/**
+ * Standard negative 1-10 factor (anxiety/stress) inversion & normalization to 0-100 scale: (10 - val) / 9 * 100
+ */
+const normalizeInverted1to10 = (v) => {
+  const val = clampLevel(v);
+  return ((10 - val) / 9) * 100;
 };
 
 const formatDate = (date) => {
@@ -71,31 +104,28 @@ const formatDate = (date) => {
 // CORE CALCULATION
 // ==========================================
 
-const calculateMentalHealthScore = (m) => {
-  const moodValue = getMoodValue(m.mood);
+const calculateMentalHealthScore = (m = {}) => {
+  const mood100 = getMoodScore100(m.mood);
+  const sleep100 = normalizePositive1to10(m.sleepLevel);
+  const energy100 = normalizePositive1to10(m.energyLevel);
+  const motivation100 = normalizePositive1to10(m.motivationLevel);
+  const focus100 = normalizePositive1to10(m.focusLevel);
+  const social100 = normalizePositive1to10(m.socialInteraction);
 
-  const sleep = Math.max(1, Math.min(10, num(m.sleepLevel)));
-  const energy = Math.max(1, Math.min(10, num(m.energyLevel)));
-  const motivation = Math.max(1, Math.min(10, num(m.motivationLevel)));
-  const social = Math.max(1, Math.min(10, num(m.socialInteraction)));
-  const focus = Math.max(1, Math.min(10, num(m.focusLevel)));
-  const anxiety = Math.max(1, Math.min(10, num(m.anxietyLevel)));
-  const stress = Math.max(1, Math.min(10, num(m.stressLevel)));
+  const anxiety100 = normalizeInverted1to10(m.anxietyLevel);
+  const stress100 = normalizeInverted1to10(m.stressLevel);
 
-  const positive =
-    moodValue * 0.15 +
-    sleep * 0.12 +
-    energy * 0.1 +
-    motivation * 0.1 +
-    social * 0.1 +
-    focus * 0.08;
+  const score100 =
+    mood100 * WELLBEING_WEIGHTS.mood +
+    sleep100 * WELLBEING_WEIGHTS.sleep +
+    anxiety100 * WELLBEING_WEIGHTS.anxiety +
+    stress100 * WELLBEING_WEIGHTS.stress +
+    energy100 * WELLBEING_WEIGHTS.energy +
+    motivation100 * WELLBEING_WEIGHTS.motivation +
+    focus100 * WELLBEING_WEIGHTS.focus +
+    social100 * WELLBEING_WEIGHTS.social;
 
-  const negative = anxiety * 0.2 + stress * 0.15;
-
-  let score =
-    (positive - negative * NEGATIVE_IMPACT) / NORMALIZATION_FACTOR;
-
-  score = Math.max(0, Math.min(10, score));
+  const score = Math.max(0, Math.min(10, score100 / 10));
   return Number(score.toFixed(1));
 };
 
@@ -104,55 +134,83 @@ const calculateMentalHealthScore = (m) => {
 // ==========================================
 
 const normalizeMetric = (value, min, max, inverse = false) => {
-  const val = num(value, 5);
+  const val = num(value, 5.5);
   const clamped = Math.max(min, Math.min(max, val));
   let score = ((clamped - min) / (max - min)) * 100;
   return inverse ? 100 - score : score;
 };
 
 const calculateMoodScore = (mood) => {
-  return MOOD_SCORE_MAP_100[mood?.toLowerCase()] ?? 50;
+  return getMoodScore100(mood);
 };
 
 // ==========================================
 // RECOVERY SCORE
 // ==========================================
 
-const calculateMoodRecoveryScore = (m) => {
-  const sleep = normalizeMetric(num(m.sleepLevel), 0, 10);
-  const anxiety = normalizeMetric(num(m.anxietyLevel), 0, 10, true);
-  const stress = normalizeMetric(num(m.stressLevel), 0, 10, true);
-  const energy = normalizeMetric(num(m.energyLevel), 0, 10);
-  const social = normalizeMetric(num(m.socialInteraction), 0, 10);
-  const moodScore = calculateMoodScore(m.mood);
+const calculateMoodRecoveryScore = (m = {}) => {
+  const sleep = normalizePositive1to10(m.sleepLevel);
+  const anxiety = normalizeInverted1to10(m.anxietyLevel);
+  const stress = normalizeInverted1to10(m.stressLevel);
+  const energy = normalizePositive1to10(m.energyLevel);
+  const motivation = normalizePositive1to10(m.motivationLevel);
+  const focus = normalizePositive1to10(m.focusLevel);
+  const social = normalizePositive1to10(m.socialInteraction);
+  const moodScore = getMoodScore100(m.mood);
 
   const weighted =
     sleep * RECOVERY_WEIGHTS.sleep +
     anxiety * RECOVERY_WEIGHTS.anxiety +
     stress * RECOVERY_WEIGHTS.stress +
     energy * RECOVERY_WEIGHTS.energy +
+    motivation * RECOVERY_WEIGHTS.motivation +
+    focus * RECOVERY_WEIGHTS.focus +
     social * RECOVERY_WEIGHTS.social +
     moodScore * RECOVERY_WEIGHTS.mood;
 
-  // normalize weights
-  const totalWeight = Object.values(RECOVERY_WEIGHTS).reduce(
-    (a, b) => a + b,
-    0
-  );
-
-  const finalScore = weighted / totalWeight;
+  const finalScore = Math.max(0, Math.min(100, weighted));
 
   return Number(finalScore.toFixed(1));
 };
 
-const calculateRecoveryScore = (moods) => {
-  if (!moods.length) return 0;
+const calculateRecoveryScore = (thisWeekMoods, prevWeekMoods = []) => {
+  if (!thisWeekMoods || !thisWeekMoods.length) return 0;
 
-  const scores = moods.map(calculateMoodRecoveryScore);
-  const avg =
-    scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  const factors = [
+    { key: "mood", weight: RECOVERY_WEIGHTS.mood },
+    { key: "sleepLevel", weight: RECOVERY_WEIGHTS.sleep },
+    { key: "anxietyLevel", weight: RECOVERY_WEIGHTS.anxiety },
+    { key: "stressLevel", weight: RECOVERY_WEIGHTS.stress },
+    { key: "energyLevel", weight: RECOVERY_WEIGHTS.energy },
+    { key: "motivationLevel", weight: RECOVERY_WEIGHTS.motivation },
+    { key: "focusLevel", weight: RECOVERY_WEIGHTS.focus },
+    { key: "socialInteraction", weight: RECOVERY_WEIGHTS.social },
+  ];
 
-  return Math.round(avg);
+  const hasPrevData = Array.isArray(prevWeekMoods) && prevWeekMoods.length > 0;
+  let totalWeightedScore = 0;
+
+  for (const factor of factors) {
+    // 1. Calculate this week's average (0–100 scale)
+    const thisWeekAvg = averageMetric100(thisWeekMoods, factor.key);
+
+    // 2. Previous baseline: Use real prior data if available, otherwise use 50% (neutral midpoint baseline)
+    const prevWeekAvg = hasPrevData
+      ? averageMetric100(prevWeekMoods, factor.key)
+      : 50;
+
+    // Difference (magnitude & direction):
+    // Note: averageMetric100 automatically normalizes inverted metrics (anxiety/stress)
+    // so a higher score always means better well-being.
+    const diff = thisWeekAvg - prevWeekAvg;
+
+    // Adjust factor recovery score based on current level + direction & magnitude of change
+    const factorScore = Math.max(0, Math.min(100, thisWeekAvg + 0.5 * diff));
+
+    totalWeightedScore += factorScore * factor.weight;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, totalWeightedScore)));
 };
 
 // ==========================================
@@ -160,7 +218,7 @@ const calculateRecoveryScore = (moods) => {
 // ==========================================
 
 const calculateCheckInStreak = (moods) => {
-  if (!moods.length) return 0;
+  if (!moods || !moods.length) return 0;
 
   const uniqueDates = [
     ...new Set(moods.map((m) => formatDate(m.createdAt)))
@@ -205,40 +263,36 @@ const calculateCheckInStreak = (moods) => {
 // OTHER UTILITIES
 // ==========================================
 
-const getMoodScore100 = (mood) => {
-  return MOOD_SCORE_MAP_100[mood?.toLowerCase()] ?? 60;
-};
-
 const normalize1to100 = (value) => {
-  const val = num(value, 5);
-  const clamped = Math.max(1, Math.min(10, val));
-  return clamped * 10;
+  return normalizePositive1to10(value);
 };
 
-const calculateMentalHealthTrend = (m) => {
-  const sleepScore = normalize1to100(m.sleepLevel);
-  const energyScore = normalize1to100(m.energyLevel);
-  const motivationScore = normalize1to100(m.motivationLevel);
-  const socialScore = normalize1to100(m.socialInteraction);
-  const focusScore = normalize1to100(m.focusLevel);
+const calculateMentalHealthTrend = (m = {}) => {
+  const mood100 = getMoodScore100(m.mood);
+  const sleepScore = normalizePositive1to10(m.sleepLevel);
+  const energyScore = normalizePositive1to10(m.energyLevel);
+  const motivationScore = normalizePositive1to10(m.motivationLevel);
+  const focusScore = normalizePositive1to10(m.focusLevel);
+  const socialScore = normalizePositive1to10(m.socialInteraction);
 
-  const anxietyScore = 100 - normalize1to100(m.anxietyLevel);
-  const stressScore = 100 - normalize1to100(m.stressLevel);
+  const anxietyScore = normalizeInverted1to10(m.anxietyLevel);
+  const stressScore = normalizeInverted1to10(m.stressLevel);
 
   const weighted =
-    sleepScore * 0.2 +
-    anxietyScore * 0.2 +
-    stressScore * 0.15 +
-    energyScore * 0.15 +
-    motivationScore * 0.1 +
-    focusScore * 0.1 +
-    socialScore * 0.1;
+    mood100 * WELLBEING_WEIGHTS.mood +
+    sleepScore * WELLBEING_WEIGHTS.sleep +
+    anxietyScore * WELLBEING_WEIGHTS.anxiety +
+    stressScore * WELLBEING_WEIGHTS.stress +
+    energyScore * WELLBEING_WEIGHTS.energy +
+    motivationScore * WELLBEING_WEIGHTS.motivation +
+    focusScore * WELLBEING_WEIGHTS.focus +
+    socialScore * WELLBEING_WEIGHTS.social;
 
   return Number(Math.max(0, Math.min(100, weighted)).toFixed(1));
 };
 
 const calculateSevenDayAverage = (moods) => {
-  if (!moods.length) return 0;
+  if (!moods || !moods.length) return 0;
 
   const validScores = moods
     .map((m) => m.mentalHealthScore || calculateMentalHealthScore(m))
@@ -253,20 +307,18 @@ const calculateSevenDayAverage = (moods) => {
 };
 
 const averageMetric100 = (items, fieldName) => {
-  if (!items.length) return 0;
+  if (!items || !items.length) return 0;
 
   const values = items.map((item) => {
-    const val = num(item[fieldName], 5);
-
     if (fieldName === "anxietyLevel" || fieldName === "stressLevel") {
-      return 100 - val * 10;
+      return normalizeInverted1to10(item[fieldName]);
     }
 
     if (fieldName === "mood") {
       return getMoodScore100(item.mood);
     }
 
-    return val * 10;
+    return normalizePositive1to10(item[fieldName]);
   });
 
   const sum = values.reduce((a, b) => a + b, 0);
@@ -279,14 +331,19 @@ const averageMetric100 = (items, fieldName) => {
 
 module.exports = {
   calculateMentalHealthScore,
+  calculateMoodRecoveryScore,
   calculateRecoveryScore,
   calculateCheckInStreak,
   getMoodScore100,
   normalize1to100,
+  normalizePositive1to10,
+  normalizeInverted1to10,
   calculateMentalHealthTrend,
   calculateSevenDayAverage,
   MOOD_ENUM,
   VALID_LEVELS,
+  WELLBEING_WEIGHTS,
+  RECOVERY_WEIGHTS,
   averageMetric100,
   formatDate,
-};
+};
