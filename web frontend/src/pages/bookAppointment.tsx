@@ -360,6 +360,7 @@ const BookAppointment: React.FC = () => {
           type: bookingMode,
           imageUrl: activeDoctor.photo || activeDoctor.imageUrl,
           slot: selectedSlot,
+          hospital: bookingMode === "Physical" ? selectedHospital : undefined,
           amount: totalFee,
           noShowRefund
         })
