@@ -26,13 +26,14 @@ const Schedule: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
+  const [doctorInfo, setDoctorInfo] = useState<{ name: string; specialty: string }>({ name: '', specialty: '' });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
     if (hour < 15) return 'Good Afternoon';
     if (hour < 18) return 'Good Evening';
-    return 'Good Nimal';
+    return 'Good Night';
   };
 
   const getFormattedDate = (date: Date) => {
@@ -101,8 +102,32 @@ const Schedule: React.FC = () => {
     setSlots(slotsData);
   };
 
+  const fetchDoctorInfo = async () => {
+    // Fall back to the logged-in account's own name (always available)
+    // in case the doctor profile fetch fails.
+    let fallbackName = '';
+    try {
+      const info = localStorage.getItem('medilink_user_info');
+      if (info) fallbackName = JSON.parse(info)?.name || '';
+    } catch {
+      // ignore
+    }
+    setDoctorInfo({ name: fallbackName, specialty: '' });
+
+    try {
+      const user_id = localStorage.getItem('user_id');
+      const data = await api.getDoctorProfile(user_id);
+      if (data) {
+        setDoctorInfo({ name: data.name || fallbackName, specialty: data.specialty || '' });
+      }
+    } catch (error) {
+      console.error('Failed to fetch doctor profile:', error);
+    }
+  };
+
   useEffect(() => {
     fetchAllWeekSlots();
+    fetchDoctorInfo();
   }, []);
 
   const handleView = (slot: ScheduleItem) => {
@@ -197,8 +222,8 @@ const Schedule: React.FC = () => {
         ) : (
           <>
             <div className="greeting-section">
-              <p className="greeting-text">{getGreeting()}, Dr. Nimal Perera</p>
-              <p className="doctor-title">Consultant Psychiatrist</p>
+              <p className="greeting-text">{getGreeting()}{doctorInfo.name ? `, ${doctorInfo.name}` : ''}</p>
+              {doctorInfo.specialty && <p className="doctor-title">{doctorInfo.specialty}</p>}
             </div>
 
             <div className="page-header">

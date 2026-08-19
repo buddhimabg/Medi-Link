@@ -394,7 +394,7 @@ const PatientProfile: React.FC = () => {
               <ScrollText size={18} className="section-icon" />
               <div>
                 <h3>Prescriptions</h3>
-                <p>Latest 3 prescriptions issued by Dr. Nimal Perera</p>
+                <p>Latest 3 prescriptions issued</p>
               </div>
             </div>
             {!hasScripts ? (
