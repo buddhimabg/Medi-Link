@@ -1,23 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Doctor = require('../models/treatmentDoctor');
 
 // Get doctor profile by user_id
 router.get('/profile/:user_id', async (req, res) => {
     try {
         const { user_id } = req.params;
-        
+
         // Validate that user_id is provided
         if (!user_id) {
             return res.status(400).json({ error: 'User ID is required' });
         }
-        
-        const doctor = await Doctor.findOne({ id: user_id});
-        
+
+        if (!mongoose.Types.ObjectId.isValid(user_id)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        // `id` is a small sequential display number unrelated to the logged-in
+        // account — the actual link to the account is `userId`. Cast to
+        // ObjectId explicitly since this model is `strict: false` and won't
+        // auto-cast the query filter.
+        const doctor = await Doctor.findOne({ userId: new mongoose.Types.ObjectId(user_id) });
+
         if (!doctor) {
             return res.status(404).json({ error: 'Doctor profile not found' });
         }
-        
+
         res.json(doctor);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -72,8 +81,12 @@ router.put('/profile/:user_id', async (req, res) => {
         if (licenseNumber !== undefined) update.licenseNumber = licenseNumber;
         if (yearsOfExperience !== undefined) update.yearsOfExperience = yearsOfExperience;
 
+        if (!mongoose.Types.ObjectId.isValid(user_id)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
         const doctor = await Doctor.findOneAndUpdate(
-            { id: user_id },
+            { userId: new mongoose.Types.ObjectId(user_id) },
             { $set: update },
             { returnDocument: 'after'}
         );
