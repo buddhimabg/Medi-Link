@@ -4,8 +4,19 @@ import "./RegisterPage.css";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Eye, EyeOff, ChevronDown } from "lucide-react";
 
+// Local-time YYYY-MM-DD for today, used to stop the date picker from
+// offering future dates of birth.
+const getTodayDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const maxDob = getTodayDateString();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -265,6 +276,7 @@ const RegisterPage: React.FC = () => {
                   name="dob"
                   value={formData.dob}
                   onChange={handleChange}
+                  max={maxDob}
                   required
                 />
               </div>
