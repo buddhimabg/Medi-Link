@@ -1,42 +1,60 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+ * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+html {
+  scroll-behavior: smooth;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+button {
+  font-family: inherit;
 }
 
-.card {
-  padding: 2em;
+input {
+  font-family: inherit;
 }
 
-.read-the-docs {
-  color: #888;
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* 1. Lock the master wrapper to the exact height of the screen */
+.dashboard-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh !important; /* Swapped from min-height to a strict locked height */
+  overflow: hidden; /* Kills the browser's main outer scrollbar entirely */
+}
+
+/* 2. Lock the Sidebar (targets the very first element inside the layout) */
+.dashboard-layout > :first-child {
+  height: 100vh;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  overflow-y: auto; /* See Pro-Tip below! */
+}
+
+/* 3. Turn the right side into its own independent scrolling viewport */
+.dashboard-main-content {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto; /* This creates the scrollbar strictly for the right side! */
+  overflow-x: hidden;
 }

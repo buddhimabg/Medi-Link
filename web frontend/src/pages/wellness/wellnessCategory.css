@@ -1,0 +1,521 @@
+/* --- MODERN CLINICAL WELLNESS CATEGORY VIEWS --- */
+:root {
+  --canvas-bg: #f8fafc;
+  --surface-white: #ffffff;
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-600: #475569;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-100: #f1f5f9;
+  --slate-50:  #f8fafc;
+  
+  --brand-primary: #0D47A1;
+  --brand-hover:   #0a377d;
+  --brand-surface: #f0f9ff;
+  --brand-tint:    #e0f2fe;
+}
+
+.wellness-category-page {
+  padding: 40px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--slate-900);
+  background-color: var(--canvas-bg);
+  min-height: 100vh;
+  text-align: left;
+}
+
+.category-header {
+  margin-bottom: 36px;
+  border-bottom: 1px solid var(--slate-100);
+  padding-bottom: 24px;
+}
+
+.btn-back-hub {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid var(--slate-200);
+  padding: 10px 20px;
+  border-radius: 12px;
+  color: var(--slate-600);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: all 0.2s ease;
+}
+
+.btn-back-hub:hover {
+  background: var(--slate-50);
+  color: var(--slate-900);
+  border-color: var(--slate-300);
+  transform: translateX(-2px);
+}
+
+.category-header h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  color: var(--slate-900);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.category-header p {
+  font-size: 1.1rem;
+  color: var(--slate-600);
+  margin: 0;
+}
+
+/* ========================================================= */
+/* --- 1. GUIDED VIDEOS & SOUNDS VIEWS --- */
+/* ========================================================= */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 28px;
+}
+
+.video-item-card {
+  background: var(--surface-white);
+  border: 1px solid var(--slate-100);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.video-item-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 25px -10px rgba(15, 23, 42, 0.1);
+  border-color: var(--brand-tint);
+}
+
+.video-card-thumbnail {
+  position: relative;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-card-play-btn {
+  width: 52px;
+  height: 52px;
+  background: rgba(13, 71, 161, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.video-item-card:hover .video-card-play-btn {
+  transform: scale(1.1);
+  background: var(--brand-primary);
+}
+
+.video-card-duration {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.video-card-content {
+  padding: 20px;
+}
+
+.video-card-tag {
+  display: inline-block;
+  background: var(--brand-surface);
+  color: var(--brand-primary);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.video-card-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  line-height: 1.4;
+}
+
+.video-card-content p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--slate-600);
+  line-height: 1.5;
+}
+
+/* ========================================================= */
+/* --- 2. YOUTUBE VIDEO OVERLAY MODAL --- */
+/* ========================================================= */
+.video-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.video-modal-container {
+  background: var(--surface-white);
+  width: 100%;
+  max-width: 800px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.video-modal-header {
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.video-modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 85%;
+}
+
+.btn-close-video {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  color: var(--slate-500);
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-close-video:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+
+.video-iframe-wrapper {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+  height: 0;
+  overflow: hidden;
+  background: black;
+}
+
+.video-iframe-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ========================================================= */
+/* --- 3. DOCUMENTATION / EXERCISE CARDS --- */
+/* ========================================================= */
+.doc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.doc-card {
+  background: var(--surface-white);
+  border: 1px solid var(--slate-100);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+
+.doc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--slate-50);
+  padding-bottom: 14px;
+}
+
+.doc-card-badge {
+  font-size: 1.8rem;
+  background: var(--slate-50);
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doc-card-title h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+
+.doc-card-title p {
+  margin: 4px 0 0 0;
+  font-size: 0.9rem;
+  color: var(--slate-600);
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--slate-50);
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--slate-800);
+}
+
+.step-num {
+  background: var(--brand-primary);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ========================================================= */
+/* --- 4. PSYCHOEDUCATION ACCORDIONS --- */
+/* ========================================================= */
+.accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.accordion-item {
+  border: 1px solid var(--slate-100);
+  border-radius: 16px;
+  background: var(--surface-white);
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+}
+
+.accordion-trigger {
+  width: 100%;
+  padding: 20px 24px;
+  background: none;
+  border: none;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.accordion-trigger:hover {
+  background-color: var(--slate-50);
+}
+
+.accordion-icon {
+  transition: transform 0.2s ease;
+  color: var(--slate-500);
+}
+
+.accordion-item.active .accordion-icon {
+  transform: rotate(180deg);
+  color: var(--brand-primary);
+}
+
+.accordion-content {
+  padding: 0 24px 24px 24px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--slate-600);
+  border-top: 1px solid var(--slate-50);
+  animation: slideDown 0.2s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================================= */
+/* --- 5. INTERACTIVE SELF-CARE CHECKLIST --- */
+/* ========================================================= */
+.progress-card {
+  background: linear-gradient(135deg, var(--brand-primary), #1a73e8);
+  color: white;
+  padding: 28px;
+  border-radius: 20px;
+  margin-bottom: 28px;
+  box-shadow: 0 10px 20px rgba(13, 71, 161, 0.15);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.progress-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.progress-pct {
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.progress-bar-bg {
+  background: rgba(255, 255, 255, 0.2);
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  background: white;
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+
+.checklist-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .checklist-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checklist-group {
+  background: var(--surface-white);
+  border: 1px solid var(--slate-100);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+
+.checklist-group h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.checklist-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--slate-100);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.9rem;
+  color: var(--slate-700);
+}
+
+.checklist-label:hover {
+  background-color: var(--slate-50);
+  border-color: var(--slate-200);
+}
+
+.checklist-label.checked {
+  background-color: var(--brand-surface);
+  border-color: var(--brand-tint);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+.checklist-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--slate-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.checklist-checkbox.checked {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: white;
+}

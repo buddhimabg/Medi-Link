@@ -1,0 +1,84 @@
+/* =========================
+   MAIN CARD CONTAINER
+   ========================= */
+.quick-card {
+  background: rgb(244, 240, 240); /* Card background color */
+  border-radius: 12px; /* Rounded corners */
+  padding: 24px; /* Inner spacing */
+  border: 1px solid #e5e7eb; /* Light gray border */
+  width: 100%; /* Full width of container */
+  text-align: left; /* Align text to left */
+  cursor: pointer; /* Show clickable cursor */
+  transition: all 0.3s ease; /* Smooth hover animation */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* Light shadow */
+}
+
+/* =========================
+   HOVER EFFECT (CARD)
+   ========================= */
+.quick-card:hover {
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15); /* Stronger shadow on hover */
+}
+
+/* =========================
+   CONTENT LAYOUT (ICON + TEXT)
+   ========================= */
+.quick-card-content {
+  display: flex; /* Row layout */
+  align-items: flex-start; /* Align items to top */
+  gap: 16px; /* Space between icon and text */
+}
+
+/* =========================
+   ICON BACKGROUND CONTAINER
+   ========================= */
+.quick-card-icon {
+  padding: 12px; /* Space around icon */
+  border-radius: 12px; /* Rounded icon box */
+  background: rgba(12, 91, 213, 0.1); /* Light blue background */
+  transition: all 0.3s ease; /* Smooth hover effect */
+}
+
+/* Icon background changes when card is hovered */
+.quick-card:hover .quick-card-icon {
+  background: rgba(12, 91, 213, 0.2); /* Darker blue on hover */
+}
+
+/* =========================
+   ICON STYLE
+   ========================= */
+.icon {
+  width: 24px; /* Icon width */
+  height: 24px; /* Icon height */
+  color: #0C5BD5; /* Blue color */
+}
+
+/* =========================
+   TEXT CONTAINER
+   ========================= */
+.quick-card-text {
+  flex: 1; /* Take remaining space */
+}
+
+/* =========================
+   TITLE TEXT
+   ========================= */
+.quick-card-title {
+  font-weight: 600; /* Semi-bold text */
+  color: #1f2937; /* Dark gray */
+  transition: color 0.3s ease; /* Smooth color change */
+}
+
+/* Title color change on hover */
+.quick-card:hover .quick-card-title {
+  color: #0C5BD5; /* Blue highlight */
+}
+
+/* =========================
+   DESCRIPTION TEXT
+   ========================= */
+.quick-card-description {
+  font-size: 14px; /* Small text */
+  color: #6b7280; /* Gray text */
+  margin-top: 4px; /* Space above text */
+}

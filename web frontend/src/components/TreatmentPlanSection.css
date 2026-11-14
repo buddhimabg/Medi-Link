@@ -1,0 +1,798 @@
+/* ============================================
+   MEDILINK - Treatment Plan
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.mhos-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f1f4f9;
+  min-height: 100vh;
+  width: 100%;
+  border-radius: 0;
+}
+
+.mhos-loader {
+  padding: 40px 4px;
+  color: #64748b;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* ===== HEADER ===== */
+.mhos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+  background: transparent;
+}
+
+.mhos-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mhos-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.mhos-patient-info {
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+  color: #475569;
+  flex-wrap: wrap;
+}
+
+.mhos-patient-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.mhos-patient-meta {
+  color: #94a3b8;
+}
+
+/* ===== LOGOUT BUTTON ===== */
+.mhos-logout-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mhos-logout-btn:hover {
+  background: #fee2e2;
+  transform: translateY(-1px);
+}
+
+/* ===== SIDEBAR + MAIN CONTENT LAYOUT ===== */
+.mhos-dashboard-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  align-items: start;
+  flex: 1;
+}
+
+/* ===== SIDEBAR ===== */
+.mhos-sidebar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  position: sticky;
+  top: 20px;
+}
+
+.mhos-sidebar-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mhos-sidebar-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mhos-sidebar-menu li {
+  padding: 10px 14px;
+  margin-bottom: 2px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mhos-sidebar-menu li:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.mhos-sidebar-menu li.active {
+  background: #eff6ff;
+  color: #1a5bbf;
+  font-weight: 600;
+}
+
+.mhos-sidebar-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 12px 0;
+}
+
+/* ===== MAIN CONTENT ===== */
+.mhos-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ===== NOTICE ===== */
+.mhos-notice {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.mhos-notice.success {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.mhos-notice.info {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+/* ===== SECTIONS ===== */
+.mhos-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.mhos-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.mhos-section-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.mhos-section-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 12px;
+  border-radius: 999px;
+}
+
+/* ============================================
+   GOALS - CARD STYLE
+   ============================================ */
+.mhos-goals-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mhos-goal-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  transition: all 0.2s;
+}
+
+.mhos-goal-card:hover {
+  border-color: #b9c8dd;
+  background: #f1f5f9;
+}
+
+.mhos-goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.mhos-goal-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: #0f172a;
+  outline: none;
+  padding: 4px 0;
+  font-family: inherit;
+}
+
+.mhos-goal-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.mhos-goal-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.mhos-goal-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.mhos-goal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mhos-goal-detail label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+}
+
+.mhos-goal-detail .mhos-input-small {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.mhos-goal-detail .mhos-input-small:focus {
+  outline: none;
+  border-color: #1a5bbf;
+  box-shadow: 0 0 0 3px rgba(26, 91, 191, 0.08);
+}
+
+.mhos-goal-status-text {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+/* ============================================
+   GOAL INTERVENTIONS
+   ============================================ */
+.mhos-goal-interventions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.mhos-goal-interventions-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.mhos-goal-intervention-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.mhos-goal-intervention-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #ffffff;
+  transition: border-color 0.2s;
+}
+
+.mhos-goal-intervention-input:focus {
+  outline: none;
+  border-color: #1a5bbf;
+  box-shadow: 0 0 0 3px rgba(26, 91, 191, 0.08);
+}
+
+.mhos-add-goal-intervention-btn {
+  border: none;
+  background: none;
+  color: #1a5bbf;
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  transition: color 0.2s;
+}
+
+.mhos-add-goal-intervention-btn:hover {
+  color: #0d3e7c;
+  text-decoration: underline;
+}
+
+/* ============================================
+   STATUS BADGE
+   ============================================ */
+.mhos-status-badge {
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  background: #f1f5f9;
+  color: #64748b;
+  appearance: auto;
+}
+
+.mhos-status-badge.not-started {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.mhos-status-badge.in-progress {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.mhos-status-badge.achieved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mhos-status-badge.discontinued {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ============================================
+   ADD BUTTONS
+   ============================================ */
+.mhos-add-goal-btn,
+.mhos-add-intervention-btn {
+  border: none;
+  background: none;
+  color: #1a5bbf;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 4px 0;
+  margin-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+  width: 100%;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.mhos-add-goal-btn:hover,
+.mhos-add-intervention-btn:hover {
+  color: #0d3e7c;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+/* ============================================
+   INTERVENTIONS
+   ============================================ */
+.mhos-intervention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mhos-intervention-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.mhos-intervention-item:hover {
+  border-color: #b9c8dd;
+}
+
+.mhos-intervention-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 4px 4px;
+  font-size: 14px;
+  color: #0f172a;
+  font-family: inherit;
+  outline: none;
+}
+
+.mhos-intervention-input::placeholder {
+  color: #94a3b8;
+}
+
+/* ============================================
+   DELETE BUTTON WITH ICON - STYLED
+   ============================================ */
+.mhos-icon-btn-sm {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mhos-icon-btn-sm:hover {
+  background: #fee2e2;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
+.mhos-icon-btn-sm:active {
+  transform: scale(0.95);
+}
+
+.mhos-icon-btn-sm svg {
+  width: 14px;
+  height: 14px;
+  color: #dc2626;
+  display: block;
+}
+
+/* ============================================
+   PLAN HISTORY
+   ============================================ */
+.mhos-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mhos-history-item {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.mhos-history-date {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.mhos-history-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mhos-history-change {
+  font-size: 13px;
+  color: #475569;
+}
+
+.mhos-history-empty {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.mhos-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.mhos-btn-primary {
+  background: linear-gradient(180deg, #1d64ce 0%, #1a5bbf 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(26, 91, 191, 0.25);
+}
+
+.mhos-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(26, 91, 191, 0.3);
+}
+
+.mhos-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.mhos-btn-secondary {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.mhos-btn-secondary:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.mhos-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px 24px;
+  border: 1px solid #e2e8f0;
+}
+
+.mhos-footer-meta {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.mhos-footer-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1100px) {
+  .mhos-dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mhos-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    padding: 14px 18px;
+    align-items: center;
+  }
+
+  .mhos-sidebar-title {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .mhos-sidebar-menu {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .mhos-sidebar-menu li {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  .mhos-sidebar-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .mhos-shell {
+    padding: 16px;
+  }
+
+  .mhos-goal-details {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mhos-history-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 700px) {
+  .mhos-shell {
+    padding: 12px;
+  }
+
+  .mhos-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .mhos-patient-info {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .mhos-dashboard-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .mhos-sidebar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .mhos-sidebar-menu {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .mhos-sidebar-menu li {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .mhos-section {
+    padding: 14px 16px;
+  }
+
+  .mhos-goal-details {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .mhos-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .mhos-footer-actions {
+    flex-direction: column;
+  }
+
+  .mhos-footer-actions .mhos-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .mhos-shell {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  .mhos-title {
+    font-size: 20px;
+  }
+
+  .mhos-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .mhos-goal-card {
+    padding: 10px 12px;
+  }
+
+  .mhos-goal-input {
+    font-size: 14px;
+  }
+
+  .mhos-footer {
+    padding: 12px;
+  }
+
+  .mhos-footer-actions .mhos-btn {
+    font-size: 13px;
+    padding: 8px 16px;
+  }
+
+  .mhos-sidebar {
+    padding: 10px 12px;
+  }
+
+  .mhos-sidebar-menu li {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .mhos-goal-details {
+    grid-template-columns: 1fr;
+  }
+}

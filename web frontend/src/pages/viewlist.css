@@ -1,0 +1,266 @@
+/* viewlist.css - With Appointment Numbers */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* MAIN CONTAINER  */
+/* Page background with gradient */
+.viewlist-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8eef5 100%);
+  background-attachment: fixed;
+}
+
+/* Main content area - leaves space for sidebar */
+.viewlist-main {
+  flex: 1;
+  margin-left: 280px;
+  padding: 32px 48px;
+  width: calc(100% - 280px);
+  min-height: 100vh;
+}
+
+/*  BACK BUTTON */
+/* Button to return to schedule page */
+.back-button {
+  background: none;
+  border: none;
+  color: #1a5bbf;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 24px;
+  padding: 8px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+/* Hover effect - slides left */
+.back-button:hover {
+  color: #0d3e7c;
+  transform: translateX(-4px);
+}
+
+/*  PAGE HEADER  */
+.viewlist-header {
+  margin-bottom: 28px;
+}
+
+/* Page title */
+.viewlist-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a2a3a;
+  letter-spacing: -0.3px;
+}
+
+/* Separator (›) between breadcrumb items */
+.viewlist-header .separator {
+  color: #94a3b8;
+  margin: 0 8px;
+  font-weight: 400;
+}
+
+/*  SLOT INFO CARD  */
+/* Displays selected slot information */
+.slot-info-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  width: 100%;
+}
+
+/* Time display pill */
+.slot-time-display {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 10px 20px;
+  border-radius: 50px;
+}
+
+/* Start time (e.g., 09:00 AM) */
+.slot-time-start,
+.slot-time-end {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a2a3a;
+}
+
+/* Dash between start and end time */
+.slot-time-separator {
+  font-size: 18px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* Hospital name */
+.slot-hospital-name {
+  font-weight: 700;
+  color: #1a2a3a;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+/* Hospital location/address */
+.slot-hospital-location {
+  font-size: 13px;
+  color: #6c7a8a;
+}
+
+
+
+/* PATIENT TABLE */
+/* Table container with glassmorphism effect */
+.patient-table-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  width: 100%;
+}
+
+/* Patient table */
+.patient-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 500px;
+}
+
+/* Table header row */
+.patient-table thead {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Table header cells */
+.patient-table th {
+  text-align: left;
+  padding: 18px 24px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* Table data cells */
+.patient-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 14px;
+}
+
+/* Row hover effect */
+.patient-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.patient-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* APPOINTMENT NUMBER BADGE  */
+/* Column width for appointment number */
+.appointment-number-cell {
+  width: 140px;
+}
+
+/* Badge showing #01, #02, etc. */
+.appointment-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #e8f0fe, #d0e0fc);
+  color: #1a5bbf;
+  padding: 6px 14px;
+  border-radius: 40px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  min-width: 70px;
+}
+
+/* Patient name cell */
+.patient-name-cell {
+  font-weight: 600;
+  color: #1a2a3a;
+}
+
+/*  VIEW PROFILE BUTTON  */
+/* Blue gradient button */
+.view-profile-btn {
+  background: linear-gradient(135deg, #1a5bbf, #0d3e7c);
+  border: none;
+  color: white;
+  padding: 6px 20px;
+  border-radius: 40px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(26, 91, 191, 0.15);
+}
+
+/* Hover effect - lifts up */
+.view-profile-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 91, 191, 0.25);
+}
+
+/*  EMPTY STATE  */
+/* When no patients in the slot */
+.empty-table-cell {
+  text-align: center;
+  padding: 80px 20px !important;
+}
+
+.empty-state {
+  text-align: center;
+}
+
+/* Empty folder/email icon */
+.empty-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  color: #6c7a8a;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+/* Small hint text */
+.empty-hint {
+  font-size: 13px !important;
+  color: #94a3b8 !important;
+}
+
+/* Loading spinner area */
+.loading-state {
+  text-align: center;
+  padding: 100px 40px;
+  color: #6c7a8a;
+  font-size: 14px;
+}
+

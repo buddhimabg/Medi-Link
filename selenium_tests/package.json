@@ -1,0 +1,14 @@
+{
+  "name": "medilink-selenium-tests",
+  "version": "1.0.0",
+  "description": "Automated Selenium WebDriver UI tests for Medi-Link",
+  "main": "runAllTests.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node runAllTests.js"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "selenium-webdriver": "^4.27.0"
+  }
+}
