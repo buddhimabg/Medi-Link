@@ -244,7 +244,7 @@ const App: React.FC = () => {
           {/* Doctor-portal treatment scheduling (dev-nawodya) */}
           <Route
             path="/doctor-dashboard"
-            element={isDoctorLoggedIn ? <DoctorDashboardPage /> : <Navigate to="/login" />}
+            element={isDoctorLoggedIn ? <DoctorDashboardPage userId={doctorInfo?.id || localStorage.getItem("user_id")} /> : <Navigate to="/login" />}
           />
 
           <Route

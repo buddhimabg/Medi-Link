@@ -27,7 +27,11 @@ interface PatientSummary {
   lastVisit: string;
 }
 
-const DoctorDashboard: React.FC = () => {
+interface DoctorDashboardProps {
+  userId?: string | null;
+}
+
+const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ userId }) => {
   const navigate = useNavigate();
   const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
   const [todaySlots, setTodaySlots] = useState<TodaySlot[]>([]);
@@ -46,7 +50,7 @@ const DoctorDashboard: React.FC = () => {
     const load = async () => {
       setLoading(true);
       const [doctorResult, slotsResult, patientsResult] = await Promise.allSettled([
-        api.getDoctorProfile(),
+        userId ? api.getDoctorProfile(userId) : Promise.resolve(null),
         api.getSlotsByDate(api.getTodayDate()),
         api.getAllPatients(),
       ]);
@@ -58,7 +62,7 @@ const DoctorDashboard: React.FC = () => {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [userId]);
 
   const bookedToday = todaySlots.filter((s) => s.status === 'Booked');
 
