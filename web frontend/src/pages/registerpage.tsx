@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import "./RegisterPage.css";
+import "./registerpage.css";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Eye, EyeOff, ChevronDown } from "lucide-react";
 

@@ -15,7 +15,7 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import "./Sidebar.css";
+import "./sidebar.css";
 
 const Sidebar: React.FC = () => {
   // We use this to check which page is currently active so we can highlight it
